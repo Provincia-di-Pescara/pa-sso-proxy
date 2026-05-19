@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: proxy
+      POSTGRES_USER: proxy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - proxy_db_data:/var/lib/postgresql/data
+    networks:
+      - proxy-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proxy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  satosa:
+    image: python:3.12-slim
+    restart: unless-stopped
+    networks:
+      - proxy-internal
+    command: >
+      sh -c "python3 -c 'import time; print(\"satosa placeholder\"); time.sleep(86400)'"
+
+  config-api:
+    build: ./config-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://proxy:${POSTGRES_PASSWORD}@postgres:5432/proxy
+      - ADMIN_USER=${ADMIN_USER}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - SESSION_SECRET=${SESSION_SECRET:-changeme-generate-random-32chars}
+      - PROXY_HOSTNAME=${PROXY_HOSTNAME}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy-internal
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - config-api
+      - satosa
+    ports:
+      - "${PROXY_HOST_PORT:-127.0.0.1:18080}:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    networks:
+      - proxy-internal
+
+networks:
+  proxy-internal:
+    driver: bridge
+
+volumes:
+  proxy_db_data:
