@@ -13,6 +13,8 @@ class CieConfig(Base):
         nullable=False,
         default="https://idserver.servizicie.interno.gov.it/idp/shibboleth?Metadata",
     )
+    entity_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    client_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     oidc_federation_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     jwk_federation_id: Mapped[Optional[int]] = mapped_column(ForeignKey("jwk_keys.id"), nullable=True)
     jwk_core_sig_id: Mapped[Optional[int]] = mapped_column(ForeignKey("jwk_keys.id"), nullable=True)
