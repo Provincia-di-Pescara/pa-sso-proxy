@@ -11,7 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import AsyncSessionLocal
 from app.metadata_watcher import run_metadata_watcher
-from app.routes import dashboard, clients, idps, settings
+from app.routes import dashboard, clients, idps, settings, certs
 from app.spid_seeder import seed_spid_idps
 
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "changeme")
@@ -40,6 +40,7 @@ app.include_router(dashboard.router, prefix="/admin")
 app.include_router(clients.router, prefix="/admin")
 app.include_router(idps.router, prefix="/admin")
 app.include_router(settings.router, prefix="/admin")
+app.include_router(certs.router, prefix="/admin")
 
 
 @app.get("/health")

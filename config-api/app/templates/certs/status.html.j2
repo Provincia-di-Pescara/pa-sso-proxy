@@ -1,0 +1,31 @@
+{% extends "base.html.j2" %}
+{% block title %}Certificato SPID — PA SSO Proxy{% endblock %}
+{% block content %}
+<h2>Certificato SPID</h2>
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+{% if cert %}
+  {% set days_left = (cert.not_valid_after - now).days %}
+  {% if days_left < 90 %}
+  <div class="alert alert-warning">
+    Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}). Rigenera il certificato.
+  </div>
+  {% else %}
+  <div class="alert alert-success">
+    Certificato valido fino al <strong>{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</strong> ({{ days_left }} giorni rimanenti).
+  </div>
+  {% endif %}
+  <dl class="row mt-3">
+    <dt class="col-sm-3">Subject DN</dt>
+    <dd class="col-sm-9"><code>{{ cert.subject_dn }}</code></dd>
+    <dt class="col-sm-3">Generato il</dt>
+    <dd class="col-sm-9">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+  </dl>
+{% else %}
+<div class="alert alert-warning">Nessun certificato SPID configurato. Configura le impostazioni ente e genera il certificato.</div>
+{% endif %}
+<form method="post" action="/admin/certs/generate" class="mt-3">
+  <button type="submit" class="btn btn-primary">
+    {% if cert %}Rigenera certificato{% else %}Genera certificato{% endif %}
+  </button>
+</form>
+{% endblock %}
