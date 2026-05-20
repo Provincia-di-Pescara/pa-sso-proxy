@@ -86,3 +86,120 @@ async def test_client_reveal_shows_secret_once(auth_client):
     # Secret shown on first visit
     assert "Client ID" in create_resp.text
     assert "Client Secret" in create_resp.text
+
+
+async def test_client_list_shows_existing(auth_client, db_session):
+    c = OIDCClient(
+        client_id="existing-app",
+        client_secret_hash="hash",
+        name="Existing App",
+        redirect_uris=["https://existing.test/cb"],
+        allowed_scopes=["openid"],
+        enabled=True,
+    )
+    db_session.add(c)
+    await db_session.commit()
+
+    response = await auth_client.get("/admin/clients")
+    assert response.status_code == 200
+    assert "Existing App" in response.text
+    assert "existing-app" in response.text
+
+
+async def test_client_toggle_disables(auth_client, db_session):
+    from sqlalchemy import select as sa_select
+    c = OIDCClient(
+        client_id="to-toggle",
+        client_secret_hash="hash",
+        name="Toggle Me",
+        redirect_uris=["https://x.test/cb"],
+        allowed_scopes=["openid"],
+        enabled=True,
+    )
+    db_session.add(c)
+    await db_session.commit()
+    await db_session.refresh(c)
+
+    with patch("app.routes.clients.generate_and_write", new_callable=AsyncMock), \
+         patch("app.routes.clients.reload_satosa", return_value=True):
+        response = await auth_client.post(
+            f"/admin/clients/{c.id}/toggle", follow_redirects=False
+        )
+    assert response.status_code == 302
+
+    await db_session.refresh(c)
+    assert c.enabled is False
+
+
+async def test_client_delete_removes_record(auth_client, db_session):
+    from sqlalchemy import select as sa_select
+    c = OIDCClient(
+        client_id="to-delete",
+        client_secret_hash="hash",
+        name="Delete Me",
+        redirect_uris=["https://x.test/cb"],
+        allowed_scopes=["openid"],
+    )
+    db_session.add(c)
+    await db_session.commit()
+    await db_session.refresh(c)
+
+    with patch("app.routes.clients.generate_and_write", new_callable=AsyncMock), \
+         patch("app.routes.clients.reload_satosa", return_value=True):
+        response = await auth_client.post(
+            f"/admin/clients/{c.id}/delete", follow_redirects=False
+        )
+    assert response.status_code == 302
+
+    result = await db_session.execute(sa_select(OIDCClient).where(OIDCClient.id == c.id))
+    assert result.scalar_one_or_none() is None
+
+
+async def test_client_edit_form_shows_prefilled(auth_client, db_session):
+    c = OIDCClient(
+        client_id="editable-app",
+        client_secret_hash="hash",
+        name="Editable App",
+        redirect_uris=["https://edit.test/cb"],
+        allowed_scopes=["openid", "profile"],
+    )
+    db_session.add(c)
+    await db_session.commit()
+    await db_session.refresh(c)
+
+    response = await auth_client.get(f"/admin/clients/{c.id}/edit")
+    assert response.status_code == 200
+    assert "Editable App" in response.text
+    assert "https://edit.test/cb" in response.text
+
+
+async def test_client_edit_updates_record(auth_client, db_session):
+    c = OIDCClient(
+        client_id="update-app",
+        client_secret_hash="hash",
+        name="Old Name",
+        redirect_uris=["https://old.test/cb"],
+        allowed_scopes=["openid"],
+    )
+    db_session.add(c)
+    await db_session.commit()
+    await db_session.refresh(c)
+
+    with patch("app.routes.clients.generate_and_write", new_callable=AsyncMock), \
+         patch("app.routes.clients.reload_satosa", return_value=True):
+        response = await auth_client.post(
+            f"/admin/clients/{c.id}/edit",
+            data={
+                "name": "New Name",
+                "redirect_uris": "https://new.test/cb",
+                "scopes": ["openid", "email"],
+                "enabled": "1",
+            },
+            follow_redirects=False,
+        )
+    assert response.status_code == 302
+
+    await db_session.refresh(c)
+    assert c.name == "New Name"
+    assert c.redirect_uris == ["https://new.test/cb"]
+    assert "email" in c.allowed_scopes
