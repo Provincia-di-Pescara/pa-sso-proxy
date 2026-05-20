@@ -25,7 +25,7 @@ async def test_generate_writes_yaml(db_session, tmp_path, monkeypatch):
     data = yaml.safe_load(out.read_text())
     assert "myapp" in data["OIDCOP"]["clients"]
     assert data["OIDCOP"]["clients"]["myapp"]["redirect_uris"] == ["https://myapp.test/cb"]
-    assert data["OIDCOP"]["clients"]["myapp"]["client_secret"] == "$2b$12$fakehash"
+    assert data["OIDCOP"]["clients"]["myapp"]["client_secret"] == "{bcrypt}$2b$12$fakehash"
 
 
 async def test_generate_excludes_disabled_clients(db_session, tmp_path, monkeypatch):

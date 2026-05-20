@@ -15,7 +15,7 @@ async def generate_and_write(db: AsyncSession) -> None:
     clients_dict = {}
     for c in clients_rows:
         clients_dict[c.client_id] = {
-            "client_secret": c.client_secret_hash,
+            "client_secret": f"{{bcrypt}}{c.client_secret_hash}",
             "redirect_uris": list(c.redirect_uris),
             "allowed_scopes": list(c.allowed_scopes),
         }
