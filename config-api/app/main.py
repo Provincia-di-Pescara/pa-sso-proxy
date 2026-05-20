@@ -7,7 +7,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.database import AsyncSessionLocal
 from app.routes import dashboard, clients
+from app.spid_seeder import seed_spid_idps
 
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "changeme")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
@@ -18,6 +20,8 @@ templates = Jinja2Templates(directory="app/templates")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    async with AsyncSessionLocal() as session:
+        await seed_spid_idps(session)
     yield
 
 
