@@ -1,6 +1,8 @@
 import os
 from contextlib import asynccontextmanager
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -8,7 +10,8 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import AsyncSessionLocal
-from app.routes import dashboard, clients
+from app.metadata_watcher import run_metadata_watcher
+from app.routes import dashboard, clients, idps
 from app.spid_seeder import seed_spid_idps
 
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "changeme")
@@ -22,7 +25,11 @@ templates = Jinja2Templates(directory="app/templates")
 async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as session:
         await seed_spid_idps(session)
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(run_metadata_watcher, CronTrigger(hour=2, minute=0))
+    scheduler.start()
     yield
+    scheduler.shutdown()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -31,6 +38,7 @@ app.mount("/admin/static", StaticFiles(directory="app/static"), name="static")
 
 app.include_router(dashboard.router, prefix="/admin")
 app.include_router(clients.router, prefix="/admin")
+app.include_router(idps.router, prefix="/admin")
 
 
 @app.get("/health")
