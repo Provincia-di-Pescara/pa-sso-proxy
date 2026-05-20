@@ -1,0 +1,69 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Impostazioni Ente — PA SSO Proxy{% endblock %}
+
+{% block content %}
+<div style="max-width:640px">
+  <h2 class="mb-4">Impostazioni Ente</h2>
+
+  {% if error %}
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+  {% endif %}
+
+  {% if saved %}
+  <div class="alert alert-success" role="alert">Impostazioni salvate.</div>
+  {% endif %}
+
+  <form method="post" action="/admin/settings">
+    <div class="mb-3">
+      <label for="org_display_name" class="form-label">Nome visualizzato ente</label>
+      <input type="text" class="form-control" id="org_display_name" name="org_display_name"
+             value="{{ s.org_display_name if s else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="org_name" class="form-label">Nome ente (slug IPA) <span class="text-danger">*</span></label>
+      <input type="text" class="form-control" id="org_name" name="org_name" required
+             value="{{ s.org_name if s else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="org_url" class="form-label">URL ente</label>
+      <input type="url" class="form-control" id="org_url" name="org_url"
+             value="{{ s.org_url if s else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="proxy_hostname" class="form-label">Hostname proxy SSO <span class="text-danger">*</span></label>
+      <input type="text" class="form-control" id="proxy_hostname" name="proxy_hostname" required
+             value="{{ s.proxy_hostname if s else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="ipa_code" class="form-label">Codice IPA <span class="text-danger">*</span></label>
+      <input type="text" class="form-control" id="ipa_code" name="ipa_code" required
+             value="{{ s.ipa_code if s else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="contact_email" class="form-label">Email contatto tecnico</label>
+      <input type="email" class="form-control" id="contact_email" name="contact_email"
+             value="{{ s.contact_email if s else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="contact_phone" class="form-label">Telefono contatto tecnico</label>
+      <input type="text" class="form-control" id="contact_phone" name="contact_phone"
+             value="{{ s.contact_phone if s else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="org_city" class="form-label">Città sede ente <span class="text-danger">*</span></label>
+      <input type="text" class="form-control" id="org_city" name="org_city" required
+             value="{{ s.org_city if s else '' }}">
+    </div>
+
+    <button type="submit" class="btn btn-primary">Salva</button>
+  </form>
+</div>
+{% endblock %}
