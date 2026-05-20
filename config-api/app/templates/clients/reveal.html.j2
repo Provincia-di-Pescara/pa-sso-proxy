@@ -1,0 +1,16 @@
+{% extends "base.html.j2" %}
+{% block title %}Client creato — PA SSO Proxy{% endblock %}
+{% block content %}
+<div class="alert alert-success">
+  <h4 class="alert-heading">Client OIDC creato</h4>
+  <p><strong>Attenzione:</strong> il client secret è mostrato una sola volta. Copialo ora — non sarà più visibile.</p>
+  <hr>
+  {% if client_id %}
+  <p class="mb-1"><strong>Client ID:</strong> <code>{{ client_id }}</code></p>
+  <p class="mb-0"><strong>Client Secret:</strong> <code>{{ client_secret }}</code></p>
+  {% else %}
+  <p class="mb-0 text-muted">Secret già visualizzato o sessione scaduta.</p>
+  {% endif %}
+</div>
+<a href="/admin/clients" class="btn btn-primary mt-2">Vai alla lista clienti</a>
+{% endblock %}

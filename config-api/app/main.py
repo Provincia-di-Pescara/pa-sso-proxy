@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.routes import dashboard
+from app.routes import dashboard, clients
 
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "changeme")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
@@ -26,6 +26,7 @@ app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 app.mount("/admin/static", StaticFiles(directory="app/static"), name="static")
 
 app.include_router(dashboard.router, prefix="/admin")
+app.include_router(clients.router, prefix="/admin")
 
 
 @app.get("/health")
