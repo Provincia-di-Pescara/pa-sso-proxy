@@ -1,15 +1,76 @@
 {% extends "base.html.j2" %}
 {% block title %}Dashboard — PA SSO Proxy{% endblock %}
 {% block content %}
-<h2>Dashboard</h2>
-<div class="row mt-3">
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Dashboard</h2>
+  {% if settings and settings.proxy_hostname %}
+  <small class="text-muted">{{ settings.proxy_hostname }}</small>
+  {% else %}
+  <small class="text-warning">⚠ Impostazioni ente non configurate</small>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+
   <div class="col-md-3">
-    <div class="card text-bg-secondary">
+    <div class="card h-100 {% if satosa_status == 'running' %}border-success{% elif satosa_status == 'unavailable' %}border-secondary{% else %}border-warning{% endif %}">
       <div class="card-body">
-        <h5 class="card-title">SATOSA</h5>
-        <p class="card-text" id="satosa-status">Verifica in corso...</p>
+        <h6 class="card-subtitle mb-1 text-muted">SATOSA</h6>
+        <p class="card-text fs-5">
+          {% if satosa_status == 'running' %}
+            <span class="badge bg-success">running</span>
+          {% elif satosa_status == 'unavailable' %}
+            <span class="badge bg-secondary">unavailable</span>
+          {% else %}
+            <span class="badge bg-warning text-dark">{{ satosa_status }}</span>
+          {% endif %}
+        </p>
       </div>
     </div>
   </div>
+
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-subtitle mb-1 text-muted">Clienti OIDC</h6>
+        <p class="card-text fs-3 fw-bold">{{ clients_enabled }}<small class="fs-6 text-muted"> / {{ clients_total }}</small></p>
+        <p class="card-text"><small class="text-muted">abilitati / totali</small></p>
+        <a href="/admin/clients" class="btn btn-sm btn-outline-primary">Gestisci</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-subtitle mb-1 text-muted">Provider SPID</h6>
+        <p class="card-text fs-3 fw-bold">{{ idps_enabled }}<small class="fs-6 text-muted"> / {{ idps_total }}</small></p>
+        <p class="card-text"><small class="text-muted">abilitati / totali</small></p>
+        <a href="/admin/idps" class="btn btn-sm btn-outline-primary">Gestisci</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-3">
+    <div class="card h-100 {% if cert_days is not none and cert_days < 90 %}border-warning{% elif cert_days is not none %}border-success{% else %}border-secondary{% endif %}">
+      <div class="card-body">
+        <h6 class="card-subtitle mb-1 text-muted">Certificato SPID</h6>
+        {% if cert %}
+          {% if cert_days < 30 %}
+            <p class="card-text text-danger fw-bold">Scade in {{ cert_days }} giorni</p>
+          {% elif cert_days < 90 %}
+            <p class="card-text text-warning">Scade in {{ cert_days }} giorni</p>
+          {% else %}
+            <p class="card-text text-success">Valido ({{ cert_days }} giorni)</p>
+          {% endif %}
+          <p class="card-text"><small class="text-muted">{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</small></p>
+        {% else %}
+          <p class="card-text text-warning">Non configurato</p>
+        {% endif %}
+        <a href="/admin/certs" class="btn btn-sm btn-outline-primary">Dettagli</a>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
