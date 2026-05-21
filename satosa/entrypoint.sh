@@ -10,6 +10,6 @@ exec uwsgi \
     --callable app \
     --http-socket 0.0.0.0:8080 \
     --workers 2 \
-    --timeout 60 \
+    --harakiri 60 \
     --buffer-size 32768 \
     --touch-reload /satosa-conf/.reload

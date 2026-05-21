@@ -23,7 +23,9 @@ def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
         backend_modules.append("/satosa-conf/cie_oidc_backend.yaml")
     return {
         "BASE": f"https://{hostname}",
+        "INTERNAL_ATTRIBUTES": "/satosa_proxy/internal_attributes.yaml",
         "COOKIE_STATE_NAME": "satosa_state",
+        "STATE_ENCRYPTION_KEY": os.environ.get("SATOSA_STATE_ENCRYPTION_KEY", "changeme-generate-random-state-key-32chars"),
         "USER_ID_HASH_SALT": os.environ.get("SATOSA_HASH_SALT", "changeme"),
         "CONSENT": {"enable": False},
         "BACKEND_MODULES": backend_modules,
