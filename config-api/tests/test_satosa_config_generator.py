@@ -43,15 +43,84 @@ async def test_proxy_yaml_base(full_db, tmp_path, monkeypatch):
     assert proxy["BASE"] == "https://proxy.ente.it"
 
 
-async def test_proxy_yaml_has_three_plugins(full_db, tmp_path, monkeypatch):
+async def test_proxy_yaml_uses_backend_modules_format(full_db, tmp_path, monkeypatch):
     monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
     from app.satosa_config_generator import generate_satosa_config
     await generate_satosa_config(full_db)
     proxy = yaml.safe_load((tmp_path / "proxy.yaml").read_text())
-    plugin_names = [p["name"] for p in proxy["PLUGIN"]]
-    assert "oidc_frontend" in plugin_names
-    assert "spid_backend" in plugin_names
-    assert "cie_saml_backend" in plugin_names
+    assert "PLUGIN" not in proxy
+    assert "BACKEND_MODULES" in proxy
+    assert "FRONTEND_MODULES" in proxy
+    assert "/satosa-conf/spid_backend.yaml" in proxy["BACKEND_MODULES"]
+    assert "/satosa-conf/cie_saml_backend.yaml" in proxy["BACKEND_MODULES"]
+    assert "/satosa-conf/oidc_frontend.yaml" in proxy["FRONTEND_MODULES"]
+
+
+async def test_cie_oidc_not_in_backend_modules_when_disabled(full_db, tmp_path, monkeypatch):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+    proxy = yaml.safe_load((tmp_path / "proxy.yaml").read_text())
+    assert "/satosa-conf/cie_oidc_backend.yaml" not in proxy["BACKEND_MODULES"]
+    assert not (tmp_path / "cie_oidc_backend.yaml").exists()
+
+
+async def test_cie_oidc_backend_yaml_generated_when_enabled(db_session, tmp_path, monkeypatch):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.models import EnteSettings, CieConfig, JwkKey, SpidIdP
+
+    s = EnteSettings(
+        id=1, proxy_hostname="proxy.ente.it", org_name="Ente", org_display_name="Ente Test",
+        org_url="https://ente.it", ipa_code="P_T", contact_email="e@ente.it",
+        contact_phone="+39001", org_city="Roma",
+    )
+    idp = SpidIdP(alias="spid-aruba", display_name="Aruba", metadata_url="https://aruba/meta", enabled=True)
+    fed_key = JwkKey(name="cie-fed", use="federation",
+                     private_jwk={"kty": "EC", "crv": "P-256", "kid": "fed1"},
+                     public_jwk={"kty": "EC"})
+    sig_key = JwkKey(name="cie-sig", use="sig",
+                     private_jwk={"kty": "EC", "crv": "P-256", "kid": "sig1"},
+                     public_jwk={"kty": "EC"})
+    enc_key = JwkKey(name="cie-enc", use="enc",
+                     private_jwk={"kty": "EC", "crv": "P-256", "kid": "enc1"},
+                     public_jwk={"kty": "EC"})
+    db_session.add_all([s, idp, fed_key, sig_key, enc_key])
+    await db_session.commit()
+    await db_session.refresh(fed_key)
+    await db_session.refresh(sig_key)
+    await db_session.refresh(enc_key)
+
+    cie = CieConfig(
+        id=1,
+        saml_metadata_url="https://idserver.servizicie.interno.gov.it/idp/shibboleth?Metadata",
+        client_id="https://proxy.ente.it/CieOidcRp",
+        oidc_federation_enabled=True,
+        oidc_provider_url="https://preprod.oidc.interno.gov.it",
+        trust_anchor_url="https://registry.cie.gov.it",
+        authority_hint_url="https://registry.cie.gov.it",
+        trust_mark_id="https://registry.cie.gov.it/tm/rp",
+        trust_mark="eyJhbGciOiJFUzI1NiJ9.stub.sig",
+        oidc_contact_email="admin@ente.it",
+        jwk_federation_id=fed_key.id,
+        jwk_core_sig_id=sig_key.id,
+        jwk_core_enc_id=enc_key.id,
+    )
+    db_session.add(cie)
+    await db_session.commit()
+
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(db_session)
+
+    proxy = yaml.safe_load((tmp_path / "proxy.yaml").read_text())
+    assert "/satosa-conf/cie_oidc_backend.yaml" in proxy["BACKEND_MODULES"]
+
+    cie_yaml = yaml.safe_load((tmp_path / "cie_oidc_backend.yaml").read_text())
+    assert cie_yaml["module"] == "backends.cieoidc.CieOidcBackend"
+    assert cie_yaml["config"]["providers"] == ["https://preprod.oidc.interno.gov.it"]
+    assert cie_yaml["config"]["jwks"]["federation"] == [{"kty": "EC", "crv": "P-256", "kid": "fed1"}]
+    assert "entity_config_endpoint" in cie_yaml["config"]["endpoints"]
+    assert "authorization_endpoint" in cie_yaml["config"]["endpoints"]
+    assert "authorization_callback_endpoint" in cie_yaml["config"]["endpoints"]
 
 
 async def test_oidc_frontend_yaml_issuer(full_db, tmp_path, monkeypatch):
