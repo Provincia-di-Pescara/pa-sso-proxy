@@ -1,0 +1,2 @@
+fakeredis>=2.26
+pydantic>=2.0
