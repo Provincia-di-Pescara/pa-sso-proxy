@@ -151,20 +151,6 @@ def _cie_oidc_backend_yaml(
             "token_endpoint_auth_method": "private_key_jwt",
             "scope": "openid email",
             "code_challenge": {"length": 64, "method": "S256"},
-            "claim": {
-                "id_token": {
-                    "sub": {"essential": True},
-                    "family_name": {"essential": True},
-                    "given_name": {"essential": True},
-                },
-                "userinfo": {
-                    "sub": None,
-                    "given_name": None,
-                    "family_name": None,
-                    "email": {"essential": True},
-                    "https://attributes.eid.gov.it/fiscal_number": None,
-                },
-            },
             "claims": {
                 "id_token": {
                     "sub": {"essential": True},
@@ -303,7 +289,7 @@ def _cie_oidc_backend_yaml(
                                 "func": "backends.cieoidc.utils.helpers.misc.issuer_prefixed_sub",
                                 "kwargs": {"sep": "__"},
                             }],
-                            "first_name": ["given_name", "given_name"],
+                            "first_name": ["given_name", "first_name"],
                             "last_name": ["family_name", "last_name"],
                             "email": ["email", "email"],
                             "fiscal_number": [

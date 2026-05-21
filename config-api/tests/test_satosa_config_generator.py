@@ -158,3 +158,105 @@ async def test_no_generation_without_hostname(db_session, tmp_path, monkeypatch)
     from app.satosa_config_generator import generate_satosa_config
     await generate_satosa_config(db_session)
     assert not (tmp_path / "proxy.yaml").exists()
+
+
+async def test_cie_oidc_not_generated_when_flag_false(db_session, tmp_path, monkeypatch):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.models import EnteSettings, CieConfig, JwkKey, SpidIdP
+
+    s = EnteSettings(
+        id=1, proxy_hostname="proxy.ente.it", org_name="Ente", org_display_name="Ente Test",
+        org_url="https://ente.it", ipa_code="P_T", contact_email="e@ente.it",
+        contact_phone="+39001", org_city="Roma",
+    )
+    idp = SpidIdP(alias="spid-aruba", display_name="Aruba", metadata_url="https://aruba/meta", enabled=True)
+    fed_key = JwkKey(name="cie-fed2", use="federation",
+                     private_jwk={"kty": "EC", "crv": "P-256", "kid": "fed2"},
+                     public_jwk={"kty": "EC"})
+    sig_key = JwkKey(name="cie-sig2", use="sig",
+                     private_jwk={"kty": "EC", "crv": "P-256", "kid": "sig2"},
+                     public_jwk={"kty": "EC"})
+    enc_key = JwkKey(name="cie-enc2", use="enc",
+                     private_jwk={"kty": "EC", "crv": "P-256", "kid": "enc2"},
+                     public_jwk={"kty": "EC"})
+    db_session.add_all([s, idp, fed_key, sig_key, enc_key])
+    await db_session.commit()
+    await db_session.refresh(fed_key)
+    await db_session.refresh(sig_key)
+    await db_session.refresh(enc_key)
+
+    cie = CieConfig(
+        id=1,
+        saml_metadata_url="https://idserver.servizicie.interno.gov.it/idp/shibboleth?Metadata",
+        client_id="https://proxy.ente.it/CieOidcRp",
+        oidc_federation_enabled=False,  # explicitly disabled
+        oidc_provider_url="https://preprod.oidc.interno.gov.it",
+        trust_anchor_url="https://registry.cie.gov.it",
+        authority_hint_url="https://registry.cie.gov.it",
+        trust_mark_id="https://registry.cie.gov.it/tm/rp",
+        trust_mark="eyJhbGciOiJFUzI1NiJ9.stub.sig",
+        jwk_federation_id=fed_key.id,
+        jwk_core_sig_id=sig_key.id,
+        jwk_core_enc_id=enc_key.id,
+    )
+    db_session.add(cie)
+    await db_session.commit()
+
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(db_session)
+
+    proxy = yaml.safe_load((tmp_path / "proxy.yaml").read_text())
+    assert "/satosa-conf/cie_oidc_backend.yaml" not in proxy["BACKEND_MODULES"]
+    assert not (tmp_path / "cie_oidc_backend.yaml").exists()
+
+
+async def test_cie_oidc_callback_claims_mapping(db_session, tmp_path, monkeypatch):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.models import EnteSettings, CieConfig, JwkKey, SpidIdP
+
+    s = EnteSettings(
+        id=1, proxy_hostname="proxy.ente.it", org_name="Ente", org_display_name="Ente Test",
+        org_url="https://ente.it", ipa_code="P_T", contact_email="e@ente.it",
+        contact_phone="+39001", org_city="Roma",
+    )
+    idp = SpidIdP(alias="spid-aruba", display_name="Aruba", metadata_url="https://aruba/meta", enabled=True)
+    fed_key = JwkKey(name="cie-fed3", use="federation",
+                     private_jwk={"kty": "EC", "crv": "P-256", "kid": "fed3"},
+                     public_jwk={"kty": "EC"})
+    sig_key = JwkKey(name="cie-sig3", use="sig",
+                     private_jwk={"kty": "EC", "crv": "P-256", "kid": "sig3"},
+                     public_jwk={"kty": "EC"})
+    enc_key = JwkKey(name="cie-enc3", use="enc",
+                     private_jwk={"kty": "EC", "crv": "P-256", "kid": "enc3"},
+                     public_jwk={"kty": "EC"})
+    db_session.add_all([s, idp, fed_key, sig_key, enc_key])
+    await db_session.commit()
+    await db_session.refresh(fed_key)
+    await db_session.refresh(sig_key)
+    await db_session.refresh(enc_key)
+
+    cie = CieConfig(
+        id=1,
+        saml_metadata_url="https://idserver.servizicie.interno.gov.it/idp/shibboleth?Metadata",
+        client_id="https://proxy.ente.it/CieOidcRp",
+        oidc_federation_enabled=True,
+        oidc_provider_url="https://preprod.oidc.interno.gov.it",
+        trust_anchor_url="https://registry.cie.gov.it",
+        authority_hint_url="https://registry.cie.gov.it",
+        trust_mark_id="https://registry.cie.gov.it/tm/rp",
+        trust_mark="eyJhbGciOiJFUzI1NiJ9.stub.sig",
+        jwk_federation_id=fed_key.id,
+        jwk_core_sig_id=sig_key.id,
+        jwk_core_enc_id=enc_key.id,
+    )
+    db_session.add(cie)
+    await db_session.commit()
+
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(db_session)
+
+    cie_yaml = yaml.safe_load((tmp_path / "cie_oidc_backend.yaml").read_text())
+    callback_claims = cie_yaml["config"]["endpoints"]["authorization_callback_endpoint"]["config"]["claims"]
+    assert callback_claims["first_name"] == ["given_name", "first_name"]
+    assert callback_claims["last_name"] == ["family_name", "last_name"]
+    assert callback_claims["email"] == ["email", "email"]
