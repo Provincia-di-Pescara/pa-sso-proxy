@@ -17,14 +17,24 @@ services:
       retries: 5
 
   satosa:
-    image: python:3.12-slim
+    build: ./satosa
     restart: unless-stopped
-    networks:
-      - proxy-internal
+    depends_on:
+      config-api:
+        condition: service_healthy
+    environment:
+      - SATOSA_CONFIG=/satosa-conf/proxy.yaml
+      - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
     volumes:
       - proxy_satosa_conf:/satosa-conf
-    command: >
-      sh -c "python3 -c 'import time; print(\"satosa placeholder\"); time.sleep(86400)'"
+    networks:
+      - proxy-internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/.well-known/openid-configuration || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
 
   config-api:
     build: ./config-api
