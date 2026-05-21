@@ -1,75 +1,81 @@
-name: Build & Push Docker Images
+name: Docker Publish
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
+    branches: ["main", "dev"]
+    tags: ["v*.*.*"]
+    paths:
+      - "satosa/**"
+      - "config-api/**"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    paths:
+      - "satosa/**"
+      - "config-api/**"
+      - ".github/workflows/docker.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: pa-sso-proxy
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-satosa:
-    name: satosa
+  build-images:
+    name: Build ${{ matrix.image }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: satosa
+            context: ./satosa
+            scope: satosa
+          - image: config-api
+            context: ./config-api
+            scope: config-api
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-      - uses: docker/login-action@v3
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/metadata-action@v5
+      - name: Generate image metadata
         id: meta
+        uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/provincia-di-pescara/pa-sso-proxy-satosa
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
 
-      - uses: docker/build-push-action@v6
+      - name: Build and push
+        uses: docker/build-push-action@v7
         with:
-          context: ./satosa
-          push: true
+          context: ${{ matrix.context }}
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  build-config-api:
-    name: config-api
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ghcr.io/provincia-di-pescara/pa-sso-proxy-config-api
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: ./config-api
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=${{ matrix.scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.scope }}
