@@ -76,3 +76,14 @@ def test_close_sets_client_none():
     storage = _make_storage()
     storage.close()
     assert storage._client is None
+
+
+def test_update_session_preserves_ttl():
+    storage = _make_storage()
+    entity = OidcAuthentication(id="abc123", state="state-xyz", client_id="c1")
+    storage.add_session(entity)
+    ttl_before = storage._client.ttl(b"cie:sess:abc123")
+    entity.access_token = "tok"
+    storage.update_session(entity)
+    ttl_after = storage._client.ttl(b"cie:sess:abc123")
+    assert ttl_after <= ttl_before

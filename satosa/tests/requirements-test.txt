@@ -1,2 +1,4 @@
 fakeredis>=2.26
 pydantic>=2.0
+redis>=4.6
+pytest>=7.0
