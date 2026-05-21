@@ -71,6 +71,8 @@ def upgrade() -> None:
     op.create_table(
         "cie_config",
         sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("entity_id", sa.Text(), nullable=True),
+        sa.Column("client_id", sa.Text(), nullable=True),
         sa.Column(
             "saml_metadata_url",
             sa.Text(),

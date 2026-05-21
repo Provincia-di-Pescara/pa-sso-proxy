@@ -17,6 +17,8 @@ from app.satosa_generator import generate_and_write
 from app.spid_seeder import seed_spid_idps
 
 _CIE_OIDC_COLUMNS = [
+    "entity_id",
+    "client_id",
     "oidc_provider_url",
     "trust_anchor_url",
     "authority_hint_url",

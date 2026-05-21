@@ -151,7 +151,7 @@ def _cie_oidc_backend_yaml(
             "token_endpoint_auth_method": "private_key_jwt",
             "scope": "openid email",
             "code_challenge": {"length": 64, "method": "S256"},
-            "claims": {
+            "claim": {
                 "id_token": {
                     "sub": {"essential": True},
                     "family_name": {"essential": True},
