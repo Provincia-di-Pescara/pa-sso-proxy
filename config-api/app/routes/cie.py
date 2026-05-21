@@ -110,7 +110,7 @@ async def cie_config_post(
     try:
         await generate_and_write(db)
     except Exception:
-        pass
+        logger.warning("generate_and_write failed after CIE config save", exc_info=True)
 
     return RedirectResponse("/admin/cie", status_code=302)
 
