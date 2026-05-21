@@ -14,29 +14,36 @@ branch_labels = None
 depends_on = None
 
 
+TARGET_COLUMNS = (
+    ("entity_id", sa.Text()),
+    ("client_id", sa.Text()),
+    ("oidc_provider_url", sa.Text()),
+    ("trust_anchor_url", sa.Text()),
+    ("authority_hint_url", sa.Text()),
+    ("homepage_uri", sa.Text()),
+    ("policy_uri", sa.Text()),
+    ("logo_uri", sa.Text()),
+    ("trust_mark_id", sa.Text()),
+    ("trust_mark", sa.Text()),
+    ("oidc_contact_email", sa.Text()),
+)
+
+
+def _existing_columns(table_name: str) -> set[str]:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    return {col["name"] for col in inspector.get_columns(table_name)}
+
+
 def upgrade() -> None:
-    op.add_column("cie_config", sa.Column("entity_id", sa.Text(), nullable=True))
-    op.add_column("cie_config", sa.Column("client_id", sa.Text(), nullable=True))
-    op.add_column("cie_config", sa.Column("oidc_provider_url", sa.Text(), nullable=True))
-    op.add_column("cie_config", sa.Column("trust_anchor_url", sa.Text(), nullable=True))
-    op.add_column("cie_config", sa.Column("authority_hint_url", sa.Text(), nullable=True))
-    op.add_column("cie_config", sa.Column("homepage_uri", sa.Text(), nullable=True))
-    op.add_column("cie_config", sa.Column("policy_uri", sa.Text(), nullable=True))
-    op.add_column("cie_config", sa.Column("logo_uri", sa.Text(), nullable=True))
-    op.add_column("cie_config", sa.Column("trust_mark_id", sa.Text(), nullable=True))
-    op.add_column("cie_config", sa.Column("trust_mark", sa.Text(), nullable=True))
-    op.add_column("cie_config", sa.Column("oidc_contact_email", sa.Text(), nullable=True))
+    existing = _existing_columns("cie_config")
+    for column_name, column_type in TARGET_COLUMNS:
+        if column_name not in existing:
+            op.add_column("cie_config", sa.Column(column_name, column_type, nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column("cie_config", "oidc_contact_email")
-    op.drop_column("cie_config", "trust_mark")
-    op.drop_column("cie_config", "trust_mark_id")
-    op.drop_column("cie_config", "logo_uri")
-    op.drop_column("cie_config", "policy_uri")
-    op.drop_column("cie_config", "homepage_uri")
-    op.drop_column("cie_config", "authority_hint_url")
-    op.drop_column("cie_config", "trust_anchor_url")
-    op.drop_column("cie_config", "oidc_provider_url")
-    op.drop_column("cie_config", "client_id")
-    op.drop_column("cie_config", "entity_id")
+    existing = _existing_columns("cie_config")
+    for column_name, _ in reversed(TARGET_COLUMNS):
+        if column_name in existing:
+            op.drop_column("cie_config", column_name)
