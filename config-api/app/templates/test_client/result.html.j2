@@ -1,0 +1,41 @@
+{% extends "base.html.j2" %}
+{% block title %}Risultato autenticazione — PA SSO Proxy{% endblock %}
+{% block content %}
+
+{% if success %}
+<div class="alert alert-success d-flex align-items-center mb-4">
+  <span class="fs-4 me-2">✓</span>
+  <strong>Autenticazione completata con successo</strong>
+</div>
+
+<h4>Claims ID Token</h4>
+<pre class="bg-light p-3 rounded border" style="font-size:13px">{{ claims }}</pre>
+
+<h4 class="mt-4">Token Response</h4>
+<pre class="bg-light p-3 rounded border" style="font-size:13px">{{ token_response }}</pre>
+
+<h4 class="mt-4">ID Token (JWT raw)</h4>
+<pre class="bg-light p-3 rounded border" style="font-size:11px; word-break:break-all; white-space:pre-wrap">{{ id_token }}</pre>
+
+{% else %}
+<div class="alert alert-danger d-flex align-items-center mb-4">
+  <span class="fs-4 me-2">✗</span>
+  <div>
+    <strong>Errore: {{ error }}</strong>
+    {% if error_description %}<br><span class="small">{{ error_description }}</span>{% endif %}
+  </div>
+</div>
+
+{% if raw %}
+<h4>Risposta raw</h4>
+<pre class="bg-light p-3 rounded border" style="font-size:13px">{{ raw }}</pre>
+{% endif %}
+{% endif %}
+
+<div class="mt-4">
+  <a href="/admin/test-client" class="btn btn-outline-secondary">← Torna al test client</a>
+  {% if success %}
+  <a href="/admin/test-client/start" class="btn btn-success ms-2">▶ Nuova autenticazione</a>
+  {% endif %}
+</div>
+{% endblock %}

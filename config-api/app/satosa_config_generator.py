@@ -32,7 +32,7 @@ def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
     if include_cie_oidc:
         backend_modules.append("/satosa-conf/cie_oidc_backend.yaml")
     return {
-        "BASE": os.environ.get("PROXY_BASE_URL", f"https://{hostname}"),
+        "BASE": _base_url(hostname),
         "INTERNAL_ATTRIBUTES": "/satosa_proxy/internal_attributes.yaml",
         "COOKIE_STATE_NAME": "satosa_state",
         "STATE_ENCRYPTION_KEY": os.environ.get("SATOSA_STATE_ENCRYPTION_KEY", "changeme-generate-random-state-key-32chars"),
@@ -124,7 +124,7 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
         "module": _SPID_BACKEND_CLASS,
         "config": {
             "template_folder": "/satosa_proxy/templates",
-            "static_storage_url": f"https://{hostname}/static",
+            "static_storage_url": f"{_base_url(hostname)}/static",
             "error_template": "spid_login_error.html",
             "entityid_endpoint": True,
             "spid_allowed_acrs": [
@@ -135,7 +135,7 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
             "spid_acr_comparison": "minimum",
             "acr_mapping": {"": "https://www.spid.gov.it/SpidL2"},
             "sp_config": sp_config,
-            "disco_srv": f"https://{hostname}/static/disco.html",
+            "disco_srv": f"{_base_url(hostname)}/static/disco.html",
         },
     }
 
@@ -200,11 +200,11 @@ def _cie_saml_backend_yaml(hostname: str, cie_metadata_url: str, cert_path: str,
         "module": _CIE_SAML_BACKEND_CLASS,
         "config": {
             "template_folder": "/satosa_proxy/templates",
-            "static_storage_url": f"https://{hostname}/static",
+            "static_storage_url": f"{_base_url(hostname)}/static",
             "error_template": "spid_login_error.html",
             "entityid_endpoint": True,
             "sp_config": sp_config,
-            "disco_srv": f"https://{hostname}/static/disco.html",
+            "disco_srv": f"{_base_url(hostname)}/static/disco.html",
         },
     }
 
@@ -550,7 +550,7 @@ async def generate_satosa_config(db: AsyncSession) -> None:
     clients = result.scalars().all()
     client_db = {
         c.client_id: {
-            "client_secret": c.client_secret_hash,
+            "client_secret": c.client_secret_plain or c.client_secret_hash,
             "redirect_uris": list(c.redirect_uris),
             "allowed_scopes": list(c.allowed_scopes),
             "response_types": ["code"],

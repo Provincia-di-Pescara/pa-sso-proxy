@@ -64,6 +64,7 @@ async def clients_create(
     c = OIDCClient(
         client_id=client_id,
         client_secret_hash=secret_hash,
+        client_secret_plain=client_secret,
         name=name,
         redirect_uris=uris,
         allowed_scopes=scopes or ["openid"],

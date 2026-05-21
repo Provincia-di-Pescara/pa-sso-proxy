@@ -57,6 +57,18 @@ async def _migrate_cie_oidc_columns() -> None:
                 await conn.execute(text(f"ALTER TABLE cie_config ADD COLUMN {col} TEXT"))
 
 
+async def _migrate_client_secret_plain() -> None:
+    async with engine.begin() as conn:
+        has_table = await conn.run_sync(lambda c: inspect(c).has_table("oidc_clients"))
+        if not has_table:
+            return
+        existing = await conn.run_sync(
+            lambda c: {col["name"] for col in inspect(c).get_columns("oidc_clients")}
+        )
+        if "client_secret_plain" not in existing:
+            await conn.execute(text("ALTER TABLE oidc_clients ADD COLUMN client_secret_plain VARCHAR(256)"))
+
+
 async def _migrate_spid_registry_columns() -> None:
     """Add SPID registry cache columns to spid_idps if not present (idempotent)."""
     async with engine.begin() as conn:
@@ -82,6 +94,7 @@ templates = Jinja2Templates(directory="app/templates")
 async def lifespan(app: FastAPI):
     await _migrate_cie_oidc_columns()
     await _migrate_spid_registry_columns()
+    await _migrate_client_secret_plain()
     async with AsyncSessionLocal() as session:
         await seed_spid_idps(session)
         try:

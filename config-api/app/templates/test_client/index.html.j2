@@ -1,0 +1,54 @@
+{% extends "base.html.j2" %}
+{% block title %}Test Client OIDC — PA SSO Proxy{% endblock %}
+{% block content %}
+<h2>Test Client OIDC</h2>
+<p class="text-muted">Testa il flusso OIDC PKCE end-to-end senza uscire dall'admin.</p>
+
+{% if not client or not has_secret %}
+<div class="card border-warning mb-4">
+  <div class="card-header bg-warning-subtle">
+    <strong>Setup necessario</strong>
+  </div>
+  <div class="card-body">
+    <p>Il client di test non è ancora configurato. Clicca il pulsante per crearlo automaticamente.</p>
+    <p class="text-muted small">
+      Verrà creato un client OIDC dedicato (<code>{{ test_client_id }}</code>) con redirect URI:
+      <br><code>{{ callback_uri }}</code>
+    </p>
+    <p class="text-muted small">
+      Dopo la creazione, SATOSA si ricarica automaticamente (~5 secondi). Attendi prima di avviare il test.
+    </p>
+    <form method="post" action="/admin/test-client/setup">
+      <button type="submit" class="btn btn-warning">
+        {% if client %}Rigenera secret{% else %}Crea client di test{% endif %}
+      </button>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="card border-success mb-4">
+  <div class="card-header bg-success-subtle">
+    <strong>Client configurato</strong>
+  </div>
+  <div class="card-body">
+    <table class="table table-sm mb-3">
+      <tr><td class="fw-bold" style="width:160px">Client ID</td><td><code>{{ test_client_id }}</code></td></tr>
+      <tr><td class="fw-bold">Redirect URI</td><td><code>{{ callback_uri }}</code></td></tr>
+      <tr><td class="fw-bold">Scopes</td><td><code>openid profile email</code></td></tr>
+      <tr><td class="fw-bold">PKCE</td><td>S256 ✓</td></tr>
+    </table>
+    <a href="/admin/test-client/start" class="btn btn-success btn-lg">
+      ▶ Avvia autenticazione SPID / CIE
+    </a>
+    <form method="post" action="/admin/test-client/setup" class="d-inline ms-2">
+      <button type="submit" class="btn btn-outline-secondary btn-sm">Rigenera secret</button>
+    </form>
+  </div>
+</div>
+<div class="alert alert-info">
+  <strong>Come funziona:</strong> cliccando "Avvia" verrai reindirizzato alla pagina di scelta provider (SPID/CIE).
+  Dopo l'autenticazione, tornerai qui con i claims dell'utente.
+  <br>In ambiente di test locale i provider SPID reali non sono raggiungibili — puoi comunque verificare la discovery page e il flusso OIDC fino al redirect verso l'IdP.
+</div>
+{% endif %}
+{% endblock %}
