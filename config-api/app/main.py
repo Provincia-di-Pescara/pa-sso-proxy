@@ -32,12 +32,14 @@ _CIE_OIDC_COLUMNS = [
 async def _migrate_cie_oidc_columns() -> None:
     """Add CIE OIDC Federation columns to cie_config if not present (idempotent)."""
     async with engine.begin() as conn:
-        try:
-            existing = await conn.run_sync(
-                lambda c: {col["name"] for col in inspect(c).get_columns("cie_config")}
-            )
-        except Exception:
-            return  # Table doesn't exist yet — create_all handles it
+        has_table = await conn.run_sync(
+            lambda c: inspect(c).has_table("cie_config")
+        )
+        if not has_table:
+            return
+        existing = await conn.run_sync(
+            lambda c: {col["name"] for col in inspect(c).get_columns("cie_config")}
+        )
         for col in _CIE_OIDC_COLUMNS:
             if col not in existing:
                 await conn.execute(text(f"ALTER TABLE cie_config ADD COLUMN {col} TEXT"))
