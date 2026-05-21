@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 import yaml
 from app.models import OIDCClient
 
@@ -59,3 +60,25 @@ async def test_generate_empty_clients(db_session, tmp_path, monkeypatch):
     out = tmp_path / "oidcop_clients.yaml"
     data = yaml.safe_load(out.read_text())
     assert data["OIDCOP"]["clients"] == {}
+
+
+@pytest_asyncio.fixture
+async def settings_for_gen(db_session):
+    from app.models import EnteSettings
+    s = EnteSettings(
+        id=1, proxy_hostname="proxy.ente.it", org_name="Ente", org_display_name="Ente",
+        org_url="https://ente.it", ipa_code="P_TEST", contact_email="e@e.it",
+        contact_phone="0", org_city="Roma",
+    )
+    db_session.add(s)
+    await db_session.commit()
+    return db_session
+
+
+async def test_generate_and_write_also_writes_satosa_config(settings_for_gen, tmp_path, monkeypatch):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.satosa_generator import generate_and_write
+    await generate_and_write(settings_for_gen)
+    assert (tmp_path / "oidcop_clients.yaml").exists()
+    assert (tmp_path / "proxy.yaml").exists()
+    assert (tmp_path / "oidc_frontend.yaml").exists()

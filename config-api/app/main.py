@@ -12,6 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.database import AsyncSessionLocal
 from app.metadata_watcher import run_metadata_watcher
 from app.routes import dashboard, clients, idps, settings, certs, cie
+from app.satosa_generator import generate_and_write
 from app.spid_seeder import seed_spid_idps
 
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "changeme")
@@ -25,6 +26,10 @@ templates = Jinja2Templates(directory="app/templates")
 async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as session:
         await seed_spid_idps(session)
+        try:
+            await generate_and_write(session)
+        except Exception:
+            pass
     scheduler = AsyncIOScheduler()
     scheduler.add_job(run_metadata_watcher, CronTrigger(hour=2, minute=0))
     scheduler.start()

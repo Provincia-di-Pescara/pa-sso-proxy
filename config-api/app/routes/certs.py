@@ -57,4 +57,12 @@ async def certs_generate(request: Request, db: AsyncSession = Depends(get_db)):
         )
     db.add(cert_obj)
     await db.commit()
+    import asyncio
+    from app.spid_cert_writer import write_spid_cert
+    from app.satosa_generator import generate_and_write
+    try:
+        await asyncio.to_thread(write_spid_cert, cert_obj)
+        await generate_and_write(db)
+    except Exception:
+        pass
     return RedirectResponse("/admin/certs", status_code=302)
