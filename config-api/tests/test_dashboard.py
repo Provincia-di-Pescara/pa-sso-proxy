@@ -57,3 +57,37 @@ async def test_health_endpoint(app_env):
         response = await client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_satosa_status_running():
+    from unittest.mock import AsyncMock, MagicMock, patch
+    import httpx as _httpx
+    from app.routes.dashboard import _satosa_status
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(return_value=MagicMock(status_code=200))
+
+    with patch("app.routes.dashboard.httpx.AsyncClient", return_value=mock_client):
+        status = await _satosa_status()
+
+    assert status == "running"
+
+
+@pytest.mark.asyncio
+async def test_satosa_status_unreachable():
+    from unittest.mock import AsyncMock, patch
+    import httpx as _httpx
+    from app.routes.dashboard import _satosa_status
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(side_effect=_httpx.ConnectError("refused"))
+
+    with patch("app.routes.dashboard.httpx.AsyncClient", return_value=mock_client):
+        status = await _satosa_status()
+
+    assert status == "unreachable"

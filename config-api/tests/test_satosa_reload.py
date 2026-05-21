@@ -1,33 +1,25 @@
+import os
 from unittest.mock import MagicMock, patch
 
+import pytest
 
-def test_reload_satosa_success():
-    mock_container = MagicMock()
-    mock_client = MagicMock()
-    mock_client.containers.get.return_value = mock_container
+from app.satosa_reload import reload_satosa
 
-    with patch("app.satosa_reload.docker.from_env", return_value=mock_client):
-        from app.satosa_reload import reload_satosa
+
+def test_reload_satosa_success(tmp_path):
+    with patch.dict(os.environ, {"SATOSA_CONF_DIR": str(tmp_path)}):
         result = reload_satosa()
 
     assert result is True
-    mock_container.restart.assert_called_once_with(timeout=10)
+    assert (tmp_path / ".reload").exists()
 
 
-def test_reload_satosa_container_not_found():
-    mock_client = MagicMock()
-    mock_client.containers.get.side_effect = Exception("container not found")
+def test_reload_satosa_returns_false_on_error():
+    fake_path = MagicMock()
+    fake_path.touch.side_effect = OSError("permission denied")
 
-    with patch("app.satosa_reload.docker.from_env", return_value=mock_client):
-        from app.satosa_reload import reload_satosa
-        result = reload_satosa()
-
-    assert result is False
-
-
-def test_reload_satosa_docker_unavailable():
-    with patch("app.satosa_reload.docker.from_env", side_effect=Exception("socket not found")):
-        from app.satosa_reload import reload_satosa
+    with patch("app.satosa_reload.Path", return_value=fake_path), \
+         patch.dict(os.environ, {"SATOSA_CONF_DIR": "/satosa-conf"}):
         result = reload_satosa()
 
     assert result is False

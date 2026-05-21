@@ -59,9 +59,7 @@ services:
       - SESSION_SECRET=${SESSION_SECRET:-changeme-generate-random-32chars}
       - PROXY_HOSTNAME=${PROXY_HOSTNAME}
       - SATOSA_CONF_DIR=/satosa-conf
-      - SATOSA_CONTAINER_NAME=pa-sso-proxy-satosa-1
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - proxy_satosa_conf:/satosa-conf
     networks:
       - proxy-internal

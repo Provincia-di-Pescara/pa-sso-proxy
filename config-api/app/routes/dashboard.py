@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone
 
-import docker
+import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -14,16 +14,16 @@ from app.models import EnteSettings, OIDCClient, SpidCert, SpidIdP
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
-SATOSA_CONTAINER_NAME = os.environ.get("SATOSA_CONTAINER_NAME", "pa-sso-proxy-satosa-1")
+SATOSA_INTERNAL_URL = os.environ.get("SATOSA_INTERNAL_URL", "http://satosa:8080")
 
 
-def _satosa_status() -> str:
+async def _satosa_status() -> str:
     try:
-        client = docker.from_env()
-        container = client.containers.get(SATOSA_CONTAINER_NAME)
-        return container.status
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            await client.get(SATOSA_INTERNAL_URL)
+        return "running"
     except Exception:
-        return "unavailable"
+        return "unreachable"
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -54,5 +54,5 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "cert": cert_row,
         "cert_days": cert_days,
         "settings": settings,
-        "satosa_status": _satosa_status(),
+        "satosa_status": await _satosa_status(),
     })

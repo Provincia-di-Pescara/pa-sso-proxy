@@ -1,14 +1,11 @@
 import os
-import docker
-
-SATOSA_CONTAINER_NAME = os.environ.get("SATOSA_CONTAINER_NAME", "pa-sso-proxy-satosa-1")
+from pathlib import Path
 
 
 def reload_satosa() -> bool:
+    conf_dir = os.environ.get("SATOSA_CONF_DIR", "/satosa-conf")
     try:
-        client = docker.from_env()
-        container = client.containers.get(SATOSA_CONTAINER_NAME)
-        container.restart(timeout=10)
+        Path(conf_dir, ".reload").touch()
         return True
     except Exception:
         return False
