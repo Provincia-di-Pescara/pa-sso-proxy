@@ -120,3 +120,39 @@ async def test_cie_config_has_oidc_fields(db_session):
     assert config.oidc_provider_url == "https://oidc.provider.it"
     assert config.trust_mark == "eyJhbGciOiJFUzI1NiJ9.stub"
     assert config.oidc_contact_email == "admin@ente.it"
+
+
+async def test_cie_save_oidc_federation_fields(auth_client, db_session, tmp_path, monkeypatch):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    response = await auth_client.post(
+        "/admin/cie",
+        data={
+            "saml_metadata_url": "https://idserver.servizicie.interno.gov.it/idp/shibboleth",
+            "entity_id": "",
+            "client_id": "https://proxy.ente.it/CieOidcRp",
+            "jwk_federation_id": "",
+            "jwk_core_sig_id": "",
+            "jwk_core_enc_id": "",
+            "oidc_federation_enabled": "on",
+            "oidc_provider_url": "https://preprod.oidc.interno.gov.it",
+            "trust_anchor_url": "https://registry.cie.gov.it",
+            "authority_hint_url": "https://registry.cie.gov.it",
+            "homepage_uri": "https://ente.it",
+            "policy_uri": "",
+            "logo_uri": "",
+            "trust_mark_id": "https://registry.cie.gov.it/tm/rp",
+            "trust_mark": "eyJhbGciOiJFUzI1NiJ9.stub",
+            "oidc_contact_email": "admin@ente.it",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    result = await db_session.execute(select(CieConfig).where(CieConfig.id == 1))
+    config = result.scalar_one_or_none()
+    assert config is not None
+    assert config.oidc_federation_enabled is True
+    assert config.trust_mark == "eyJhbGciOiJFUzI1NiJ9.stub"
+    assert config.trust_mark_id == "https://registry.cie.gov.it/tm/rp"
+    assert config.authority_hint_url == "https://registry.cie.gov.it"
+    assert config.oidc_contact_email == "admin@ente.it"

@@ -56,7 +56,71 @@
       {% endfor %}
     </select>
   </div>
-  <button type="submit" class="btn btn-primary">Salva configurazione</button>
+  <div class="card mt-4">
+    <div class="card-header">
+      <h5 class="mb-0">OIDC Federation (CIE 1.0)</h5>
+    </div>
+    <div class="card-body">
+      <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" role="switch"
+               id="oidc_federation_enabled" name="oidc_federation_enabled"
+               {% if config and config.oidc_federation_enabled %}checked{% endif %}>
+        <label class="form-check-label" for="oidc_federation_enabled">Abilita backend CIE OIDC Federation</label>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-12">
+          <label class="form-label">Provider URL (oidc_provider_url)</label>
+          <input type="text" class="form-control" name="oidc_provider_url"
+                 value="{{ config.oidc_provider_url or '' if config else '' }}"
+                 placeholder="https://preprod.oidc.interno.gov.it">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Trust Anchor URL</label>
+          <input type="text" class="form-control" name="trust_anchor_url"
+                 value="{{ config.trust_anchor_url or '' if config else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Authority Hint URL</label>
+          <input type="text" class="form-control" name="authority_hint_url"
+                 value="{{ config.authority_hint_url or '' if config else '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Homepage URI</label>
+          <input type="text" class="form-control" name="homepage_uri"
+                 value="{{ config.homepage_uri or '' if config else '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Policy URI</label>
+          <input type="text" class="form-control" name="policy_uri"
+                 value="{{ config.policy_uri or '' if config else '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Logo URI</label>
+          <input type="text" class="form-control" name="logo_uri"
+                 value="{{ config.logo_uri or '' if config else '' }}">
+        </div>
+        <div class="col-md-12">
+          <label class="form-label">Trust Mark ID</label>
+          <input type="text" class="form-control" name="trust_mark_id"
+                 value="{{ config.trust_mark_id or '' if config else '' }}"
+                 placeholder="https://registry.cie.gov.it/tm/rp">
+        </div>
+        <div class="col-md-12">
+          <label class="form-label">Trust Mark (JWT)</label>
+          <textarea class="form-control font-monospace" name="trust_mark" rows="3"
+                    placeholder="eyJhbGciOiJFUzI1NiJ9...">{{ config.trust_mark or '' if config else '' }}</textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Contatto email OIDC</label>
+          <input type="email" class="form-control" name="oidc_contact_email"
+                 value="{{ config.oidc_contact_email or '' if config else '' }}">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary mt-3">Salva configurazione</button>
 </form>
 
 <hr>

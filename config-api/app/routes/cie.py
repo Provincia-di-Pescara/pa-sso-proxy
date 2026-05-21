@@ -13,6 +13,7 @@ from app.cie_jwks_writer import write_jwks_files
 from app.database import get_db
 from app.jwk_generator import generate_jwk
 from app.models import CieConfig, JwkKey
+from app.satosa_generator import generate_and_write
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,16 @@ async def cie_config_post(
     jwk_federation_id: str = Form(default=""),
     jwk_core_sig_id: str = Form(default=""),
     jwk_core_enc_id: str = Form(default=""),
+    oidc_federation_enabled: str = Form(default=""),
+    oidc_provider_url: str = Form(default=""),
+    trust_anchor_url: str = Form(default=""),
+    authority_hint_url: str = Form(default=""),
+    homepage_uri: str = Form(default=""),
+    policy_uri: str = Form(default=""),
+    logo_uri: str = Form(default=""),
+    trust_mark_id: str = Form(default=""),
+    trust_mark: str = Form(default=""),
+    oidc_contact_email: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     if not _auth_check(request):
@@ -80,14 +91,26 @@ async def cie_config_post(
     config.saml_metadata_url = saml_metadata_url
     config.entity_id = entity_id or None
     config.client_id = client_id or None
-    config.jwk_federation_id = _parse_int(jwk_federation_id)
-    config.jwk_core_sig_id = _parse_int(jwk_core_sig_id)
-    config.jwk_core_enc_id = _parse_int(jwk_core_enc_id)
+    config.jwk_federation_id = int(jwk_federation_id) if jwk_federation_id else None
+    config.jwk_core_sig_id = int(jwk_core_sig_id) if jwk_core_sig_id else None
+    config.jwk_core_enc_id = int(jwk_core_enc_id) if jwk_core_enc_id else None
+    config.oidc_federation_enabled = oidc_federation_enabled == "on"
+    config.oidc_provider_url = oidc_provider_url or None
+    config.trust_anchor_url = trust_anchor_url or None
+    config.authority_hint_url = authority_hint_url or None
+    config.homepage_uri = homepage_uri or None
+    config.policy_uri = policy_uri or None
+    config.logo_uri = logo_uri or None
+    config.trust_mark_id = trust_mark_id or None
+    config.trust_mark = trust_mark or None
+    config.oidc_contact_email = oidc_contact_email or None
 
     await db.commit()
 
-    keys = await _get_all_keys(db)
-    await _write_jwks_safe(keys)
+    try:
+        await generate_and_write(db)
+    except Exception:
+        pass
 
     return RedirectResponse("/admin/cie", status_code=302)
 
