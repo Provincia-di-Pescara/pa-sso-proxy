@@ -16,15 +16,24 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    networks:
+      - proxy-internal
+
   satosa:
     build: ./satosa
     restart: unless-stopped
     depends_on:
       config-api:
         condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       - SATOSA_CONFIG=/satosa-conf/proxy.yaml
       - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - proxy_satosa_conf:/satosa-conf
     networks:
@@ -39,6 +48,7 @@ services:
   config-api:
     build: ./config-api
     restart: unless-stopped
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     depends_on:
       postgres:
         condition: service_healthy
