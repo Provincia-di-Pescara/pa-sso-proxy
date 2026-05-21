@@ -28,7 +28,7 @@ IdP → satosa (callback) → JWT con attributi → App
 
 - `spid_backend` — SPID SAML (tutti gli IdP ufficiali AgID)
 - `cie_saml_backend` — CIE SAML (Ministero dell'Interno)
-- `cie_oidc_backend` — CIE OIDC Federation 1.0 (estratto da GovPay-Interaction-Layer `auth-proxy/`)
+- `cie_oidc_backend` — CIE OIDC Federation 1.0 (codice in `satosa/plugins/`, mantenuto in questo repo)
 
 ### Config API (`config-api/`)
 
@@ -36,7 +36,7 @@ FastAPI app con due ruoli:
 1. **WebUI** — pagine Jinja2 per gestione clienti, IdP, certs, JWK, impostazioni ente
 2. **Config generator** — legge DB → scrive config SATOSA YAML → segnala reload
 
-Il reload avviene via Docker socket montato (`/var/run/docker.sock`) → `docker restart satosa`.
+Il reload avviene toccando `/satosa-conf/.reload` (volume condiviso) → uWSGI `--touch-reload` rileva il cambio mtime e ricarica i worker gracefully (zero downtime).
 
 ### Multi-client OIDC
 
@@ -49,7 +49,7 @@ Cron notturno nel config-api:
 2. Confronta hash con versione in DB
 3. Se diverso → aggiorna DB → rigenera config → reload SATOSA
 
-Downtime reload: ~3-5 secondi, schedulato di notte.
+Reload graceful uWSGI: zero downtime (worker swap in-flight). Schedulato di notte per i metadata IdP.
 
 ## Struttura directory
 
@@ -98,7 +98,7 @@ Tutte in `.env` (vedi `.env.example`). Le variabili sono passate dal compose a s
 ## Relazione con altri repository
 
 - **keycloak-login-proxy** (Provincia-di-Pescara) — progetto precedente Keycloak-based. Fonte per: tema HTML, script Python certificato SPID, lista IdP SPID.
-- **GovPay-Interaction-Layer** (Comune-di-Montesilvano) — fonte per: backend CIE OIDC (`auth-proxy/cieoidc-endpoints/`), pattern startup SATOSA, iniezione JWK.
+- **GovPay-Interaction-Layer** (Comune-di-Montesilvano) — fonte originale per il backend CIE OIDC. Il codice è stato integrato nel repository e ora risiede in `satosa/plugins/` come codice nativo del progetto. Non è necessario ricopiarlo da sorgenti esterne.
 
 ## Note implementative importanti
 
@@ -108,8 +108,8 @@ SubjectDN richiesto da AgID: `CN=<domain>, O=<ente>, 2.5.4.83=<entityId>, 2.5.4.
 ### CIE OIDC Federation
 Il backend CIE OIDC usa 3 JWK separati: `jwk-federation` (firma entity configuration), `jwk-core-sig` (firma OIDC requests), `jwk-core-enc` (cifratura). Il config-api genera questi keypair alla prima configurazione e li espone in WebUI per download pubblico.
 
-### Docker socket
-Il config-api monta `/var/run/docker.sock` per eseguire `docker restart satosa` dopo modifiche config. Questo è privilegio elevato — il container config-api NON deve essere esposto pubblicamente, solo via `/admin` dietro autenticazione.
+### Reload SATOSA
+Il config-api segnala il reload toccando `/satosa-conf/.reload` (volume condiviso). uWSGI nel container satosa è configurato con `--touch-reload /satosa-conf/.reload` e ricarica i worker gracefully senza caduta delle connessioni. Non è necessario il Docker socket.
 
 ### SATOSA OIDC multi-client
 La sezione `clients` nel config OIDC di SATOSA è generata da `satosa_generator.py`. Ogni client ha: `client_id`, `client_secret` (hash), `redirect_uris`, `allowed_scopes`. Il generator scrive il file e triggera reload.
