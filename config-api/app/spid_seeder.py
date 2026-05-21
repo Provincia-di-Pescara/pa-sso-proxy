@@ -1,3 +1,8 @@
+import json
+from datetime import datetime, timezone
+from urllib.parse import quote
+
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,8 +22,85 @@ SPID_IDPS = [
     {"alias": "spid-trust",      "display_name": "Trust Technologies", "metadata_url": "https://idp.trusttechnologies.it/saml2/idp/metadata"},
 ]
 
+SPID_REGISTRY_API_LIST_URL = "https://registry.spid.gov.it/entities-idp?output=json&page=1&numMetadata=50"
+
+
+def _normalize_alias(entity_id: str) -> str:
+    raw = entity_id.lower().strip()
+    for prefix in ("https://", "http://"):
+        if raw.startswith(prefix):
+            raw = raw[len(prefix):]
+    raw = raw.replace("/", "-").replace(".", "-").replace("_", "-")
+    raw = "".join(ch for ch in raw if ch.isalnum() or ch == "-")
+    raw = "-".join(filter(None, raw.split("-")))
+    if not raw:
+        raw = "spid-registry"
+    return f"spid-{raw}"[:64]
+
+
+def _extract_registry_items(payload) -> list[dict]:
+    if isinstance(payload, list):
+        return [p for p in payload if isinstance(p, dict)]
+    if isinstance(payload, dict):
+        items = payload.get("Entita") or payload.get("entita") or payload.get("entities") or payload.get("items") or []
+        return [p for p in items if isinstance(p, dict)]
+    return []
+
+
+async def sync_spid_idps_from_registry(db: AsyncSession) -> int:
+    """Sync local spid_idps cache from AgID registry. Returns number of inserted rows."""
+    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+        response = await client.get(SPID_REGISTRY_API_LIST_URL, headers={"Accept": "application/json"})
+        response.raise_for_status()
+    items = _extract_registry_items(response.json())
+
+    result = await db.execute(select(SpidIdP))
+    existing = list(result.scalars().all())
+    by_entity_id = {x.registry_entity_id: x for x in existing if x.registry_entity_id}
+    by_alias = {x.alias: x for x in existing}
+
+    inserted = 0
+    sync_now = datetime.now(timezone.utc)
+
+    for item in items:
+        entity_id = item.get("entity_id") or item.get("entityId") or item.get("sp_entityid")
+        if not entity_id:
+            continue
+
+        alias = _normalize_alias(entity_id)
+        row = by_entity_id.get(entity_id) or by_alias.get(alias)
+        if row is None:
+            row = SpidIdP(
+                alias=alias,
+                display_name=item.get("organization_name") or entity_id,
+                metadata_url=f"https://registry.spid.gov.it/entities-idp/{quote(entity_id, safe='')}",
+                enabled=False,
+            )
+            db.add(row)
+            inserted += 1
+
+        row.registry_entity_id = entity_id
+        row.registry_logo_uri = item.get("logo_uri")
+        row.registry_organization_name = item.get("organization_name")
+        row.registry_lastupdate_date = item.get("lastupdate_date")
+        row.registry_disabled = (item.get("_disabled") == "Y") if item.get("_disabled") is not None else None
+        row.registry_payload_json = json.dumps(item)
+        row.registry_synced_at = sync_now
+        if not row.display_name or row.display_name == row.alias:
+            row.display_name = item.get("organization_name") or entity_id
+
+    await db.commit()
+    return inserted
+
 
 async def seed_spid_idps(db: AsyncSession) -> None:
+    try:
+        await sync_spid_idps_from_registry(db)
+        return
+    except Exception:
+        # Fallback static seed if live registry is not reachable.
+        pass
+
     result = await db.execute(select(SpidIdP.alias))
     existing = {row[0] for row in result.all()}
     for data in SPID_IDPS:

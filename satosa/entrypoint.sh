@@ -12,4 +12,5 @@ exec uwsgi \
     --workers 2 \
     --harakiri 60 \
     --buffer-size 32768 \
-    --touch-reload /satosa-conf/.reload
+    --touch-reload /satosa-conf/.reload \
+    --static-map /static=/satosa_proxy/static

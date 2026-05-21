@@ -1,17 +1,27 @@
+import json
 import os
 from typing import Optional
 
 import yaml
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import CieConfig, EnteSettings, JwkKey, SpidIdP
+from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidIdP
 
 SATOSA_CONF_DIR = os.environ.get("SATOSA_CONF_DIR", "/satosa-conf")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
+
+def _base_url(hostname: str) -> str:
+    """Return the public base URL for SATOSA. PROXY_BASE_URL overrides hostname."""
+    return os.environ.get("PROXY_BASE_URL", "").rstrip("/") or f"https://{hostname}"
+
+
+_SPID_BACKEND_CLASS = "backends.spidsaml2.SpidSAMLBackend"
+_CIE_SAML_BACKEND_CLASS = "backends.ciesaml2.CieSAMLBackend"
 _OIDC_FRONTEND_CLASS = "satosa.frontends.openid_connect.OpenIDConnectFrontend"
-_SAML_BACKEND_CLASS = "satosa.backends.saml2.SAMLMirrorBackend"
 
 
 def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
@@ -22,7 +32,7 @@ def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
     if include_cie_oidc:
         backend_modules.append("/satosa-conf/cie_oidc_backend.yaml")
     return {
-        "BASE": f"https://{hostname}",
+        "BASE": os.environ.get("PROXY_BASE_URL", f"https://{hostname}"),
         "INTERNAL_ATTRIBUTES": "/satosa_proxy/internal_attributes.yaml",
         "COOKIE_STATE_NAME": "satosa_state",
         "STATE_ENCRYPTION_KEY": os.environ.get("SATOSA_STATE_ENCRYPTION_KEY", "changeme-generate-random-state-key-32chars"),
@@ -30,77 +40,172 @@ def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
         "CONSENT": {"enable": False},
         "BACKEND_MODULES": backend_modules,
         "FRONTEND_MODULES": ["/satosa-conf/oidc_frontend.yaml"],
+        "CUSTOM_PLUGIN_MODULE_PATHS": ["/satosa-conf"],
+        "MICRO_SERVICES": [
+            "/satosa-conf/disco_to_target_issuer.yaml",
+            "/satosa-conf/default_router.yaml",
+        ],
     }
 
 
-def _oidc_frontend_yaml(hostname: str, has_jwks: bool) -> dict:
-    config: dict = {
-        "issuer": f"https://{hostname}",
-        "client_db": {
-            "class": "oidcop.client_authn.from_file.ClientAuthnFromFile",
-            "kwargs": {"client_file": "/satosa-conf/oidcop_clients.yaml"},
-        },
-        "authentication": {
-            "user": {
-                "acr": "urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport",
-                "class": "oidcop.user_authn.authn_context.UserAuthnContextCritical",
-            }
-        },
-    }
-    if has_jwks:
-        config["keys"] = {
-            "private_path": "/satosa-conf/cie_jwks_private.json",
-            "public_path": "/satosa-conf/cie_jwks_public.json",
-            "read_only": False,
-        }
-    return config
-
-
-def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_path: str) -> dict:
+def _oidc_frontend_yaml(hostname: str) -> dict:
     return {
-        "entityid": f"https://{hostname}/spid/metadata",
-        "service": {
-            "sp": {
-                "endpoints": {
-                    "single_sign_on_service": [
-                        [f"https://{hostname}/spid/sso/redirect",
-                         "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"],
-                        [f"https://{hostname}/spid/sso/post",
-                         "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],
-                    ]
-                },
-                "want_response_signed": True,
-                "authn_requests_signed": True,
-                "allow_unsolicited": False,
-            }
+        "name": "OIDC",
+        "module": _OIDC_FRONTEND_CLASS,
+        "config": {
+            "signing_key_path": "/satosa-conf/oidc_signing_key.pem",
+            "client_db_path": "/satosa-conf/oidc_clients.json",
+            "provider": {
+                "response_types_supported": ["code"],
+                "scopes_supported": ["openid", "profile", "email"],
+                "subject_types_supported": ["pairwise", "public"],
+                "id_token_lifetime": 3600,
+            },
         },
+    }
+
+
+def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_path: str, settings: "EnteSettings") -> dict:
+    sp_config = {
         "key_file": key_path,
         "cert_file": cert_path,
-        "metadata": {"remote": [{"url": idp.metadata_url} for idp in enabled_idps]},
+        "encryption_keypairs": [{"key_file": key_path, "cert_file": cert_path}],
+        "attribute_map_dir": "/satosa_proxy/attributes-map",
+        "organization": {
+            "display_name": [[settings.org_display_name, "it"]],
+            "name": [[settings.org_name, "it"]],
+            "url": [[settings.org_url, "it"]],
+        },
+        "contact_person": [
+            {
+                "contact_type": "other",
+                "given_name": settings.org_display_name,
+                "email_address": settings.contact_email,
+                "telephone_number": settings.contact_phone,
+                "FiscalCode": settings.ipa_code,
+                "IPACode": settings.ipa_code,
+                "Public": "",
+            }
+        ],
+        "metadata": {"local": ["/satosa_proxy/metadata/idp/spid-entities-idps.xml"]},
+        "ficep_enable": False,
+        "entityid": "<base_url>/<name>/metadata",
+        "accepted_time_diff": 10,
+        "service": {
+            "sp": {
+                "authn_requests_signed": True,
+                "want_response_signed": True,
+                "want_assertions_signed": True,
+                "signing_algorithm": "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+                "digest_algorithm": "http://www.w3.org/2001/04/xmlenc#sha256",
+                "only_use_keys_in_metadata": True,
+                "name_id_format_allow_create": False,
+                "name_id_format": "urn:oasis:names:tc:SAML:2.0:nameid-format:transient",
+                "requested_attribute_name_format": "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
+                "allow_unknown_attributes": True,
+                "allow_unsolicited": True,
+                "required_attributes": ["spidCode", "name", "familyName", "fiscalNumber", "email"],
+                "endpoints": {
+                    "assertion_consumer_service": [
+                        ["<base_url>/<name>/acs/post", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],
+                    ],
+                    "single_logout_service": [
+                        ["<base_url>/<name>/ls/post/", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],
+                    ],
+                    "discovery_response": [
+                        ["<base_url>/<name>/disco", "urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol"],
+                    ],
+                },
+            }
+        },
+    }
+    return {
+        "name": "spidSaml2",
+        "module": _SPID_BACKEND_CLASS,
+        "config": {
+            "template_folder": "/satosa_proxy/templates",
+            "static_storage_url": f"https://{hostname}/static",
+            "error_template": "spid_login_error.html",
+            "entityid_endpoint": True,
+            "spid_allowed_acrs": [
+                "https://www.spid.gov.it/SpidL1",
+                "https://www.spid.gov.it/SpidL2",
+                "https://www.spid.gov.it/SpidL3",
+            ],
+            "spid_acr_comparison": "minimum",
+            "acr_mapping": {"": "https://www.spid.gov.it/SpidL2"},
+            "sp_config": sp_config,
+            "disco_srv": f"https://{hostname}/static/disco.html",
+        },
     }
 
 
-def _cie_saml_backend_yaml(hostname: str, cie_metadata_url: str, cert_path: str, key_path: str) -> dict:
-    return {
-        "entityid": f"https://{hostname}/cie/saml/metadata",
-        "service": {
-            "sp": {
-                "endpoints": {
-                    "single_sign_on_service": [
-                        [f"https://{hostname}/cie/saml/sso/redirect",
-                         "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"],
-                        [f"https://{hostname}/cie/saml/sso/post",
-                         "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],
-                    ]
-                },
-                "want_response_signed": True,
-                "authn_requests_signed": True,
-                "allow_unsolicited": False,
-            }
-        },
+def _cie_saml_backend_yaml(hostname: str, cie_metadata_url: str, cert_path: str, key_path: str, settings: "EnteSettings") -> dict:
+    sp_config = {
         "key_file": key_path,
         "cert_file": cert_path,
-        "metadata": {"remote": [{"url": cie_metadata_url}]},
+        "encryption_keypairs": [{"key_file": key_path, "cert_file": cert_path}],
+        "attribute_map_dir": "/satosa_proxy/attributes-map",
+        "organization": {
+            "display_name": [[settings.org_display_name, "it"]],
+            "name": [[settings.org_name, "it"]],
+            "url": [[settings.org_url, "it"]],
+        },
+        "contact_person": [
+            {
+                "contact_type": "administrative",
+                "company": settings.org_name,
+                "email_address": settings.contact_email,
+                "telephone_number": settings.contact_phone,
+                "cie_info": {
+                    "Public": "",
+                    "IPACode": settings.ipa_code,
+                    "Municipality": settings.org_city,
+                },
+            }
+        ],
+        "metadata": {"local": ["/satosa_proxy/metadata/idp/cie-production.xml"]},
+        "entityid": "<base_url>/<name>/metadata",
+        "accepted_time_diff": 10,
+        "service": {
+            "sp": {
+                "authn_requests_signed": True,
+                "want_response_signed": True,
+                "want_assertions_signed": True,
+                "signing_algorithm": "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+                "digest_algorithm": "http://www.w3.org/2001/04/xmlenc#sha256",
+                "only_use_keys_in_metadata": True,
+                "name_id_format_allow_create": False,
+                "name_id_format": "urn:oasis:names:tc:SAML:2.0:nameid-format:transient",
+                "requested_attribute_name_format": "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
+                "allow_unknown_attributes": True,
+                "allow_unsolicited": True,
+                "required_attributes": ["name", "familyName", "dateOfBirth", "fiscalNumber"],
+                "endpoints": {
+                    "assertion_consumer_service": [
+                        ["<base_url>/<name>/acs/post", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],
+                    ],
+                    "single_logout_service": [
+                        ["<base_url>/<name>/ls/post/", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],
+                    ],
+                    "discovery_response": [
+                        ["<base_url>/<name>/disco", "urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol"],
+                    ],
+                },
+            }
+        },
+    }
+    return {
+        "name": "cieSaml2",
+        "module": _CIE_SAML_BACKEND_CLASS,
+        "config": {
+            "template_folder": "/satosa_proxy/templates",
+            "static_storage_url": f"https://{hostname}/static",
+            "error_template": "spid_login_error.html",
+            "entityid_endpoint": True,
+            "sp_config": sp_config,
+            "disco_srv": f"https://{hostname}/static/disco.html",
+        },
     }
 
 
@@ -318,9 +423,47 @@ def _cie_oidc_backend_yaml(
     }
 
 
+_DEFAULT_BACKEND_ROUTER_PY = '''\
+import logging
+from satosa.micro_services.base import RequestMicroService
+
+logger = logging.getLogger(__name__)
+
+
+class DefaultBackendRouter(RequestMicroService):
+    def __init__(self, config, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.default_backend = config.get("default_backend", "spidSaml2")
+
+    def process(self, context, data):
+        if not context.target_backend:
+            context.target_backend = self.default_backend
+            logger.info(f"DefaultBackendRouter: set target_backend={self.default_backend}")
+        return super().process(context, data)
+'''
+
+
+def _ensure_rsa_key(path: str) -> None:
+    if os.path.exists(path):
+        return
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    with open(path, "wb") as f:
+        f.write(pem)
+
+
 def _write(conf_dir: str, filename: str, data: dict) -> None:
     with open(os.path.join(conf_dir, filename), "w") as f:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+
+
+def _write_json(conf_dir: str, filename: str, data: dict) -> None:
+    with open(os.path.join(conf_dir, filename), "w") as f:
+        json.dump(data, f, indent=2)
 
 
 async def generate_satosa_config(db: AsyncSession) -> None:
@@ -386,10 +529,40 @@ async def generate_satosa_config(db: AsyncSession) -> None:
     hostname = settings.proxy_hostname
     redis_url = os.environ.get("REDIS_URL", REDIS_URL)
 
+    _ensure_rsa_key(os.path.join(conf_dir, "oidc_signing_key.pem"))
+
+    with open(os.path.join(conf_dir, "default_backend_router.py"), "w") as f:
+        f.write(_DEFAULT_BACKEND_ROUTER_PY)
+
+    _write(conf_dir, "default_router.yaml", {
+        "name": "DefaultRouter",
+        "module": "default_backend_router.DefaultBackendRouter",
+        "config": {"default_backend": "spidSaml2"},
+    })
+
+    _write(conf_dir, "disco_to_target_issuer.yaml", {
+        "name": "DiscoToTargetIssuer",
+        "module": "satosa.micro_services.disco.DiscoToTargetIssuer",
+        "config": {"disco_endpoints": [".*/disco$"]},
+    })
+
+    result = await db.execute(select(OIDCClient).where(OIDCClient.enabled == True))
+    clients = result.scalars().all()
+    client_db = {
+        c.client_id: {
+            "client_secret": c.client_secret_hash,
+            "redirect_uris": list(c.redirect_uris),
+            "allowed_scopes": list(c.allowed_scopes),
+            "response_types": ["code"],
+        }
+        for c in clients
+    }
+    _write_json(conf_dir, "oidc_clients.json", client_db)
+
     _write(conf_dir, "proxy.yaml", _proxy_yaml(hostname, include_cie_oidc))
-    _write(conf_dir, "oidc_frontend.yaml", _oidc_frontend_yaml(hostname, has_jwks))
-    _write(conf_dir, "spid_backend.yaml", _spid_backend_yaml(hostname, enabled_idps, cert_path, key_path))
-    _write(conf_dir, "cie_saml_backend.yaml", _cie_saml_backend_yaml(hostname, cie_metadata_url, cert_path, key_path))
+    _write(conf_dir, "oidc_frontend.yaml", _oidc_frontend_yaml(hostname))
+    _write(conf_dir, "spid_backend.yaml", _spid_backend_yaml(hostname, enabled_idps, cert_path, key_path, settings))
+    _write(conf_dir, "cie_saml_backend.yaml", _cie_saml_backend_yaml(hostname, cie_metadata_url, cert_path, key_path, settings))
 
     if include_cie_oidc:
         _write(

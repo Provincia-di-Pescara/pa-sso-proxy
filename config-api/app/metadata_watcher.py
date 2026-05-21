@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import SpidIdP
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
+from app.spid_seeder import sync_spid_idps_from_registry
 
 logger = logging.getLogger(__name__)
 
@@ -51,5 +52,10 @@ async def run_metadata_watcher() -> None:
     """Scheduler entry point. Creates its own DB session."""
     from app.database import AsyncSessionLocal
     async with AsyncSessionLocal() as session:
+        try:
+            inserted = await sync_spid_idps_from_registry(session)
+            logger.info("SPID registry sync: %d nuovi IdP inseriti", inserted)
+        except Exception as exc:
+            logger.warning("SPID registry sync failed: %s", exc)
         count = await fetch_all_enabled(session)
         logger.info("Metadata watcher: %d IdP aggiornati", count)

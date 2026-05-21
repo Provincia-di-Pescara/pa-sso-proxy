@@ -61,6 +61,7 @@ services:
       - SATOSA_CONF_DIR=/satosa-conf
       - SATOSA_STATE_ENCRYPTION_KEY=${SATOSA_STATE_ENCRYPTION_KEY:-changeme-generate-random-state-key-32chars}
       - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
+      - PROXY_BASE_URL=${PROXY_BASE_URL:-}
     volumes:
       - proxy_satosa_conf:/satosa-conf
     networks:

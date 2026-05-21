@@ -12,7 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import inspect, text
 from app.database import AsyncSessionLocal, engine
 from app.metadata_watcher import run_metadata_watcher
-from app.routes import dashboard, clients, idps, settings, certs, cie
+from app.routes import dashboard, clients, idps, settings, certs, cie, test_client
 from app.satosa_generator import generate_and_write
 from app.spid_seeder import seed_spid_idps
 
@@ -29,6 +29,16 @@ _CIE_OIDC_COLUMNS = [
     "trust_mark",
     "oidc_contact_email",
 ]
+
+_SPID_REGISTRY_COLUMNS = {
+    "registry_entity_id": "TEXT",
+    "registry_logo_uri": "TEXT",
+    "registry_organization_name": "TEXT",
+    "registry_lastupdate_date": "TEXT",
+    "registry_disabled": "BOOLEAN",
+    "registry_payload_json": "TEXT",
+    "registry_synced_at": "TIMESTAMP WITH TIME ZONE",
+}
 
 
 async def _migrate_cie_oidc_columns() -> None:
@@ -47,6 +57,20 @@ async def _migrate_cie_oidc_columns() -> None:
                 await conn.execute(text(f"ALTER TABLE cie_config ADD COLUMN {col} TEXT"))
 
 
+async def _migrate_spid_registry_columns() -> None:
+    """Add SPID registry cache columns to spid_idps if not present (idempotent)."""
+    async with engine.begin() as conn:
+        has_table = await conn.run_sync(lambda c: inspect(c).has_table("spid_idps"))
+        if not has_table:
+            return
+        existing = await conn.run_sync(
+            lambda c: {col["name"] for col in inspect(c).get_columns("spid_idps")}
+        )
+        for col, db_type in _SPID_REGISTRY_COLUMNS.items():
+            if col not in existing:
+                await conn.execute(text(f"ALTER TABLE spid_idps ADD COLUMN {col} {db_type}"))
+
+
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "changeme")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "changeme")
@@ -57,6 +81,7 @@ templates = Jinja2Templates(directory="app/templates")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await _migrate_cie_oidc_columns()
+    await _migrate_spid_registry_columns()
     async with AsyncSessionLocal() as session:
         await seed_spid_idps(session)
         try:
@@ -80,6 +105,7 @@ app.include_router(idps.router, prefix="/admin")
 app.include_router(settings.router, prefix="/admin")
 app.include_router(certs.router, prefix="/admin")
 app.include_router(cie.router, prefix="/admin")
+app.include_router(test_client.router, prefix="/admin")
 
 
 @app.get("/health")
