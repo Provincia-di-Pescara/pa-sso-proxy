@@ -1,0 +1,10 @@
+services:
+  satosa:
+    image: pa-sso-proxy-satosa:local
+    build:
+      context: ./satosa
+
+  config-api:
+    image: pa-sso-proxy-config-api:local
+    build:
+      context: ./config-api

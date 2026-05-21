@@ -37,6 +37,14 @@ cp .env.example .env
 docker compose up -d
 ```
 
+Il `docker-compose.yaml` base usa immagini pubblicate su GHCR.
+
+Per sviluppo locale con build da sorgente:
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.override.local.yml up -d --build
+```
+
 WebUI disponibile su `http://localhost:8080/admin` (o tramite reverse proxy).
 
 Primo avvio: ~2 minuti per download dipendenze SATOSA. Poi:

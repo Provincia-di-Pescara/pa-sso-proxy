@@ -23,7 +23,7 @@ services:
       - proxy-internal
 
   satosa:
-    build: ./satosa
+    image: ${SATOSA_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-satosa:latest}
     restart: unless-stopped
     depends_on:
       config-api:
@@ -46,7 +46,7 @@ services:
       start_period: 60s
 
   config-api:
-    build: ./config-api
+    image: ${CONFIG_API_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-config-api:latest}
     restart: unless-stopped
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     depends_on:
