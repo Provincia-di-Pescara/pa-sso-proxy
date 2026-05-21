@@ -9,11 +9,39 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.database import AsyncSessionLocal
+from sqlalchemy import inspect, text
+from app.database import AsyncSessionLocal, engine
 from app.metadata_watcher import run_metadata_watcher
 from app.routes import dashboard, clients, idps, settings, certs, cie
 from app.satosa_generator import generate_and_write
 from app.spid_seeder import seed_spid_idps
+
+_CIE_OIDC_COLUMNS = [
+    "oidc_provider_url",
+    "trust_anchor_url",
+    "authority_hint_url",
+    "homepage_uri",
+    "policy_uri",
+    "logo_uri",
+    "trust_mark_id",
+    "trust_mark",
+    "oidc_contact_email",
+]
+
+
+async def _migrate_cie_oidc_columns() -> None:
+    """Add CIE OIDC Federation columns to cie_config if not present (idempotent)."""
+    async with engine.begin() as conn:
+        try:
+            existing = await conn.run_sync(
+                lambda c: {col["name"] for col in inspect(c).get_columns("cie_config")}
+            )
+        except Exception:
+            return  # Table doesn't exist yet — create_all handles it
+        for col in _CIE_OIDC_COLUMNS:
+            if col not in existing:
+                await conn.execute(text(f"ALTER TABLE cie_config ADD COLUMN {col} TEXT"))
+
 
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "changeme")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
@@ -24,6 +52,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await _migrate_cie_oidc_columns()
     async with AsyncSessionLocal() as session:
         await seed_spid_idps(session)
         try:

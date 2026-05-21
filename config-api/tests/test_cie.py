@@ -98,3 +98,25 @@ async def test_cie_delete_jwk_removes_key(auth_client, db_session, tmp_path, mon
 
     result = await db_session.execute(select(JwkKey).where(JwkKey.id == key.id))
     assert result.scalar_one_or_none() is None
+
+
+async def test_cie_config_has_oidc_fields(db_session):
+    config = CieConfig(
+        id=1,
+        saml_metadata_url="https://x",
+        oidc_provider_url="https://oidc.provider.it",
+        trust_anchor_url="https://trust.anchor.it",
+        authority_hint_url="https://authority.hint.it",
+        homepage_uri="https://ente.it",
+        policy_uri="https://ente.it/privacy",
+        logo_uri="https://ente.it/logo.png",
+        trust_mark_id="https://registry.cie.gov.it/tm/rp",
+        trust_mark="eyJhbGciOiJFUzI1NiJ9.stub",
+        oidc_contact_email="admin@ente.it",
+    )
+    db_session.add(config)
+    await db_session.commit()
+    await db_session.refresh(config)
+    assert config.oidc_provider_url == "https://oidc.provider.it"
+    assert config.trust_mark == "eyJhbGciOiJFUzI1NiJ9.stub"
+    assert config.oidc_contact_email == "admin@ente.it"
