@@ -120,10 +120,12 @@ async def _restore_bundle(bundle: dict, db: AsyncSession) -> None:
     # ente_settings
     if bundle.get("ente_settings"):
         db.add(EnteSettings(**_clean(bundle["ente_settings"], EnteSettings)))
+    await db.flush()
 
-    # jwk_keys (prima di cie_config per rispettare FK)
+    # jwk_keys PRIMA — cie_config ha FK verso questa tabella
     for row in bundle.get("jwk_keys", []):
         db.add(JwkKey(**_clean(row, JwkKey)))
+    await db.flush()
 
     # oidc_clients
     for row in bundle.get("oidc_clients", []):
@@ -133,7 +135,9 @@ async def _restore_bundle(bundle: dict, db: AsyncSession) -> None:
     for row in bundle.get("spid_idps", []):
         db.add(SpidIdP(**_clean(row, SpidIdP)))
 
-    # cie_config
+    await db.flush()
+
+    # cie_config — inserita DOPO jwk_keys (FK jwk_federation_id, jwk_core_sig_id, jwk_core_enc_id)
     if bundle.get("cie_config"):
         db.add(CieConfig(**_clean(bundle["cie_config"], CieConfig)))
 
