@@ -1,5 +1,8 @@
+import logging
 import os
 from contextlib import asynccontextmanager
+
+logger = logging.getLogger(__name__)
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -100,7 +103,7 @@ async def lifespan(app: FastAPI):
         try:
             await generate_and_write(session)
         except Exception:
-            pass
+            logger.warning("Startup config generation failed (ok on first boot)", exc_info=True)
     scheduler = AsyncIOScheduler()
     scheduler.add_job(run_metadata_watcher, CronTrigger(hour=2, minute=0))
     scheduler.start()
