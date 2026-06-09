@@ -70,20 +70,22 @@
 
       <div class="row g-3">
         <div class="col-md-12">
-          <label class="form-label">Provider URL (oidc_provider_url)</label>
-          <input type="text" class="form-control" name="oidc_provider_url"
-                 value="{{ config.oidc_provider_url or '' if config else '' }}"
-                 placeholder="https://preprod.oidc.interno.gov.it">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Trust Anchor URL</label>
-          <input type="text" class="form-control" name="trust_anchor_url"
-                 value="{{ config.trust_anchor_url or '' if config else '' }}">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Authority Hint URL</label>
-          <input type="text" class="form-control" name="authority_hint_url"
-                 value="{{ config.authority_hint_url or '' if config else '' }}">
+          <label class="form-label" for="oidc_environment">Ambiente</label>
+          <select class="form-select" id="oidc_environment" name="oidc_environment">
+            <option value="">— seleziona —</option>
+            <option value="collaudo"
+              {% if config and config.oidc_environment == 'collaudo' %}selected{% endif %}>
+              Pre-produzione (Collaudo)
+            </option>
+            <option value="produzione"
+              {% if config and config.oidc_environment == 'produzione' %}selected{% endif %}>
+              Produzione
+            </option>
+          </select>
+          <div class="form-text">
+            Imposta automaticamente Provider URL, Trust Anchor e Authority Hint.
+          </div>
+          <div id="env-urls-preview" class="small text-muted mt-2 font-monospace"></div>
         </div>
         <div class="col-md-4">
           <label class="form-label">Homepage URI</label>
@@ -140,6 +142,17 @@
 </div>
 
 {% if jwk_keys %}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>JWKS pubblico (da incollare nel portale federazione)</span>
+    <button type="button" class="btn btn-sm btn-outline-primary" id="copy-jwks-btn"
+            onclick="copyJwks()">Copia JWKS</button>
+  </div>
+  <div class="card-body">
+    <pre class="mb-0"><code id="jwks-public">{{ public_jwks_json }}</code></pre>
+  </div>
+</div>
+
 <table class="table table-sm table-hover">
   <thead>
     <tr>
@@ -168,4 +181,36 @@
 {% else %}
 <p class="text-muted">Nessuna chiave JWK configurata.</p>
 {% endif %}
+
+<script>
+  const CIE_ENVIRONMENTS = {{ environments | tojson }};
+
+  function renderEnvUrls() {
+    const sel = document.getElementById('oidc_environment');
+    const preview = document.getElementById('env-urls-preview');
+    if (!sel || !preview) return;
+    const env = CIE_ENVIRONMENTS[sel.value];
+    if (!env) { preview.textContent = ''; return; }
+    preview.innerHTML =
+      'Provider: ' + env.provider_url + '<br>' +
+      'Trust Anchor: ' + env.trust_anchor_url + '<br>' +
+      'Authority Hint: ' + env.authority_hint_url;
+  }
+
+  function copyJwks() {
+    const el = document.getElementById('jwks-public');
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent).then(function () {
+      const btn = document.getElementById('copy-jwks-btn');
+      const prev = btn.textContent;
+      btn.textContent = 'Copiato!';
+      setTimeout(function () { btn.textContent = prev; }, 1500);
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const sel = document.getElementById('oidc_environment');
+    if (sel) { sel.addEventListener('change', renderEnvUrls); renderEnvUrls(); }
+  });
+</script>
 {% endblock %}

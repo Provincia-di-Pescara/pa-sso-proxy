@@ -94,13 +94,6 @@ async def sync_spid_idps_from_registry(db: AsyncSession) -> int:
 
 
 async def seed_spid_idps(db: AsyncSession) -> None:
-    try:
-        await sync_spid_idps_from_registry(db)
-        return
-    except Exception:
-        # Fallback static seed if live registry is not reachable.
-        pass
-
     result = await db.execute(select(SpidIdP.alias))
     existing = {row[0] for row in result.all()}
     for data in SPID_IDPS:

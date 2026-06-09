@@ -158,6 +158,51 @@ async def test_cie_save_oidc_federation_fields(auth_client, db_session, tmp_path
     assert config.oidc_contact_email == "admin@ente.it"
 
 
+@pytest.mark.parametrize(
+    "env,provider,trust_anchor,authority_hint",
+    [
+        (
+            "produzione",
+            "https://oidc.idserver.servizicie.interno.gov.it",
+            "https://registry.servizicie.interno.gov.it",
+            "https://oidc.idserver.servizicie.interno.gov.it",
+        ),
+        (
+            "collaudo",
+            "https://preproduzione.cie.interno.gov.it/idp/oidc/op",
+            "https://preproduzione.cie.interno.gov.it",
+            "https://preproduzione.cie.interno.gov.it/idp/oidc/op",
+        ),
+    ],
+)
+async def test_cie_environment_sets_urls(
+    auth_client, db_session, tmp_path, monkeypatch, env, provider, trust_anchor, authority_hint
+):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    response = await auth_client.post(
+        "/admin/cie",
+        data={
+            "saml_metadata_url": "https://idserver.servizicie.interno.gov.it/idp/shibboleth",
+            "oidc_federation_enabled": "on",
+            "oidc_environment": env,
+            # URL libere lasciate vuote: devono essere sovrascritte dalla mappa ambiente
+            "oidc_provider_url": "",
+            "trust_anchor_url": "",
+            "authority_hint_url": "",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    result = await db_session.execute(select(CieConfig).where(CieConfig.id == 1))
+    config = result.scalar_one_or_none()
+    assert config is not None
+    assert config.oidc_environment == env
+    assert config.oidc_provider_url == provider
+    assert config.trust_anchor_url == trust_anchor
+    assert config.authority_hint_url == authority_hint
+
+
 async def test_cie_oidc_federation_disabled_when_checkbox_absent(auth_client, db_session, tmp_path, monkeypatch):
     monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
     # First enable it

@@ -52,6 +52,7 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
     return {
         "name": "OIDC",
         "module": _OIDC_FRONTEND_CLASS,
+        "issuer": _base_url(hostname),
         "config": {
             "signing_key_path": "/satosa-conf/oidc_signing_key.pem",
             "client_db_path": "/satosa-conf/oidc_clients.json",
@@ -66,6 +67,9 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
 
 
 def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_path: str, settings: "EnteSettings") -> dict:
+    remote_metadata = [{"url": idp.metadata_url} for idp in enabled_idps]
+    metadata_config = {"remote": remote_metadata} if remote_metadata else {"local": ["/satosa_proxy/metadata/idp/spid-entities-idps.xml"]}
+
     sp_config = {
         "key_file": key_path,
         "cert_file": cert_path,
@@ -87,7 +91,7 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
                 "Public": "",
             }
         ],
-        "metadata": {"local": ["/satosa_proxy/metadata/idp/spid-entities-idps.xml"]},
+        "metadata": metadata_config,
         "ficep_enable": False,
         "entityid": "<base_url>/<name>/metadata",
         "accepted_time_diff": 10,
@@ -122,6 +126,7 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
     return {
         "name": "spidSaml2",
         "module": _SPID_BACKEND_CLASS,
+        "metadata": metadata_config,
         "config": {
             "template_folder": "/satosa_proxy/templates",
             "static_storage_url": f"{_base_url(hostname)}/static",

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from typing import Optional
 from uuid import uuid4
@@ -19,6 +20,22 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+
+# URL fissi CIE OIDC per ambiente. Provider URL (lista providers SATOSA) = URL OP,
+# assunto uguale all'Authority Hint. Da confermare in fase di test col portale.
+CIE_OIDC_ENVIRONMENTS = {
+    "collaudo": {
+        "provider_url": "https://preproduzione.cie.interno.gov.it/idp/oidc/op",
+        "trust_anchor_url": "https://preproduzione.cie.interno.gov.it",
+        "authority_hint_url": "https://preproduzione.cie.interno.gov.it/idp/oidc/op",
+    },
+    "produzione": {
+        "provider_url": "https://oidc.idserver.servizicie.interno.gov.it",
+        "trust_anchor_url": "https://registry.servizicie.interno.gov.it",
+        "authority_hint_url": "https://oidc.idserver.servizicie.interno.gov.it",
+    },
+}
 
 
 def _parse_int(val: str) -> Optional[int]:
@@ -50,10 +67,18 @@ async def cie_config_get(request: Request, db: AsyncSession = Depends(get_db)):
     config = result.scalar_one_or_none()
     jwk_keys = await _get_all_keys(db)
 
+    public_jwks = {"keys": [k.public_jwk for k in jwk_keys if k.public_jwk]}
+    public_jwks_json = json.dumps(public_jwks, indent=4)
+
     return templates.TemplateResponse(
         request,
         "cie/config.html.j2",
-        {"config": config, "jwk_keys": jwk_keys},
+        {
+            "config": config,
+            "jwk_keys": jwk_keys,
+            "public_jwks_json": public_jwks_json,
+            "environments": CIE_OIDC_ENVIRONMENTS,
+        },
     )
 
 
@@ -67,6 +92,7 @@ async def cie_config_post(
     jwk_core_sig_id: str = Form(default=""),
     jwk_core_enc_id: str = Form(default=""),
     oidc_federation_enabled: str = Form(default=""),
+    oidc_environment: str = Form(default=""),
     oidc_provider_url: str = Form(default=""),
     trust_anchor_url: str = Form(default=""),
     authority_hint_url: str = Form(default=""),
@@ -95,9 +121,19 @@ async def cie_config_post(
     config.jwk_core_sig_id = int(jwk_core_sig_id) if jwk_core_sig_id else None
     config.jwk_core_enc_id = int(jwk_core_enc_id) if jwk_core_enc_id else None
     config.oidc_federation_enabled = oidc_federation_enabled == "on"
-    config.oidc_provider_url = oidc_provider_url or None
-    config.trust_anchor_url = trust_anchor_url or None
-    config.authority_hint_url = authority_hint_url or None
+    # Se ambiente selezionato e valido, i tre URL derivano dalla mappa fissa.
+    # Altrimenti si usano i valori postati (retrocompat / override manuale).
+    env = CIE_OIDC_ENVIRONMENTS.get(oidc_environment)
+    if env is not None:
+        config.oidc_environment = oidc_environment
+        config.oidc_provider_url = env["provider_url"]
+        config.trust_anchor_url = env["trust_anchor_url"]
+        config.authority_hint_url = env["authority_hint_url"]
+    else:
+        config.oidc_environment = oidc_environment or None
+        config.oidc_provider_url = oidc_provider_url or None
+        config.trust_anchor_url = trust_anchor_url or None
+        config.authority_hint_url = authority_hint_url or None
     config.homepage_uri = homepage_uri or None
     config.policy_uri = policy_uri or None
     config.logo_uri = logo_uri or None

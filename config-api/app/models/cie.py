@@ -19,6 +19,7 @@ class CieConfig(Base):
     jwk_federation_id: Mapped[Optional[int]] = mapped_column(ForeignKey("jwk_keys.id"), nullable=True)
     jwk_core_sig_id: Mapped[Optional[int]] = mapped_column(ForeignKey("jwk_keys.id"), nullable=True)
     jwk_core_enc_id: Mapped[Optional[int]] = mapped_column(ForeignKey("jwk_keys.id"), nullable=True)
+    oidc_environment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     oidc_provider_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     trust_anchor_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     authority_hint_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
