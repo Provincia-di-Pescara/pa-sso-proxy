@@ -114,10 +114,15 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
                 "scopes_supported": ["openid", "profile", "email"],
                 "subject_types_supported": ["pairwise", "public"],
                 "id_token_lifetime": 3600,
-                # extra_scopes adds fiscal_number to scope2claims for profile scope
-                # so that fiscal_number is released in userinfo without explicit claims param
+                # extra_scopes replaces (not extends) the default oic scope→claims mapping,
+                # so profile must include all standard OIDC profile claims + fiscal_number
                 "extra_scopes": {
-                    "profile": ["fiscal_number"],
+                    "profile": [
+                        "name", "given_name", "family_name", "middle_name", "nickname",
+                        "profile", "picture", "website", "gender", "birthdate",
+                        "zoneinfo", "locale", "updated_at", "preferred_username",
+                        "fiscal_number",
+                    ],
                 },
             },
         },
