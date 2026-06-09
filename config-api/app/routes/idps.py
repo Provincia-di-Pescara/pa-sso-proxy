@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.metadata_watcher import fetch_idp_metadata
-from app.models import SpidIdP
+from app.models import SpidIdP, Settings
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_seeder import sync_spid_idps_from_registry
@@ -142,6 +142,10 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     validator_result = await db.execute(select(SpidIdP).where(SpidIdP.alias == "spid-validator"))
     validator_idp = validator_result.scalar_one_or_none()
 
+    settings_result = await db.execute(select(Settings).limit(1))
+    settings = settings_result.scalar_one_or_none()
+    proxy_hostname = settings.proxy_hostname if settings and settings.proxy_hostname else ""
+
     return templates.TemplateResponse(
         request,
         "idps/list.html.j2",
@@ -153,6 +157,7 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
             "last_sync_at": last_sync_at,
             "demo_idp": demo_idp,
             "validator_idp": validator_idp,
+            "proxy_hostname": proxy_hostname,
         },
     )
 

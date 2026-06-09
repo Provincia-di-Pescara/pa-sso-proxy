@@ -3,9 +3,16 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2>Provider SPID</h2>
-  <form method="post" action="/admin/idps/sync" class="d-inline">
-    <button class="btn btn-sm btn-primary">Sync manuale da Registry</button>
-  </form>
+  <div class="d-flex gap-2 align-items-center">
+    {% if proxy_hostname %}
+    <a href="https://{{ proxy_hostname }}/spidSaml2/metadata" target="_blank" class="btn btn-sm btn-outline-secondary">
+      📄 Metadata SP (AgID)
+    </a>
+    {% endif %}
+    <form method="post" action="/admin/idps/sync" class="d-inline">
+      <button class="btn btn-sm btn-primary">Sync manuale da Registry</button>
+    </form>
+  </div>
 </div>
 
 <div class="card mb-4 border-primary">
@@ -117,7 +124,7 @@
             <th>Entity ID</th>
             <th>Organization name</th>
             <th>Last update date</th>
-            <th>Disabled</th>
+            <th>Abilitato</th>
             <th>Dettagli</th>
           </tr>
         </thead>
@@ -135,14 +142,16 @@
             <td>{{ item.registry_organization_name or item.display_name or '—' }}</td>
             <td><small>{{ item.registry_lastupdate_date or '—' }}</small></td>
             <td>
-              {% if item.registry_disabled %}
-              <span class="badge bg-secondary">Sì</span>
-              {% else %}
-              <span class="badge bg-success">No</span>
-              {% endif %}
+              <form method="post" action="/admin/idps/{{ item.id }}/toggle" class="d-inline">
+                {% if item.enabled %}
+                <button type="submit" class="btn btn-sm btn-success" title="Clicca per disabilitare">✓ Sì</button>
+                {% else %}
+                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Clicca per abilitare">No</button>
+                {% endif %}
+              </form>
             </td>
             <td>
-              <a class="btn btn-sm btn-outline-primary" href="/admin/idps/detail?entity_id={{ item.registry_entity_id | urlencode }}">Apri dettagli</a>
+              <a class="btn btn-sm btn-outline-primary" href="/admin/idps/detail?entity_id={{ item.registry_entity_id | urlencode }}">Dettagli</a>
             </td>
           </tr>
           {% endfor %}
