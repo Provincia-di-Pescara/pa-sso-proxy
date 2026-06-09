@@ -1,4 +1,4 @@
-﻿name: Docker Publish
+name: Docker Publish
 
 on:
   push:
@@ -72,6 +72,12 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Write version file
+        run: |
+          if [ "${{ matrix.image }}" = "config-api" ]; then
+            git describe --tags --always > config-api/app_version.txt
+          fi
 
       - name: Build and push
         uses: docker/build-push-action@v7

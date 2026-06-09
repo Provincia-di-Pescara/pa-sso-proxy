@@ -9,7 +9,10 @@
 </head>
 <body>
 <nav class="navbar navbar-dark bg-dark px-3">
-  <span class="navbar-brand">PA SSO Proxy</span>
+  <span class="navbar-brand d-flex align-items-center">
+    PA SSO Proxy
+    <span class="badge bg-secondary ms-2" style="font-size: 0.7rem; font-weight: normal; opacity: 0.85;">{{ app_version }}</span>
+  </span>
   <div class="d-flex">
     <form method="post" action="/admin/logout" class="d-inline">
       <button type="submit" class="btn btn-sm btn-outline-light">Logout</button>
