@@ -246,16 +246,56 @@ a:hover { color: var(--fg-link-hover); }
 }
 .sso-tab:hover { color: var(--fg-1); }
 .sso-tab--active { color: var(--bi-primary); border-bottom-color: var(--bi-primary); }
-.sso-tab-ico { width: 28px; height: 28px; flex: 0 0 auto; }
+.sso-tab-ico { width: 28px; height: 28px; flex: 0 0 auto; object-fit: contain; }
+
+.sso-tab-ico-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bi-navy);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  flex: 0 0 auto;
+  padding: 4px;
+}
+.sso-tab-ico--cie {
+  width: 100%;
+  height: 100%;
+}
 
 /* ---------- TAB PANELS ---------- */
 .sso-tab-panel { padding-top: var(--sp-4); }
 .sso-tab-panel[hidden] { display: none; }
 
+.sso-desc {
+  font-size: var(--fs-14);
+  color: var(--fg-2);
+  line-height: 1.5;
+  margin-bottom: var(--sp-3);
+}
+
+.sso-helpers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-4);
+  padding-left: var(--sp-1);
+}
+.sso-helpers a {
+  font-size: var(--fs-14);
+  color: var(--fg-link);
+  font-weight: 600;
+  text-decoration: none;
+}
+.sso-helpers a:hover {
+  text-decoration: underline;
+}
+
 /* ---------- CIE PANEL ---------- */
 .cie-panel {
   display: flex; flex-direction: column; align-items: center;
-  padding: var(--sp-5) 0 var(--sp-3); gap: var(--sp-4);
+  padding: var(--sp-3) 0 var(--sp-2); gap: var(--sp-4);
 }
 .cie-login-btn {
   display: flex; align-items: center; justify-content: center; gap: 12px;
@@ -267,6 +307,23 @@ a:hover { color: var(--fg-link-hover); }
 }
 .cie-login-btn:hover { background: #001d3a; color: #fff; }
 .cie-learn-more { font-size: var(--fs-13); margin: 0; }
+
+.panel-foot-logo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-1);
+}
+.spid-agid-logo {
+  max-height: 36px;
+  width: auto;
+}
+.ministero-logo {
+  max-height: 38px;
+  width: auto;
+}
 
 /* ---------- HELP LINKS ---------- */
 .sso-help { margin-top: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-2); }

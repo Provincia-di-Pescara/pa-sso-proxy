@@ -74,37 +74,16 @@
         <button class="sso-tab sso-tab--active" id="tab-spid" role="tab"
                 aria-selected="true" aria-controls="panel-spid"
                 type="button" onclick="ssoTab('spid')">
-          <!-- SPID official icon: blue circle + 3-node network -->
-          <svg class="sso-tab-ico" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-            <circle cx="16" cy="16" r="16" fill="#0066CC"/>
-            <circle cx="16" cy="7" r="4" fill="#fff"/>
-            <circle cx="7.5" cy="23" r="4" fill="#fff"/>
-            <circle cx="24.5" cy="23" r="4" fill="#fff"/>
-            <line x1="16" y1="7" x2="7.5" y2="23" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
-            <line x1="16" y1="7" x2="24.5" y2="23" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
-            <line x1="7.5" y1="23" x2="24.5" y2="23" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
-          </svg>
+          <img class="sso-tab-ico" src="/static/spid/spid-ico-circle-bb.svg" alt="SPID">
           Entra con SPID
         </button>
 
         <button class="sso-tab" id="tab-cie" role="tab"
                 aria-selected="false" aria-controls="panel-cie"
                 type="button" onclick="ssoTab('cie')" style="display:none">
-          <!-- CIE official icon: chip card -->
-          <svg class="sso-tab-ico" viewBox="0 0 38 26" fill="none" aria-hidden="true">
-            <rect width="38" height="26" rx="3" fill="#003366"/>
-            <rect y="0" width="38" height="7" rx="3" fill="#00416A"/>
-            <rect y="4" width="38" height="3" fill="#00416A"/>
-            <rect x="4" y="11" width="8" height="6" rx="1" fill="#C5A028"/>
-            <line x1="5.5" y1="11" x2="5.5" y2="17" stroke="#8B7000" stroke-width=".7"/>
-            <line x1="7"   y1="11" x2="7"   y2="17" stroke="#8B7000" stroke-width=".7"/>
-            <line x1="8.5" y1="11" x2="8.5" y2="17" stroke="#8B7000" stroke-width=".7"/>
-            <line x1="10"  y1="11" x2="10"  y2="17" stroke="#8B7000" stroke-width=".7"/>
-            <line x1="4"   y1="13" x2="12"  y2="13" stroke="#8B7000" stroke-width=".7"/>
-            <line x1="4"   y1="15" x2="12"  y2="15" stroke="#8B7000" stroke-width=".7"/>
-            <rect x="15" y="12" width="18" height="2" rx="1" fill="#4A7BA0"/>
-            <rect x="15" y="16" width="13" height="2" rx="1" fill="#4A7BA0"/>
-          </svg>
+          <span class="sso-tab-ico-wrapper">
+            <img class="sso-tab-ico sso-tab-ico--cie" src="/static/cie/cie_white.svg" alt="CIE">
+          </span>
           Entra con CIE
         </button>
 
@@ -112,6 +91,15 @@
 
       <!-- SPID PANEL -->
       <div class="sso-tab-panel" id="panel-spid" role="tabpanel" aria-labelledby="tab-spid">
+        <p class="sso-desc">
+          SPID, il <strong>Sistema Pubblico di Identità Digitale</strong>, è il sistema di accesso che consente di utilizzare, con un'identità digitale unica, i servizi online della Pubblica Amministrazione e dei privati accreditati. Se sei già in possesso di un'identità digitale, accedi con le credenziali del tuo gestore. Se non hai ancora un'identità digitale, richiedila ad uno dei gestori.
+        </p>
+        <div class="sso-helpers">
+          <a href="https://www.spid.gov.it/" target="_blank" rel="noopener">Maggiori informazioni su SPID</a>
+          <a href="https://www.spid.gov.it/richiedi-spid" target="_blank" rel="noopener">Non hai SPID?</a>
+          <a href="https://www.spid.gov.it/serve-aiuto" target="_blank" rel="noopener">Serve aiuto?</a>
+        </div>
+
         <div class="idp-panel-head">
           <p class="t">Scegli il tuo gestore di identità</p>
           <p class="s">Accedi con le credenziali SPID che già possiedi.</p>
@@ -119,40 +107,31 @@
         <div class="idp-grid" id="spid-idp-list">
           <!-- Populated by JS -->
         </div>
-        <div class="idp-foot">
-          <a href="https://www.spid.gov.it/richiedi-spid/" target="_blank" rel="noopener">
-            Non hai SPID? Scopri come richiederlo
-          </a>
-          <span class="sep">·</span>
-          <a href="https://www.spid.gov.it/" target="_blank" rel="noopener">Maggiori informazioni</a>
+
+        <div class="panel-foot-logo">
+          <img class="spid-agid-logo" src="/static/spid/spid-agid-logo-lb.png" alt="Logo SPID - AGID - Agenzia per l'Italia Digitale">
         </div>
       </div>
 
       <!-- CIE PANEL -->
       <div class="sso-tab-panel" id="panel-cie" role="tabpanel" aria-labelledby="tab-cie" hidden>
+        <p class="sso-desc">
+          La <strong>Carta d'Identità Elettronica</strong> (CIE) è il documento personale che attesta l'identità del cittadino. Dotata di microprocessore, oltre a comprovare l'identità personale, permette l'accesso ai servizi digitali della Pubblica Amministrazione.
+        </p>
+        <div class="sso-helpers">
+          <a href="https://www.cartaidentita.interno.gov.it/" target="_blank" rel="noopener">Maggiori informazioni su CIE</a>
+          <a href="https://www.cartaidentita.interno.gov.it/richiedi-cie/" target="_blank" rel="noopener">Non hai la CIE?</a>
+        </div>
+
         <div class="cie-panel">
           <a class="cie-login-btn" id="cie-login-btn" href="#">
-            <svg viewBox="0 0 38 26" fill="none" aria-hidden="true" style="height:22px;flex:0 0 auto">
-              <rect width="38" height="26" rx="3" fill="rgba(255,255,255,.15)"/>
-              <rect y="0" width="38" height="7" rx="3" fill="rgba(255,255,255,.1)"/>
-              <rect y="4" width="38" height="3" fill="rgba(255,255,255,.1)"/>
-              <rect x="4" y="11" width="8" height="6" rx="1" fill="#C5A028"/>
-              <line x1="5.5" y1="11" x2="5.5" y2="17" stroke="#8B7000" stroke-width=".7"/>
-              <line x1="7"   y1="11" x2="7"   y2="17" stroke="#8B7000" stroke-width=".7"/>
-              <line x1="8.5" y1="11" x2="8.5" y2="17" stroke="#8B7000" stroke-width=".7"/>
-              <line x1="10"  y1="11" x2="10"  y2="17" stroke="#8B7000" stroke-width=".7"/>
-              <line x1="4"   y1="13" x2="12"  y2="13" stroke="#8B7000" stroke-width=".7"/>
-              <line x1="4"   y1="15" x2="12"  y2="15" stroke="#8B7000" stroke-width=".7"/>
-              <rect x="15" y="12" width="18" height="2" rx="1" fill="rgba(255,255,255,.4)"/>
-              <rect x="15" y="16" width="13" height="2" rx="1" fill="rgba(255,255,255,.4)"/>
-            </svg>
+            <img src="/static/cie/cie_white.svg" alt="" style="height:22px; flex:0 0 auto;">
             Entra con CIE
           </a>
-          <p class="cie-learn-more">
-            <a href="https://www.cartaidentita.interno.gov.it/" target="_blank" rel="noopener">
-              Non hai la CIE? Scopri come ottenerla
-            </a>
-          </p>
+        </div>
+
+        <div class="panel-foot-logo">
+          <img class="ministero-logo" src="/static/cie/ministero@2x.png" alt="Ministero dell'Interno">
         </div>
       </div>
 

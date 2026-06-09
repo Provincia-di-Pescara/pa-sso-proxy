@@ -24,6 +24,8 @@ COPY plugins/spidsaml2.py       /satosa_proxy/backends/spidsaml2.py
 
 # Override public-facing SSO pages (design system .italia — card centrata)
 COPY public/static/sso/         /satosa_proxy/static/sso/
+COPY public/static/spid/        /satosa_proxy/static/spid/
+COPY public/static/cie/         /satosa_proxy/static/cie/
 COPY public/static/disco.html   /satosa_proxy/static/disco.html
 COPY public/templates/           /satosa_proxy/templates/
 

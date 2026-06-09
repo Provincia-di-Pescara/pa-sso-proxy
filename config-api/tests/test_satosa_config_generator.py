@@ -131,12 +131,23 @@ async def test_oidc_frontend_yaml_issuer(full_db, tmp_path, monkeypatch):
 
 
 async def test_spid_backend_yaml_has_idp_metadata(full_db, tmp_path, monkeypatch):
+    from app.models import SpidIdP
+    demo = SpidIdP(
+        alias="spid-demo",
+        display_name="Demo Provider",
+        metadata_url="https://demo.spid.gov.it/metadata",
+        enabled=True,
+    )
+    full_db.add(demo)
+    await full_db.commit()
+
     monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
     from app.satosa_config_generator import generate_satosa_config
     await generate_satosa_config(full_db)
     spid = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
     urls = [r["url"] for r in spid["metadata"]["remote"]]
-    assert "https://loginspid.aruba.it/metadata" in urls
+    assert "https://demo.spid.gov.it/metadata" in urls
+
 
 
 async def test_no_generation_without_settings(db_session, tmp_path, monkeypatch):
