@@ -18,6 +18,7 @@ from app.metadata_watcher import run_metadata_watcher
 from app.routes import dashboard, clients, idps, settings, certs, cie, test_client
 from app.satosa_generator import generate_and_write
 from app.spid_seeder import seed_spid_idps
+from app.trust_mark_fetcher import fetch_trust_mark
 
 _CIE_OIDC_COLUMNS = [
     "entity_id",
@@ -93,6 +94,40 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "changeme")
 templates = Jinja2Templates(directory="app/templates")
 
 
+async def _try_fetch_trust_mark(session) -> None:
+    """Auto-fetch trust mark from CIE registry if CIE OIDC enabled and trust_mark absent."""
+    from sqlalchemy import select
+    from app.models import CieConfig
+    from app.satosa_config_generator import _cie_oidc_client_id
+
+    try:
+        result = await session.execute(select(CieConfig).where(CieConfig.id == 1))
+        config = result.scalar_one_or_none()
+        if config is None or not config.oidc_federation_enabled:
+            return
+        if config.trust_mark:
+            return  # già presente
+        if not config.oidc_provider_url:
+            return  # ambiente non ancora configurato
+
+        # Ricava il client_id dal PROXY_HOSTNAME
+        proxy_hostname = os.environ.get("PROXY_HOSTNAME", "")
+        if not proxy_hostname:
+            return
+        client_id = _cie_oidc_client_id(proxy_hostname)
+
+        result_tm = await fetch_trust_mark(client_id)
+        if result_tm is None:
+            return
+        _tm_id, tm_jwt = result_tm
+        config.trust_mark = tm_jwt
+        # trust_mark_id non più in DB, si deriva dal JWT a runtime
+        await session.commit()
+        logger.info("Trust mark salvato automaticamente per %s", client_id)
+    except Exception:
+        logger.warning("Auto-fetch trust mark fallito a startup", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await _migrate_cie_oidc_columns()
@@ -100,6 +135,7 @@ async def lifespan(app: FastAPI):
     await _migrate_client_secret_plain()
     async with AsyncSessionLocal() as session:
         await seed_spid_idps(session)
+        await _try_fetch_trust_mark(session)
         try:
             await generate_and_write(session)
         except Exception:

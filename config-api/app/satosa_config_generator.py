@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from typing import Optional
@@ -17,6 +18,26 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 def _base_url(hostname: str) -> str:
     """Return the public base URL for SATOSA. PROXY_BASE_URL overrides hostname."""
     return os.environ.get("PROXY_BASE_URL", "").rstrip("/") or f"https://{hostname}"
+
+
+def _cie_oidc_client_id(hostname: str) -> str:
+    return f"{_base_url(hostname)}/CieOidcRp"
+
+
+def _decode_jwt_payload(token: str) -> dict:
+    parts = token.split(".")
+    if len(parts) < 2:
+        return {}
+    padded = parts[1] + "==" * (-len(parts[1]) % 4)
+    try:
+        return json.loads(base64.urlsafe_b64decode(padded))
+    except Exception:
+        return {}
+
+
+def _trust_mark_id_from_jwt(trust_mark_jwt: str) -> str:
+    """Extract 'id' claim from trust mark JWT payload."""
+    return _decode_jwt_payload(trust_mark_jwt).get("id", "")
 
 
 _SPID_BACKEND_CLASS = "backends.spidsaml2.SpidSAMLBackend"
@@ -225,6 +246,9 @@ def _cie_oidc_backend_yaml(
 ) -> dict:
     contact_email = cie_config.oidc_contact_email or settings.contact_email
     org_name = settings.org_display_name
+    client_id = _cie_oidc_client_id(hostname)
+    trust_mark_id = _trust_mark_id_from_jwt(cie_config.trust_mark or "") if cie_config.trust_mark else ""
+    trust_marks = [{"id": trust_mark_id, "trust_mark": cie_config.trust_mark}] if trust_mark_id else []
 
     db_config = {
         "redis": {
@@ -236,7 +260,7 @@ def _cie_oidc_backend_yaml(
     httpc_params = {"connection": {"ssl": True}, "session": {"timeout": 6}}
     metadata = {
         "federation_entity": {
-            "federation_resolve_endpoint": f"https://{hostname}/CieOidcRp/resolve",
+            "federation_resolve_endpoint": f"{_base_url(hostname)}/CieOidcRp/resolve",
             "organization_name": org_name,
             "homepage_uri": cie_config.homepage_uri,
             "policy_uri": cie_config.policy_uri,
@@ -245,15 +269,15 @@ def _cie_oidc_backend_yaml(
         },
         "openid_relying_party": {
             "application_type": "web",
-            "client_id": cie_config.client_id,
+            "client_id": client_id,
             "client_name": org_name,
             "organization_name": org_name,
             "client_registration_types": ["automatic"],
-            "signed_jwks_uri": f"https://{hostname}/CieOidcRp/openid_relying_party/jwks.jose",
+            "signed_jwks_uri": f"{_base_url(hostname)}/CieOidcRp/openid_relying_party/jwks.jose",
             "jwks": None,
             "contacts": [contact_email],
             "grant_types": ["refresh_token", "authorization_code"],
-            "redirect_uris": [f"https://{hostname}/CieOidcRp/oidc/callback"],
+            "redirect_uris": [f"{_base_url(hostname)}/CieOidcRp/oidc/callback"],
             "response_types": ["code"],
             "subject_type": "pairwise",
             "id_token_signed_response_alg": "RS256",
@@ -289,8 +313,6 @@ def _cie_oidc_backend_yaml(
         "default_sig_alg": "RS256",
         "authority_hints": [cie_config.authority_hint_url],
     }
-    trust_marks = [{"id": cie_config.trust_mark_id, "trust_mark": cie_config.trust_mark}]
-
     return {
         "module": "backends.cieoidc.CieOidcBackend",
         "name": "CieOidcRp",
@@ -515,11 +537,8 @@ async def generate_satosa_config(db: AsyncSession) -> None:
     include_cie_oidc = bool(
         cie_config is not None
         and cie_config.oidc_federation_enabled
-        and cie_config.trust_mark
-        and cie_config.trust_mark_id
         and cie_config.authority_hint_url
         and cie_config.trust_anchor_url
-        and cie_config.client_id
         and cie_config.oidc_provider_url
         and jwk_federation is not None
         and jwk_core_sig is not None

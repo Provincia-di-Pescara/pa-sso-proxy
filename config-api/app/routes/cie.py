@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from typing import Optional
 from uuid import uuid4
 
@@ -70,6 +71,9 @@ async def cie_config_get(request: Request, db: AsyncSession = Depends(get_db)):
     public_jwks = {"keys": [k.public_jwk for k in jwk_keys if k.public_jwk]}
     public_jwks_json = json.dumps(public_jwks, indent=4)
 
+    proxy_hostname = os.environ.get("PROXY_HOSTNAME", "")
+    derived_client_id = f"https://{proxy_hostname}/CieOidcRp" if proxy_hostname else ""
+
     return templates.TemplateResponse(
         request,
         "cie/config.html.j2",
@@ -78,6 +82,7 @@ async def cie_config_get(request: Request, db: AsyncSession = Depends(get_db)):
             "jwk_keys": jwk_keys,
             "public_jwks_json": public_jwks_json,
             "environments": CIE_OIDC_ENVIRONMENTS,
+            "derived_client_id": derived_client_id,
         },
     )
 
@@ -86,8 +91,6 @@ async def cie_config_get(request: Request, db: AsyncSession = Depends(get_db)):
 async def cie_config_post(
     request: Request,
     saml_metadata_url: str = Form(...),
-    entity_id: str = Form(default=""),
-    client_id: str = Form(default=""),
     jwk_federation_id: str = Form(default=""),
     jwk_core_sig_id: str = Form(default=""),
     jwk_core_enc_id: str = Form(default=""),
@@ -99,7 +102,6 @@ async def cie_config_post(
     homepage_uri: str = Form(default=""),
     policy_uri: str = Form(default=""),
     logo_uri: str = Form(default=""),
-    trust_mark_id: str = Form(default=""),
     trust_mark: str = Form(default=""),
     oidc_contact_email: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
@@ -115,8 +117,6 @@ async def cie_config_post(
         db.add(config)
 
     config.saml_metadata_url = saml_metadata_url
-    config.entity_id = entity_id or None
-    config.client_id = client_id or None
     config.jwk_federation_id = int(jwk_federation_id) if jwk_federation_id else None
     config.jwk_core_sig_id = int(jwk_core_sig_id) if jwk_core_sig_id else None
     config.jwk_core_enc_id = int(jwk_core_enc_id) if jwk_core_enc_id else None
@@ -137,7 +137,6 @@ async def cie_config_post(
     config.homepage_uri = homepage_uri or None
     config.policy_uri = policy_uri or None
     config.logo_uri = logo_uri or None
-    config.trust_mark_id = trust_mark_id or None
     config.trust_mark = trust_mark or None
     config.oidc_contact_email = oidc_contact_email or None
 
