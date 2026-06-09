@@ -135,6 +135,13 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     sync_error = request.query_params.get("error")
     last_sync_result = await db.execute(select(func.max(SpidIdP.registry_synced_at)))
     last_sync_at = last_sync_result.scalar_one_or_none()
+
+    demo_result = await db.execute(select(SpidIdP).where(SpidIdP.alias == "spid-demo"))
+    demo_idp = demo_result.scalar_one_or_none()
+
+    validator_result = await db.execute(select(SpidIdP).where(SpidIdP.alias == "spid-validator"))
+    validator_idp = validator_result.scalar_one_or_none()
+
     return templates.TemplateResponse(
         request,
         "idps/list.html.j2",
@@ -144,6 +151,8 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
             "sync_inserted": sync_inserted,
             "sync_error": sync_error,
             "last_sync_at": last_sync_at,
+            "demo_idp": demo_idp,
+            "validator_idp": validator_idp,
         },
     )
 
@@ -178,6 +187,20 @@ async def idps_toggle(request: Request, idp_id: int, db: AsyncSession = Depends(
     idp = result.scalar_one_or_none()
     if idp:
         idp.enabled = not idp.enabled
+        
+        # Enforce mutual exclusion for demo and validator testing environments
+        if idp.enabled:
+            if idp.alias == "spid-demo":
+                v_res = await db.execute(select(SpidIdP).where(SpidIdP.alias == "spid-validator"))
+                v_idp = v_res.scalar_one_or_none()
+                if v_idp:
+                    v_idp.enabled = False
+            elif idp.alias == "spid-validator":
+                d_res = await db.execute(select(SpidIdP).where(SpidIdP.alias == "spid-demo"))
+                d_idp = d_res.scalar_one_or_none()
+                if d_idp:
+                    d_idp.enabled = False
+                    
         await db.commit()
         try:
             await generate_and_write(db)

@@ -156,3 +156,44 @@ async def test_idps_list_shows_sync_feedback(auth_client):
     assert response.status_code == 200
     assert "Sync completata" in response.text
     assert "Nuovi IdP inseriti: 2" in response.text
+
+
+async def test_idps_toggle_mutual_exclusion(auth_client, db_session):
+    demo = SpidIdP(
+        alias="spid-demo",
+        display_name="Demo Provider",
+        metadata_url="https://demo.spid.gov.it/metadata.xml",
+        enabled=True,
+    )
+    validator = SpidIdP(
+        alias="spid-validator",
+        display_name="AgID Validator",
+        metadata_url="https://validator.spid.gov.it/metadata.xml",
+        enabled=False,
+    )
+    db_session.add_all([demo, validator])
+    await db_session.commit()
+    await db_session.refresh(demo)
+    await db_session.refresh(validator)
+
+    # Enable validator -> demo should get disabled
+    with patch("app.routes.idps.generate_and_write", new_callable=AsyncMock), \
+         patch("app.routes.idps.reload_satosa", return_value=True):
+        response = await auth_client.post(f"/admin/idps/{validator.id}/toggle", follow_redirects=False)
+
+    assert response.status_code == 302
+    await db_session.refresh(demo)
+    await db_session.refresh(validator)
+    assert validator.enabled is True
+    assert demo.enabled is False
+
+    # Enable demo -> validator should get disabled
+    with patch("app.routes.idps.generate_and_write", new_callable=AsyncMock), \
+         patch("app.routes.idps.reload_satosa", return_value=True):
+        response = await auth_client.post(f"/admin/idps/{demo.id}/toggle", follow_redirects=False)
+
+    assert response.status_code == 302
+    await db_session.refresh(demo)
+    await db_session.refresh(validator)
+    assert demo.enabled is True
+    assert validator.enabled is False

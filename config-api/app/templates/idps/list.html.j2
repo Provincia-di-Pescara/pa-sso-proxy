@@ -7,6 +7,84 @@
     <button class="btn btn-sm btn-primary">Sync manuale da Registry</button>
   </form>
 </div>
+
+<div class="card mb-4 border-primary">
+  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">Ambiente di Test / Validazione</h5>
+    <span class="badge bg-light text-primary">SPID SAML</span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted mb-4">
+      Attiva uno dei provider di test/validazione per effettuare l'integrazione o il collaudo del proxy. 
+      <strong>Solo un provider alla volta può essere attivo.</strong> L'attivazione di uno disabiliterà automaticamente l'altro.
+    </p>
+    
+    <div class="row g-4">
+      <!-- Demo Provider Card -->
+      <div class="col-md-6">
+        <div class="p-3 border rounded h-100 d-flex flex-column justify-content-between {% if demo_idp and demo_idp.enabled %}border-success bg-success bg-opacity-10{% endif %}" style="transition: all 0.2s ease;">
+          <div>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h6 class="mb-0">SPID Demo Provider</h6>
+              {% if demo_idp and demo_idp.enabled %}
+                <span class="badge bg-success">Attivo</span>
+              {% else %}
+                <span class="badge bg-secondary">Inattivo</span>
+              {% endif %}
+            </div>
+            <p class="small text-muted mb-3">
+              Permette l'autenticazione tramite il provider di demo ufficiale di SPID (per simulare cittadini ed effettuare collaudi).
+            </p>
+            <code class="d-block small text-break mb-3">{{ demo_idp.metadata_url if demo_idp else 'https://demo.spid.gov.it/metadata.xml' }}</code>
+          </div>
+          <div>
+            {% if demo_idp %}
+            <form method="post" action="/admin/idps/{{ demo_idp.id }}/toggle">
+              <button type="submit" class="btn btn-sm w-100 {% if demo_idp.enabled %}btn-outline-danger{% else %}btn-success{% endif %}">
+                {% if demo_idp.enabled %}Disattiva Demo{% else %}Attiva Demo{% endif %}
+              </button>
+            </form>
+            {% else %}
+            <button class="btn btn-sm btn-secondary w-100" disabled>In caricamento...</button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Validator Card -->
+      <div class="col-md-6">
+        <div class="p-3 border rounded h-100 d-flex flex-column justify-content-between {% if validator_idp and validator_idp.enabled %}border-success bg-success bg-opacity-10{% endif %}" style="transition: all 0.2s ease;">
+          <div>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h6 class="mb-0">Validator AgID</h6>
+              {% if validator_idp and validator_idp.enabled %}
+                <span class="badge bg-success">Attivo</span>
+              {% else %}
+                <span class="badge bg-secondary">Inattivo</span>
+              {% endif %}
+            </div>
+            <p class="small text-muted mb-3">
+              Permette di verificare la conformità del proxy inviando le richieste di autenticazione al validatore ufficiale di AgID.
+            </p>
+            <code class="d-block small text-break mb-3">{{ validator_idp.metadata_url if validator_idp else 'https://validator.spid.gov.it/metadata.xml' }}</code>
+          </div>
+          <div>
+            {% if validator_idp %}
+            <form method="post" action="/admin/idps/{{ validator_idp.id }}/toggle">
+              <button type="submit" class="btn btn-sm w-100 {% if validator_idp.enabled %}btn-outline-danger{% else %}btn-success{% endif %}">
+                {% if validator_idp.enabled %}Disattiva Validatore{% else %}Attiva Validatore{% endif %}
+              </button>
+            </form>
+            {% else %}
+            <button class="btn btn-sm btn-secondary w-100" disabled>In caricamento...</button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card mb-4">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">

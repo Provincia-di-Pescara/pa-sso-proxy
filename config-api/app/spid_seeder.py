@@ -20,6 +20,8 @@ SPID_IDPS = [
     {"alias": "spid-tim",        "display_name": "TIM Personal ID",    "metadata_url": "https://login.id.tim.it/affwebservices/public/saml2sso"},
     {"alias": "spid-teamsystem", "display_name": "TeamSystem ID",      "metadata_url": "https://spid.teamsystem.com/idp/saml2/metadata"},
     {"alias": "spid-trust",      "display_name": "Trust Technologies", "metadata_url": "https://idp.trusttechnologies.it/saml2/idp/metadata"},
+    {"alias": "spid-demo",       "display_name": "Demo Provider",      "metadata_url": "https://demo.spid.gov.it/metadata.xml"},
+    {"alias": "spid-validator",  "display_name": "AgID Validator",     "metadata_url": "https://validator.spid.gov.it/metadata.xml"},
 ]
 
 SPID_REGISTRY_API_LIST_URL = "https://registry.spid.gov.it/entities-idp?output=json&page=1&numMetadata=50"

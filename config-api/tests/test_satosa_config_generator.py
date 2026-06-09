@@ -260,3 +260,86 @@ async def test_cie_oidc_callback_claims_mapping(db_session, tmp_path, monkeypatc
     assert callback_claims["first_name"] == ["given_name", "first_name"]
     assert callback_claims["last_name"] == ["family_name", "last_name"]
     assert callback_claims["email"] == ["email", "email"]
+
+
+async def test_satosa_config_generator_spid_testing_providers(db_session, tmp_path, monkeypatch):
+    import json
+    from sqlalchemy import delete
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.models import EnteSettings, SpidIdP
+    from app.satosa_config_generator import generate_satosa_config
+
+    s = EnteSettings(
+        id=1, proxy_hostname="proxy.ente.it", org_name="Ente", org_display_name="Ente Test",
+        org_url="https://ente.it", ipa_code="P_T", contact_email="e@ente.it",
+        contact_phone="+39001", org_city="Roma",
+    )
+    
+    # 1. Test default mode: neither is enabled (no demo, no validator)
+    await db_session.execute(delete(SpidIdP))
+    db_session.add(s)
+    await db_session.commit()
+    
+    await generate_satosa_config(db_session)
+    
+    # Verify spid-idps-default.json fallback is written
+    idps_default = json.loads((tmp_path / "spid-idps-default.json").read_text())
+    assert len(idps_default) > 1
+    assert any(x["organization_name"] == "Aruba PEC" for x in idps_default)
+    
+    # Verify spid_backend.yaml has only local metadata config
+    spid_yaml = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
+    assert "local" in spid_yaml["metadata"]
+    assert "/satosa_proxy/metadata/idp/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
+    assert "remote" not in spid_yaml["metadata"]
+    
+    # 2. Test demo mode enabled
+    demo = SpidIdP(
+        alias="spid-demo",
+        display_name="Demo Provider",
+        metadata_url="https://demo.spid.gov.it/metadata.xml",
+        enabled=True,
+    )
+    db_session.add(demo)
+    await db_session.commit()
+    
+    await generate_satosa_config(db_session)
+    
+    # Verify spid-idps-default.json has only demo provider
+    idps_demo = json.loads((tmp_path / "spid-idps-default.json").read_text())
+    assert len(idps_demo) == 1
+    assert idps_demo[0]["organization_name"] == "Demo Provider"
+    assert idps_demo[0]["entity_id"] == "https://demo.spid.gov.it"
+    
+    # Verify spid_backend.yaml has both local catalog and remote demo metadata URL
+    spid_yaml = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
+    assert "local" in spid_yaml["metadata"]
+    assert "/satosa_proxy/metadata/idp/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
+    assert "remote" in spid_yaml["metadata"]
+    assert spid_yaml["metadata"]["remote"] == [{"url": "https://demo.spid.gov.it/metadata.xml"}]
+    
+    # 3. Test validator mode enabled
+    demo.enabled = False
+    validator = SpidIdP(
+        alias="spid-validator",
+        display_name="AgID Validator",
+        metadata_url="https://validator.spid.gov.it/metadata.xml",
+        enabled=True,
+    )
+    db_session.add(validator)
+    await db_session.commit()
+    
+    await generate_satosa_config(db_session)
+    
+    # Verify spid-idps-default.json has only validator
+    idps_val = json.loads((tmp_path / "spid-idps-default.json").read_text())
+    assert len(idps_val) == 1
+    assert idps_val[0]["organization_name"] == "AgID Validator"
+    assert idps_val[0]["entity_id"] == "https://validator.spid.gov.it"
+    
+    # Verify spid_backend.yaml has both local catalog and remote validator metadata URL
+    spid_yaml = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
+    assert "local" in spid_yaml["metadata"]
+    assert "/satosa_proxy/metadata/idp/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
+    assert "remote" in spid_yaml["metadata"]
+    assert spid_yaml["metadata"]["remote"] == [{"url": "https://validator.spid.gov.it/metadata.xml"}]
