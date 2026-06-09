@@ -106,7 +106,32 @@ Tutte in `.env` (vedi `.env.example`). Le variabili sono passate dal compose a s
 SubjectDN richiesto da AgID: `CN=<domain>, O=<ente>, 2.5.4.83=<entityId>, 2.5.4.97=PA:IT-<IPA_CODE>, C=IT, L=<città>`. Vedi `keycloak-login-proxy/scripts/manage-spid-cert.py` per implementazione Python con `cryptography`.
 
 ### CIE OIDC Federation
-Il backend CIE OIDC usa 3 JWK separati: `jwk-federation` (firma entity configuration), `jwk-core-sig` (firma OIDC requests), `jwk-core-enc` (cifratura). Il config-api genera questi keypair alla prima configurazione e li espone in WebUI per download pubblico.
+Il backend CIE OIDC usa 3 JWK separati: `jwk-federation` (firma entity configuration), `jwk-core-sig` (firma OIDC requests), `jwk-core-enc` (cifratura). Il config-api genera questi keypair e li espone in WebUI con tab separato "Portale CIE" (solo federation key, privata) e "SATOSA interno" (public).
+
+**URL fissi produzione:**
+- Trust Anchor / authority_hint: `https://oidc.registry.servizicie.interno.gov.it`
+- OP (provider): `https://oidc.idserver.servizicie.interno.gov.it`
+- Trust anchor e authority_hint coincidono — NON usare l'OP come authority_hint (causa errore federazione)
+
+**URL fissi collaudo:**
+- Trust Anchor / authority_hint: `https://preproduzione.cie.interno.gov.it`
+- OP: `https://preproduzione.cie.interno.gov.it/idp/oidc/op`
+
+**Algoritmi enc richiesti da CIE:** `RSA-OAEP` + `A256CBC-HS512`. Non `RSA-OAEP-256`/`A256GCM` (il portale CIE li rifiuta).
+
+**Entity configuration JWT — campi obbligatori verificati:**
+- `contacts` in `federation_entity`: deve essere PEC dell'ente (non email generica)
+- `claims` in `openid_relying_party`: campo standard OIDC (internamente config usa `claim`, entity_configuration.py mappa → `claims` in pubblicazione)
+- `authority_hints`: Trust Anchor, non OP
+- `trust_marks`: emesso dal portale CIE dopo accettazione registrazione — non generabile autonomamente
+
+**Registrazione portale CIE:**
+- Entity ID da inserire: `https://<PROXY_HOSTNAME>/CieOidcRp` (con path, non root dominio)
+- Il portale fetcha `{entity_id}/.well-known/openid-federation` — l'iss nel JWT deve corrispondere esattamente
+
+**cryptojwt e `use=federation`:** cryptojwt rifiuta chiavi con `use=federation` per signing (`alg_keys` accetta solo `use=sig` o assente). La chiave federation nel SATOSA config viene scritta senza campo `use` (RFC 7517: assente = qualsiasi uso). Il DB mantiene `use=federation` per il display nel portale.
+
+**Istanza di riferimento funzionante:** `https://pagopa-prx.comune.montesilvano.pe.it/` (govpay-interaction-layer Comune di Montesilvano). Per debug confrontare `/.well-known/openid-federation` con quella istanza.
 
 ### Reload SATOSA
 Il config-api segnala il reload toccando `/satosa-conf/.reload` (volume condiviso). uWSGI nel container satosa è configurato con `--touch-reload /satosa-conf/.reload` e ricarica i worker gracefully senza caduta delle connessioni. Non è necessario il Docker socket.
