@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cie_jwks_writer import write_jwks_files
 from app.database import get_db
-from app.jwk_generator import generate_jwk
+from app.jwk_generator import generate_jwk, portal_jwk
 from app.models import CieConfig, JwkKey
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
@@ -72,6 +72,12 @@ async def cie_config_get(request: Request, db: AsyncSession = Depends(get_db)):
     public_jwks = {"keys": [k.public_jwk for k in jwk_keys if k.public_jwk]}
     public_jwks_json = json.dumps(public_jwks, indent=4)
 
+    # Formato portale CIE: chiavi private complete, senza alg/use
+    portal_keys = [portal_jwk(k.private_jwk) for k in jwk_keys if k.private_jwk and all(
+        f in k.private_jwk for f in ("d", "p", "q", "dp", "dq", "qi")
+    )]
+    portal_jwks_json = json.dumps({"keys": portal_keys}, indent=4)
+
     proxy_hostname = os.environ.get("PROXY_HOSTNAME", "")
     derived_client_id = f"https://{proxy_hostname}/CieOidcRp" if proxy_hostname else ""
 
@@ -82,6 +88,7 @@ async def cie_config_get(request: Request, db: AsyncSession = Depends(get_db)):
             "config": config,
             "jwk_keys": jwk_keys,
             "public_jwks_json": public_jwks_json,
+            "portal_jwks_json": portal_jwks_json,
             "environments": CIE_OIDC_ENVIRONMENTS,
             "derived_client_id": derived_client_id,
         },

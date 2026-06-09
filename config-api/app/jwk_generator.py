@@ -1,8 +1,9 @@
 import base64
-import uuid
+import hashlib
+import json
 
-from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.models import JwkKey
 
@@ -16,8 +17,15 @@ def _b64url_int(n: int) -> str:
     return _b64url(n.to_bytes(length, byteorder="big"))
 
 
+def _rfc7638_kid(e_b64: str, n_b64: str) -> str:
+    """Compute JWK Thumbprint per RFC 7638: SHA-256 of canonical {"e","kty","n"}."""
+    canonical = json.dumps({"e": e_b64, "kty": "RSA", "n": n_b64}, separators=(",", ":"), sort_keys=True)
+    digest = hashlib.sha256(canonical.encode()).digest()
+    return _b64url(digest)
+
+
 def generate_jwk(name: str, use: str) -> JwkKey:
-    """Generate RSA 2048 keypair as JWK. Returns unsaved JwkKey instance."""
+    """Generate RSA 2048 keypair as JWK. KID = RFC 7638 thumbprint."""
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
@@ -25,15 +33,19 @@ def generate_jwk(name: str, use: str) -> JwkKey:
     )
     pub = private_key.public_key().public_numbers()
     priv = private_key.private_numbers()
-    kid = str(uuid.uuid4())
 
+    e_b64 = _b64url_int(pub.e)
+    n_b64 = _b64url_int(pub.n)
+    kid = _rfc7638_kid(e_b64, n_b64)
+
+    # Formato interno SATOSA: include alg e use per routing corretto
     public_jwk = {
         "kty": "RSA",
         "alg": "RS256" if use in ("federation", "sig") else "RSA-OAEP-256",
         "use": use,
         "kid": kid,
-        "n": _b64url_int(pub.n),
-        "e": _b64url_int(pub.e),
+        "e": e_b64,
+        "n": n_b64,
     }
     private_jwk = {
         **public_jwk,
@@ -46,3 +58,19 @@ def generate_jwk(name: str, use: str) -> JwkKey:
     }
 
     return JwkKey(name=name, use=use, private_jwk=private_jwk, public_jwk=public_jwk)
+
+
+def portal_jwk(private_jwk: dict) -> dict:
+    """Formato portale CIE: solo kty/kid/e/n/d/p/q/dp/dq/qi — senza alg/use."""
+    return {
+        "kty": private_jwk["kty"],
+        "kid": private_jwk["kid"],
+        "e": private_jwk["e"],
+        "n": private_jwk["n"],
+        "d": private_jwk["d"],
+        "p": private_jwk["p"],
+        "q": private_jwk["q"],
+        "dp": private_jwk["dp"],
+        "dq": private_jwk["dq"],
+        "qi": private_jwk["qi"],
+    }
