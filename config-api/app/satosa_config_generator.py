@@ -256,9 +256,9 @@ def _cie_oidc_backend_yaml(
             "redirect_uris": [f"https://{hostname}/CieOidcRp/oidc/callback"],
             "response_types": ["code"],
             "subject_type": "pairwise",
-            "id_token_signed_response_alg": "ES256",
-            "userinfo_signed_response_alg": "ES256",
-            "userinfo_encrypted_response_alg": "ECDH-ES+A128KW",
+            "id_token_signed_response_alg": "RS256",
+            "userinfo_signed_response_alg": "RS256",
+            "userinfo_encrypted_response_alg": "RSA-OAEP-256",
             "userinfo_encrypted_response_enc": "A256GCM",
             "token_endpoint_auth_method": "private_key_jwt",
             "scope": "openid email",
@@ -286,7 +286,7 @@ def _cie_oidc_backend_yaml(
         "jwks_core": [jwk_core_sig, jwk_core_enc],
         "entity_type": "openid_relying_party",
         "entity_configuration_exp": 525600,
-        "default_sig_alg": "ES256",
+        "default_sig_alg": "RS256",
         "authority_hints": [cie_config.authority_hint_url],
     }
     trust_marks = [{"id": cie_config.trust_mark_id, "trust_mark": cie_config.trust_mark}]
@@ -301,11 +301,11 @@ def _cie_oidc_backend_yaml(
             "security_operations": {
                 "hash": {"default": {"func": "SHA-256"}},
                 "sign": {
-                    "default": {"alg": "ES256"},
+                    "default": {"alg": "RS256"},
                     "supported": {"alg": ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]},
                 },
                 "encrypt": {
-                    "default": {"alg": "ECDH-ES+A128KW", "enc": "A256GCM"},
+                    "default": {"alg": "RSA-OAEP-256", "enc": "A256GCM"},
                     "supported": {
                         "alg": [
                             "RSA-OAEP", "RSA-OAEP-256", "ECDH-ES",
@@ -385,9 +385,9 @@ def _cie_oidc_backend_yaml(
                         "db_config": db_config,
                         "httpc_params": httpc_params,
                         "trust_marks": trust_marks,
-                        "default_sign_alg": "ES256",
+                        "default_sign_alg": "RS256",
                         "supported_sign_alg": ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"],
-                        "default_enc_alg": "ECDH-ES+A128KW",
+                        "default_enc_alg": "RSA-OAEP-256",
                         "default_enc_enc": "A256GCM",
                         "supported_enc_alg": [
                             "RSA-OAEP", "RSA-OAEP-256", "ECDH-ES",

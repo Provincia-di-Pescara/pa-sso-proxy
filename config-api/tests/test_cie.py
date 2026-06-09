@@ -79,7 +79,7 @@ async def test_cie_generate_jwk_creates_key(auth_client, db_session, tmp_path, m
     result = await db_session.execute(select(JwkKey).where(JwkKey.use == "sig"))
     key = result.scalar_one_or_none()
     assert key is not None
-    assert key.public_jwk["kty"] == "EC"
+    assert key.public_jwk["kty"] == "RSA"
     assert key.use == "sig"
 
 
