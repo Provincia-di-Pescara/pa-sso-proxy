@@ -100,6 +100,13 @@ async def test_client_setup(request: Request, db: AsyncSession = Depends(get_db)
     return RedirectResponse("/admin/test-client", status_code=302)
 
 
+_SPID_ACR = {
+    "1": "https://www.spid.gov.it/SpidL1",
+    "2": "https://www.spid.gov.it/SpidL2",
+    "3": "https://www.spid.gov.it/SpidL3",
+}
+
+
 @router.get("/test-client/start")
 async def test_client_start(request: Request, db: AsyncSession = Depends(get_db)):
     if not _auth_check(request):
@@ -123,6 +130,9 @@ async def test_client_start(request: Request, db: AsyncSession = Depends(get_db)
     satosa_base = await _satosa_base(db)
     callback_uri = _callback_uri(request)
 
+    level = request.query_params.get("level", "2")
+    acr = _SPID_ACR.get(level, _SPID_ACR["2"])
+
     auth_url = f"{satosa_base}/OIDC/authorization?" + urlencode({
         "client_id": TEST_CLIENT_ID,
         "response_type": "code",
@@ -131,6 +141,7 @@ async def test_client_start(request: Request, db: AsyncSession = Depends(get_db)
         "state": state,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
+        "acr_values": acr,
     })
     return RedirectResponse(auth_url, status_code=302)
 
@@ -195,6 +206,8 @@ async def test_client_callback(request: Request):
         return RedirectResponse("/admin/test-client/result", status_code=302)
 
     id_token = token_data.get("id_token", "")
+    access_token = token_data.get("access_token", "")
+
     claims = {}
     if id_token:
         try:
@@ -204,9 +217,23 @@ async def test_client_callback(request: Request):
         except Exception:
             pass
 
+    userinfo = {}
+    if access_token:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as http:
+                ui_resp = await http.get(
+                    f"{SATOSA_INTERNAL_URL}/OIDC/userinfo",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+            userinfo = ui_resp.json()
+        except Exception:
+            pass
+
+    request.session["test_id_token"] = id_token
     request.session["test_result"] = {
         "success": True,
         "claims": json.dumps(claims, indent=2, ensure_ascii=False),
+        "userinfo": json.dumps(userinfo, indent=2, ensure_ascii=False),
         "token_response": json.dumps(
             {k: v for k, v in token_data.items() if k != "id_token"}, indent=2, ensure_ascii=False
         ),
@@ -216,7 +243,7 @@ async def test_client_callback(request: Request):
 
 
 @router.get("/test-client/result", response_class=HTMLResponse)
-async def test_client_result(request: Request):
+async def test_client_result(request: Request, db: AsyncSession = Depends(get_db)):
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
 
@@ -224,4 +251,24 @@ async def test_client_result(request: Request):
     if result is None:
         return RedirectResponse("/admin/test-client", status_code=302)
 
+    satosa_base = await _satosa_base(db)
+    id_token = request.session.get("test_id_token", "")
+    callback_base = _public_base(request)
+    logout_url = (
+        f"{satosa_base}/OIDC/end_session?"
+        + urlencode({
+            "id_token_hint": id_token,
+            "post_logout_redirect_uri": f"{callback_base}/admin/test-client/logout-done",
+        })
+        if id_token else ""
+    )
+    result["logout_url"] = logout_url
     return templates.TemplateResponse(request, "test_client/result.html.j2", result)
+
+
+@router.get("/test-client/logout-done", response_class=HTMLResponse)
+async def test_client_logout_done(request: Request):
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+    request.session.pop("test_id_token", None)
+    return RedirectResponse("/admin/test-client", status_code=302)

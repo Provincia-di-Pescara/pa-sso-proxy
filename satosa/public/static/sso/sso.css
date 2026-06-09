@@ -229,9 +229,44 @@ a:hover { color: var(--fg-link-hover); }
 .idp-foot a:hover { text-decoration: underline; }
 .idp-foot .sep { color: var(--border-2); }
 
-/* hidden/expanded toggle */
-.idp-panel { display: none; }
-.spid-btn[aria-expanded="true"] + .idp-panel { display: block; }
+/* ---------- IDENTITY TABS ---------- */
+.sso-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--border-1);
+  margin: 0 0 var(--sp-1);
+}
+.sso-tab {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 52px; padding: 10px 8px;
+  background: transparent; border: none; border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  font-family: var(--font-sans); font-size: var(--fs-14); font-weight: 700;
+  color: var(--fg-3); cursor: pointer; white-space: nowrap;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+.sso-tab:hover { color: var(--fg-1); }
+.sso-tab--active { color: var(--bi-primary); border-bottom-color: var(--bi-primary); }
+.sso-tab-ico { width: 28px; height: 28px; flex: 0 0 auto; }
+
+/* ---------- TAB PANELS ---------- */
+.sso-tab-panel { padding-top: var(--sp-4); }
+.sso-tab-panel[hidden] { display: none; }
+
+/* ---------- CIE PANEL ---------- */
+.cie-panel {
+  display: flex; flex-direction: column; align-items: center;
+  padding: var(--sp-5) 0 var(--sp-3); gap: var(--sp-4);
+}
+.cie-login-btn {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  width: 100%; min-height: 52px; padding: 12px 20px;
+  background: var(--bi-navy); color: #fff;
+  border-radius: var(--r-sm); text-decoration: none;
+  font-family: var(--font-sans); font-weight: 700; font-size: var(--fs-16);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.cie-login-btn:hover { background: #001d3a; color: #fff; }
+.cie-learn-more { font-size: var(--fs-13); margin: 0; }
 
 /* ---------- HELP LINKS ---------- */
 .sso-help { margin-top: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-2); }

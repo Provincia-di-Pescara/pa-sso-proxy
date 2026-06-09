@@ -35,6 +35,12 @@ async def settings_save(
     contact_email: str = Form(default=""),
     contact_phone: str = Form(default=""),
     org_city: str = Form(...),
+    logo_url: str = Form(default=""),
+    favicon_url: str = Form(default=""),
+    privacy_url: str = Form(default=""),
+    legal_notes_url: str = Form(default=""),
+    accessibility_url: str = Form(default=""),
+    support_url: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     if not _auth_check(request):
@@ -52,5 +58,11 @@ async def settings_save(
     s.contact_email = contact_email
     s.contact_phone = contact_phone
     s.org_city = org_city
+    s.logo_url = logo_url
+    s.favicon_url = favicon_url
+    s.privacy_url = privacy_url
+    s.legal_notes_url = legal_notes_url
+    s.accessibility_url = accessibility_url
+    s.support_url = support_url
     await db.commit()
     return RedirectResponse("/admin/settings", status_code=302)

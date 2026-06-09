@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Errore di accesso — Servizi digitali</title>
   <meta name="robots" content="noindex,nofollow">
+  <link id="page-favicon" rel="icon" type="image/svg+xml" href="{{ static }}favicon.svg">
   <link rel="stylesheet" href="{{ static }}sso/sso.css">
 </head>
 <body>
@@ -81,5 +82,16 @@
   </footer>
 
 </div>
+<script>
+fetch('/static/locales/eid-it.json').then(function(r){return r.json();}).then(function(d){
+  var h=d&&d.header;
+  if(h&&h.favicon_url){var f=document.getElementById('page-favicon');if(f){f.href=h.favicon_url;f.type='';}}
+  if(h&&h.region_name){var n=document.querySelector('.sso-brand-name');if(n)n.textContent=h.region_name;}
+  if(h&&h.logo_url){
+    var img=document.createElement('img');img.className='sso-crest';img.src=h.logo_url;img.alt='Logo ente';
+    var svg=document.querySelector('.sso-crest-svg');if(svg){svg.parentNode.insertBefore(img,svg);svg.style.display='none';}
+  }
+}).catch(function(){});
+</script>
 </body>
 </html>

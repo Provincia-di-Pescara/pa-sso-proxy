@@ -8,14 +8,19 @@
   <strong>Autenticazione completata con successo</strong>
 </div>
 
-<h4>Claims ID Token</h4>
+<h4>UserInfo <small class="text-muted fs-6">(risposta /userinfo)</small></h4>
+<pre class="bg-light p-3 rounded border" style="font-size:13px">{{ userinfo }}</pre>
+
+<h4 class="mt-4">ID Token Claims <small class="text-muted fs-6">(JWT decodificato)</small></h4>
 <pre class="bg-light p-3 rounded border" style="font-size:13px">{{ claims }}</pre>
 
-<h4 class="mt-4">Token Response</h4>
+<h4 class="mt-4">Token Response <small class="text-muted fs-6">(senza id_token)</small></h4>
 <pre class="bg-light p-3 rounded border" style="font-size:13px">{{ token_response }}</pre>
 
-<h4 class="mt-4">ID Token (JWT raw)</h4>
-<pre class="bg-light p-3 rounded border" style="font-size:11px; word-break:break-all; white-space:pre-wrap">{{ id_token }}</pre>
+<details class="mt-3">
+  <summary class="text-muted small" style="cursor:pointer">ID Token JWT (raw)</summary>
+  <pre class="bg-light p-3 rounded border mt-2" style="font-size:11px; word-break:break-all; white-space:pre-wrap">{{ id_token }}</pre>
+</details>
 
 {% else %}
 <div class="alert alert-danger d-flex align-items-center mb-4">
@@ -32,10 +37,13 @@
 {% endif %}
 {% endif %}
 
-<div class="mt-4">
+<div class="mt-4 d-flex flex-wrap gap-2">
   <a href="/admin/test-client" class="btn btn-outline-secondary">← Torna al test client</a>
   {% if success %}
-  <a href="/admin/test-client/start" class="btn btn-success ms-2">▶ Nuova autenticazione</a>
+  <a href="/admin/test-client/start" class="btn btn-success">▶ Nuova autenticazione</a>
+  {% if logout_url %}
+  <a href="{{ logout_url }}" class="btn btn-outline-danger">⏻ Logout (OIDC end_session)</a>
+  {% endif %}
   {% endif %}
 </div>
 {% endblock %}

@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import random
 from typing import Optional
 
 import yaml
@@ -239,7 +240,7 @@ def _cie_oidc_backend_yaml(
             "userinfo_encrypted_response_alg": "RSA-OAEP",
             "userinfo_encrypted_response_enc": "A256CBC-HS512",
             "token_endpoint_auth_method": "private_key_jwt",
-            "scope": "openid email",
+            "scope": "openid profile email",
             "code_challenge": {"length": 64, "method": "S256"},
             "claim": {
                 "id_token": {
@@ -249,10 +250,10 @@ def _cie_oidc_backend_yaml(
                 },
                 "userinfo": {
                     "sub": None,
-                    "given_name": None,
-                    "family_name": None,
+                    "given_name": {"essential": True},
+                    "family_name": {"essential": True},
                     "email": {"essential": True},
-                    "https://attributes.eid.gov.it/fiscal_number": None,
+                    "https://attributes.eid.gov.it/fiscal_number": {"essential": True},
                 },
             },
         },
@@ -404,7 +405,7 @@ def _cie_oidc_backend_yaml(
     }
 
 
-def _eid_locale_strings(cie_oidc_login_url: str | None) -> dict:
+def _eid_locale_strings(cie_oidc_login_url: str | None, settings: "EnteSettings | None" = None) -> dict:
     """Return eid locale dicts for 'it' and 'en' with correct CIE URLs substituted."""
     it_wallet_it = {
         "name": "IT-Wallet",
@@ -520,25 +521,45 @@ def _eid_locale_strings(cie_oidc_login_url: str | None) -> dict:
         "find_how_to_get_digital_id_url": "https://identitadigitale.gov.it/",
         "learn_more": "Learn more",
     }
+    _s = settings
+    _logo_url = (_s.logo_url or "") if _s else ""
+    _favicon_url = (_s.favicon_url or "") if _s else ""
+    _privacy_url = (_s.privacy_url or "") if _s else ""
+    _legal_notes_url = (_s.legal_notes_url or "") if _s else ""
+    _accessibility_url = (_s.accessibility_url or "") if _s else ""
+    _support_url = (_s.support_url or "") if _s else ""
+    _org_name_it = (_s.org_display_name or "Nome dell'Organizzazione") if _s else "Nome dell'Organizzazione"
+    _org_name_en = (_s.org_display_name or "Organisation Name") if _s else "Organisation Name"
+
     footer_it = {
         "legal_notice": "Note legali",
+        "legal_notice_url": _legal_notes_url,
         "privacy_policy": "Privacy Policy",
+        "privacy_policy_url": _privacy_url,
         "accessibility_statement": "Dichiarazione Accessibilità",
+        "accessibility_url": _accessibility_url,
+        "support": "Assistenza",
+        "support_url": _support_url,
     }
     footer_en = {
         "legal_notice": "Legal notice",
+        "legal_notice_url": _legal_notes_url,
         "privacy_policy": "Privacy Policy",
+        "privacy_policy_url": _privacy_url,
         "accessibility_statement": "Accessibility statement",
+        "accessibility_url": _accessibility_url,
+        "support": "Support",
+        "support_url": _support_url,
     }
 
     it_locale = {
-        "header": {"region_name": "Nome dell'Organizzazione"},
+        "header": {"region_name": _org_name_it, "logo_url": _logo_url, "favicon_url": _favicon_url},
         "titles": common_titles_it,
         "digital_id": _digital_id(cie_it, spid_it, it_wallet_it, cie_oidc_login_url, "it"),
         "footer": footer_it,
     }
     en_locale = {
-        "header": {"region_name": "Organisation Name"},
+        "header": {"region_name": _org_name_en, "logo_url": _logo_url, "favicon_url": _favicon_url},
         "titles": common_titles_en,
         "digital_id": _digital_id(cie_en, spid_en, it_wallet_en, cie_oidc_login_url, "en"),
         "footer": footer_en,
@@ -733,9 +754,7 @@ async def generate_satosa_config(db: AsyncSession) -> None:
             { "organization_name": "TeamSystem ID", "entity_id": "https://spid.teamsystem.com/idp", "logo_uri": "/static/img/spid-idp-teamsystemid.svg" },
             { "organization_name": "Intesa Sanpaolo", "entity_id": "https://spid.intesaid.com/saml2/idp/metadata", "logo_uri": "/static/img/spid-idp-intesaid.svg" }
         ]
-    else:
-        # Sort alphabetically by organization name
-        spid_idps_json.sort(key=lambda x: x["organization_name"])
+    random.shuffle(spid_idps_json)
 
     _write_json(conf_dir, "spid-idps-default.json", spid_idps_json)
 
@@ -746,7 +765,7 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         else None
     )
     os.makedirs(os.path.join(conf_dir, "locales"), exist_ok=True)
-    for lang, strings in _eid_locale_strings(cie_oidc_login_url).items():
+    for lang, strings in _eid_locale_strings(cie_oidc_login_url, settings).items():
         _write_json(conf_dir, f"locales/eid-{lang}.json", strings)
 
     _write(conf_dir, "proxy.yaml", _proxy_yaml(hostname, include_cie_oidc))

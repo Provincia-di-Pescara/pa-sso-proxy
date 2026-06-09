@@ -63,6 +63,47 @@
              value="{{ s.org_city if s else '' }}">
     </div>
 
+    <hr class="my-4">
+    <h5 class="mb-3">Pagina di accesso (Discovery)</h5>
+
+    <div class="mb-3">
+      <label for="logo_url" class="form-label">URL logo ente</label>
+      <input type="url" class="form-control" id="logo_url" name="logo_url"
+             placeholder="https://..." value="{{ s.logo_url if s else '' }}">
+      <div class="form-text">Mostrato in alto nella pagina di accesso al posto del crest SVG.</div>
+    </div>
+
+    <div class="mb-3">
+      <label for="favicon_url" class="form-label">URL favicon</label>
+      <input type="url" class="form-control" id="favicon_url" name="favicon_url"
+             placeholder="https://..." value="{{ s.favicon_url if s else '' }}">
+      <div class="form-text">Icona mostrata nella tab del browser. Formati supportati: ICO, PNG, SVG.</div>
+    </div>
+
+    <div class="mb-3">
+      <label for="privacy_url" class="form-label">URL Privacy</label>
+      <input type="url" class="form-control" id="privacy_url" name="privacy_url"
+             placeholder="https://..." value="{{ s.privacy_url if s else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="legal_notes_url" class="form-label">URL Note legali</label>
+      <input type="url" class="form-control" id="legal_notes_url" name="legal_notes_url"
+             placeholder="https://..." value="{{ s.legal_notes_url if s else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="accessibility_url" class="form-label">URL Accessibilità</label>
+      <input type="url" class="form-control" id="accessibility_url" name="accessibility_url"
+             placeholder="https://..." value="{{ s.accessibility_url if s else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="support_url" class="form-label">URL Assistenza</label>
+      <input type="url" class="form-control" id="support_url" name="support_url"
+             placeholder="https://..." value="{{ s.support_url if s else '' }}">
+    </div>
+
     <button type="submit" class="btn btn-primary">Salva</button>
   </form>
 </div>
