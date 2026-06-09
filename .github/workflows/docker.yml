@@ -1,4 +1,4 @@
-name: Docker Publish
+﻿name: Docker Publish
 
 on:
   push:
@@ -7,11 +7,13 @@ on:
     paths:
       - "satosa/**"
       - "config-api/**"
+      - "nginx/**"
       - ".github/workflows/docker.yml"
   pull_request:
     paths:
       - "satosa/**"
       - "config-api/**"
+      - "nginx/**"
       - ".github/workflows/docker.yml"
   workflow_dispatch:
 
@@ -42,6 +44,9 @@ jobs:
           - image: config-api
             context: ./config-api
             scope: config-api
+          - image: nginx
+            context: ./nginx
+            scope: nginx
 
     steps:
       - uses: actions/checkout@v6
