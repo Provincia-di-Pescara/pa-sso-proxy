@@ -15,7 +15,8 @@ RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
 # Install redis client inside the venv
 RUN . /.venv/bin/activate && pip install redis --quiet
 
-# Override CIE OIDC endpoints and models with GovPay versions
+# Override CIE OIDC backend, endpoints and models
+COPY plugins/cieoidc-backend/cieoidc.py /satosa_proxy/backends/cieoidc/cieoidc.py
 COPY plugins/cieoidc-endpoints/ /satosa_proxy/backends/cieoidc/endpoints/
 COPY plugins/cieoidc-models/    /satosa_proxy/backends/cieoidc/models/
 COPY plugins/redis_storage.py   /satosa_proxy/backends/cieoidc/storage/impl/redis_storage.py
