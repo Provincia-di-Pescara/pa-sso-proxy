@@ -172,10 +172,9 @@ async def test_client_callback(request: Request):
                     "grant_type": "authorization_code",
                     "code": code,
                     "redirect_uri": _callback_uri(request),
-                    "client_id": TEST_CLIENT_ID,
-                    "client_secret": client_secret or "",
                     "code_verifier": code_verifier or "",
                 },
+                auth=(TEST_CLIENT_ID, client_secret or ""),
             )
         token_data = resp.json()
     except Exception as exc:
