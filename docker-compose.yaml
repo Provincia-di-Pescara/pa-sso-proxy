@@ -39,7 +39,7 @@ services:
     networks:
       - proxy-internal
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/.well-known/openid-configuration || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/.well-known/openid-configuration > /dev/null || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 10
