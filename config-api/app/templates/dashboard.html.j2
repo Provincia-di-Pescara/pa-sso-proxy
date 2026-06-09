@@ -2,7 +2,10 @@
 {% block title %}Dashboard — PA SSO Proxy{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h2>Dashboard</h2>
+  <h2 class="d-flex align-items-center">
+    Dashboard
+    <span class="badge bg-secondary ms-2 fs-6" style="font-weight: normal; opacity: 0.85;">{{ app_version }}</span>
+  </h2>
   {% if settings and settings.proxy_hostname %}
   <small class="text-muted">{{ settings.proxy_hostname }}</small>
   {% else %}
