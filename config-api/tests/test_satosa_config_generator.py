@@ -343,3 +343,64 @@ async def test_satosa_config_generator_spid_testing_providers(db_session, tmp_pa
     assert "/satosa_proxy/metadata/idp/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
     assert "remote" in spid_yaml["metadata"]
     assert spid_yaml["metadata"]["remote"] == [{"url": "https://validator.spid.gov.it/metadata.xml"}]
+
+
+async def test_satosa_config_generator_combined_providers(db_session, tmp_path, monkeypatch):
+    import json
+    from sqlalchemy import delete
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.models import EnteSettings, SpidIdP
+    from app.satosa_config_generator import generate_satosa_config
+
+    s = EnteSettings(
+        id=1, proxy_hostname="proxy.ente.it", org_name="Ente", org_display_name="Ente Test",
+        org_url="https://ente.it", ipa_code="P_T", contact_email="e@ente.it",
+        contact_phone="+39001", org_city="Roma",
+    )
+
+    await db_session.execute(delete(SpidIdP))
+    db_session.add(s)
+
+    # Enable all three: demo, validator, and a production provider
+    demo = SpidIdP(
+        alias="spid-demo",
+        display_name="Demo Provider",
+        metadata_url="https://demo.spid.gov.it/metadata.xml",
+        enabled=True,
+    )
+    validator = SpidIdP(
+        alias="spid-validator",
+        display_name="AgID Validator",
+        metadata_url="https://validator.spid.gov.it/metadata.xml",
+        enabled=True,
+    )
+    aruba = SpidIdP(
+        alias="spid-loginspid-aruba-it",
+        display_name="ArubaPEC S.p.A.",
+        metadata_url="https://loginspid.aruba.it/metadata.xml",
+        registry_entity_id="https://loginspid.aruba.it",
+        registry_organization_name="Aruba PEC",
+        registry_logo_uri="/static/img/spid-idp-arubaid.svg",
+        enabled=True,
+    )
+    db_session.add_all([demo, validator, aruba])
+    await db_session.commit()
+
+    await generate_satosa_config(db_session)
+
+    idps = json.loads((tmp_path / "spid-idps-default.json").read_text())
+    assert len(idps) == 3
+
+    # Check they are sorted alphabetically by organization_name:
+    # 1. AgID Validator
+    # 2. Aruba PEC
+    # 3. Demo Provider
+    assert idps[0]["organization_name"] == "AgID Validator"
+    assert idps[0]["logo_uri"] == "/static/img/spid-idp-spidtest.svg"
+
+    assert idps[1]["organization_name"] == "Aruba PEC"
+    assert idps[1]["logo_uri"] == "/static/img/spid-idp-arubaid.svg"
+
+    assert idps[2]["organization_name"] == "Demo Provider"
+    assert idps[2]["logo_uri"] == "/static/img/spid-idp-spidtest.svg"
+

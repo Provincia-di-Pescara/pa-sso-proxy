@@ -636,12 +636,12 @@ def _ensure_rsa_key(path: str) -> None:
 
 
 def _write(conf_dir: str, filename: str, data: dict) -> None:
-    with open(os.path.join(conf_dir, filename), "w") as f:
+    with open(os.path.join(conf_dir, filename), "w", encoding="utf-8") as f:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
 
 
 def _write_json(conf_dir: str, filename: str, data: dict) -> None:
-    with open(os.path.join(conf_dir, filename), "w") as f:
+    with open(os.path.join(conf_dir, filename), "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 
@@ -709,7 +709,7 @@ async def generate_satosa_config(db: AsyncSession) -> None:
 
     _ensure_rsa_key(os.path.join(conf_dir, "oidc_signing_key.pem"))
 
-    with open(os.path.join(conf_dir, "default_backend_router.py"), "w") as f:
+    with open(os.path.join(conf_dir, "default_backend_router.py"), "w", encoding="utf-8") as f:
         f.write(_DEFAULT_BACKEND_ROUTER_PY)
 
     cie_oidc_urls = (
@@ -745,52 +745,46 @@ async def generate_satosa_config(db: AsyncSession) -> None:
     }
     _write_json(conf_dir, "oidc_clients.json", client_db)
 
-    # Generate and write dynamic spid-idps-default.json based on active test provider
+    # Generate and write dynamic spid-idps-default.json based on active providers
     spid_idps_json = []
-    demo_enabled = any(x.alias == "spid-demo" for x in enabled_idps)
-    validator_enabled = any(x.alias == "spid-validator" for x in enabled_idps)
 
-    if demo_enabled:
-        spid_idps_json = [{
-            "organization_name": "Demo Provider",
-            "entity_id": "https://demo.spid.gov.it",
-            "logo_uri": "/static/spid/spid-agid-logo-lb.png"
-        }]
-    elif validator_enabled:
-        spid_idps_json = [{
-            "organization_name": "AgID Validator",
-            "entity_id": "https://validator.spid.gov.it",
-            "logo_uri": "/static/spid/spid-agid-logo-lb.png"
-        }]
+    for idp in enabled_idps:
+        if idp.alias == "spid-demo":
+            spid_idps_json.append({
+                "organization_name": "Demo Provider",
+                "entity_id": "https://demo.spid.gov.it",
+                "logo_uri": "/static/img/spid-idp-spidtest.svg"
+            })
+        elif idp.alias == "spid-validator":
+            spid_idps_json.append({
+                "organization_name": "AgID Validator",
+                "entity_id": "https://validator.spid.gov.it",
+                "logo_uri": "/static/img/spid-idp-spidtest.svg"
+            })
+        elif idp.registry_entity_id:
+            spid_idps_json.append({
+                "organization_name": idp.registry_organization_name or idp.display_name,
+                "entity_id": idp.registry_entity_id,
+                "logo_uri": idp.registry_logo_uri or ""
+            })
+
+    if not spid_idps_json:
+        # Fallback list of production IdPs
+        spid_idps_json = [
+            { "organization_name": "Aruba PEC", "entity_id": "https://loginspid.aruba.it", "logo_uri": "/static/img/spid-idp-arubaid.svg" },
+            { "organization_name": "InfoCert ID", "entity_id": "https://identity.infocert.it", "logo_uri": "/static/img/spid-idp-infocertid.svg" },
+            { "organization_name": "Poste ID", "entity_id": "https://posteid.poste.it", "logo_uri": "/static/img/spid-idp-posteid.svg" },
+            { "organization_name": "Sielte", "entity_id": "https://identity.sielte.it", "logo_uri": "/static/img/spid-idp-sielteid.svg" },
+            { "organization_name": "TIM Personal ID", "entity_id": "https://login.id.tim.it/affwebservices/public/saml2sso", "logo_uri": "/static/img/spid-idp-timid.svg" },
+            { "organization_name": "Lepida ID", "entity_id": "https://id.lepida.it/idp/shibboleth", "logo_uri": "/static/img/spid-idp-lepidaid.svg" },
+            { "organization_name": "Register.it", "entity_id": "https://spid.register.it", "logo_uri": "/static/img/spid-idp-spiditalia.svg" },
+            { "organization_name": "Namirial ID", "entity_id": "https://idp.namirialtsp.com/idp", "logo_uri": "/static/img/spid-idp-namirialid.svg" },
+            { "organization_name": "TeamSystem ID", "entity_id": "https://spid.teamsystem.com/idp", "logo_uri": "/static/img/spid-idp-teamsystemid.svg" },
+            { "organization_name": "Intesa Sanpaolo", "entity_id": "https://spid.intesaid.com/saml2/idp/metadata", "logo_uri": "/static/img/spid-idp-intesaid.svg" }
+        ]
     else:
-        # Load registry IDPs
-        db_idps_res = await db.execute(
-            select(SpidIdP)
-            .where(SpidIdP.registry_entity_id != None)
-            .order_by(SpidIdP.registry_organization_name)
-        )
-        db_idps = db_idps_res.scalars().all()
-        if db_idps:
-            for idp in db_idps:
-                spid_idps_json.append({
-                    "organization_name": idp.registry_organization_name or idp.display_name,
-                    "entity_id": idp.registry_entity_id,
-                    "logo_uri": idp.registry_logo_uri or ""
-                })
-        else:
-            # Fallback list of production IdPs
-            spid_idps_json = [
-                { "organization_name": "Aruba PEC", "entity_id": "https://loginspid.aruba.it", "logo_uri": "/static/img/spid-idp-arubaid.svg" },
-                { "organization_name": "InfoCert ID", "entity_id": "https://identity.infocert.it", "logo_uri": "/static/img/spid-idp-infocertid.svg" },
-                { "organization_name": "Poste ID", "entity_id": "https://posteid.poste.it", "logo_uri": "/static/img/spid-idp-posteid.svg" },
-                { "organization_name": "Sielte", "entity_id": "https://identity.sielte.it", "logo_uri": "/static/img/spid-idp-sielteid.svg" },
-                { "organization_name": "TIM Personal ID", "entity_id": "https://login.id.tim.it/affwebservices/public/saml2sso", "logo_uri": "/static/img/spid-idp-timid.svg" },
-                { "organization_name": "Lepida ID", "entity_id": "https://id.lepida.it/idp/shibboleth", "logo_uri": "/static/img/spid-idp-lepidaid.svg" },
-                { "organization_name": "Register.it", "entity_id": "https://spid.register.it", "logo_uri": "/static/img/spid-idp-spiditalia.svg" },
-                { "organization_name": "Namirial ID", "entity_id": "https://idp.namirialtsp.com/idp", "logo_uri": "/static/img/spid-idp-namirialid.svg" },
-                { "organization_name": "TeamSystem ID", "entity_id": "https://spid.teamsystem.com/idp", "logo_uri": "/static/img/spid-idp-teamsystemid.svg" },
-                { "organization_name": "Intesa Sanpaolo", "entity_id": "https://spid.intesaid.com/saml2/idp/metadata", "logo_uri": "/static/img/spid-idp-intesaid.svg" }
-            ]
+        # Sort alphabetically by organization name
+        spid_idps_json.sort(key=lambda x: x["organization_name"])
 
     _write_json(conf_dir, "spid-idps-default.json", spid_idps_json)
 
