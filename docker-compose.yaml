@@ -79,15 +79,16 @@ services:
       retries: 5
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    image: ${NGINX_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-nginx:latest}
     restart: unless-stopped
     depends_on:
       - config-api
       - satosa
     ports:
       - "${PROXY_HOST_PORT:-127.0.0.1:18080}:80"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
     networks:
       - proxy-internal
 
