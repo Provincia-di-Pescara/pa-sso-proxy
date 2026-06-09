@@ -16,6 +16,7 @@ from app.database import get_db
 from app.jwk_generator import generate_jwk
 from app.models import CieConfig, JwkKey
 from app.satosa_generator import generate_and_write
+from app.satosa_reload import reload_satosa
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +145,7 @@ async def cie_config_post(
 
     try:
         await generate_and_write(db)
+        await asyncio.to_thread(reload_satosa)
     except Exception:
         logger.warning("generate_and_write failed after CIE config save", exc_info=True)
 
@@ -169,6 +171,7 @@ async def cie_generate_jwk(
 
     keys = await _get_all_keys(db)
     await _write_jwks_safe(keys)
+    await asyncio.to_thread(reload_satosa)
 
     return RedirectResponse("/admin/cie", status_code=302)
 
@@ -202,5 +205,6 @@ async def cie_delete_jwk(
 
     keys = await _get_all_keys(db)
     await _write_jwks_safe(keys)
+    await asyncio.to_thread(reload_satosa)
 
     return RedirectResponse("/admin/cie", status_code=302)

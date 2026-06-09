@@ -32,6 +32,7 @@ _CIE_OIDC_COLUMNS = [
     "trust_mark_id",
     "trust_mark",
     "oidc_contact_email",
+    "oidc_environment",
 ]
 
 _SPID_REGISTRY_COLUMNS = {
