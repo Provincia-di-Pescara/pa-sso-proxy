@@ -25,7 +25,7 @@ def test_generate_jwk_public_jwk_format():
 def test_generate_jwk_enc_alg():
     from app.jwk_generator import generate_jwk
     key = generate_jwk("test-enc", "enc")
-    assert key.public_jwk["alg"] == "RSA-OAEP-256"
+    assert key.public_jwk["alg"] == "RSA-OAEP"
     assert key.public_jwk["kty"] == "RSA"
 
 

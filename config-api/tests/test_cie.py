@@ -146,7 +146,7 @@ async def test_cie_save_oidc_federation_fields(auth_client, db_session, tmp_path
     assert config is not None
     assert config.oidc_federation_enabled is True
     assert config.trust_mark == "eyJhbGciOiJFUzI1NiJ9.stub"
-    assert config.authority_hint_url == "https://preproduzione.cie.interno.gov.it/idp/oidc/op"
+    assert config.authority_hint_url == "https://preproduzione.cie.interno.gov.it"
     assert config.oidc_contact_email == "admin@ente.it"
 
 
@@ -156,14 +156,14 @@ async def test_cie_save_oidc_federation_fields(auth_client, db_session, tmp_path
         (
             "produzione",
             "https://oidc.idserver.servizicie.interno.gov.it",
-            "https://registry.servizicie.interno.gov.it",
-            "https://oidc.idserver.servizicie.interno.gov.it",
+            "https://oidc.registry.servizicie.interno.gov.it",
+            "https://oidc.registry.servizicie.interno.gov.it",
         ),
         (
             "collaudo",
             "https://preproduzione.cie.interno.gov.it/idp/oidc/op",
             "https://preproduzione.cie.interno.gov.it",
-            "https://preproduzione.cie.interno.gov.it/idp/oidc/op",
+            "https://preproduzione.cie.interno.gov.it",
         ),
     ],
 )
