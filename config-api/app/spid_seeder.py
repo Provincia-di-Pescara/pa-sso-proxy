@@ -76,7 +76,7 @@ async def sync_spid_idps_from_registry(db: AsyncSession) -> int:
                 alias=alias,
                 display_name=item.get("organization_name") or entity_id,
                 metadata_url=f"https://registry.spid.gov.it/entities-idp/{quote(entity_id, safe='')}",
-                enabled=False,
+                enabled=True,  # provider produzione abilitati di default
             )
             db.add(row)
             inserted += 1

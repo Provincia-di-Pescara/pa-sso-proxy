@@ -162,6 +162,25 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.post("/idps/enable-all")
+async def idps_enable_all(request: Request, db: AsyncSession = Depends(get_db)):
+    """Abilita tutti i provider produzione (esclude demo e validator)."""
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+    result = await db.execute(
+        select(SpidIdP).where(
+            SpidIdP.registry_entity_id != None,
+            SpidIdP.alias.notin_(["spid-demo", "spid-validator"]),
+        )
+    )
+    for idp in result.scalars().all():
+        idp.enabled = True
+    await db.commit()
+    await generate_and_write(db)
+    await asyncio.to_thread(reload_satosa)
+    return RedirectResponse("/admin/idps?sync=ok&inserted=0", status_code=302)
+
+
 @router.post("/idps/sync")
 async def idps_sync(request: Request, db: AsyncSession = Depends(get_db)):
     if not _auth_check(request):
