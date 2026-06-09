@@ -36,4 +36,20 @@
   <button type="submit" class="btn btn-primary">Salva</button>
   <a href="/admin/clients" class="btn btn-secondary ms-2">Annulla</a>
 </form>
+{% if client and proxy_hostname %}
+<div class="card mt-4" style="max-width:600px">
+  <div class="card-header">Endpoint OIDC del proxy</div>
+  <div class="card-body small">
+    <p class="mb-1"><strong>Discovery:</strong><br>
+      <code>https://{{ proxy_hostname }}/OIDC/.well-known/openid-configuration</code></p>
+    <p class="mb-1"><strong>Authorization:</strong><br>
+      <code>https://{{ proxy_hostname }}/OIDC/authorization</code></p>
+    <p class="mb-1"><strong>Token:</strong><br>
+      <code>https://{{ proxy_hostname }}/OIDC/token</code></p>
+    <p class="mb-0"><strong>Logout (end_session):</strong><br>
+      <code>https://{{ proxy_hostname }}/OIDC/end_session</code><br>
+      <span class="text-muted">Parametri: <code>post_logout_redirect_uri</code> (obbligatorio), <code>id_token_hint</code> (consigliato)</span></p>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

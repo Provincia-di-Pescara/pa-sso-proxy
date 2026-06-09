@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import OIDCClient
+from app.models import EnteSettings, OIDCClient
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 
@@ -78,6 +78,7 @@ async def clients_create(
 
     request.session["reveal_secret"] = client_secret
     request.session["reveal_client_id"] = client_id
+    request.session["reveal_is_new"] = True
     return RedirectResponse(f"/admin/clients/{c.id}/reveal", status_code=302)
 
 
@@ -87,8 +88,24 @@ async def clients_reveal(request: Request, client_id: int):
         return RedirectResponse("/admin/login", status_code=302)
     secret = request.session.pop("reveal_secret", None)
     cid = request.session.pop("reveal_client_id", None)
+    is_new = request.session.pop("reveal_is_new", False)
     return templates.TemplateResponse(
-        request, "clients/reveal.html.j2", {"client_id": cid, "client_secret": secret}
+        request, "clients/reveal.html.j2", {"client_id": cid, "client_secret": secret, "is_new": is_new}
+    )
+
+
+@router.get("/clients/{client_id}/secret", response_class=HTMLResponse)
+async def clients_view_secret(request: Request, client_id: int, db: AsyncSession = Depends(get_db)):
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+    result = await db.execute(select(OIDCClient).where(OIDCClient.id == client_id))
+    client = result.scalar_one_or_none()
+    if not client:
+        return RedirectResponse("/admin/clients", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "clients/reveal.html.j2",
+        {"client_id": client.client_id, "client_secret": client.client_secret_plain, "is_new": False},
     )
 
 
@@ -100,7 +117,14 @@ async def clients_edit_form(request: Request, client_id: int, db: AsyncSession =
     client = result.scalar_one_or_none()
     if not client:
         return RedirectResponse("/admin/clients", status_code=302)
-    return templates.TemplateResponse(request, "clients/form.html.j2", {"client": client, "error": None})
+    settings_result = await db.execute(select(EnteSettings).limit(1))
+    settings = settings_result.scalar_one_or_none()
+    proxy_hostname = settings.proxy_hostname if settings and settings.proxy_hostname else ""
+    return templates.TemplateResponse(
+        request,
+        "clients/form.html.j2",
+        {"client": client, "error": None, "proxy_hostname": proxy_hostname},
+    )
 
 
 @router.post("/clients/{client_id}/edit")

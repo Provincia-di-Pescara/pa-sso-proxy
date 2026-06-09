@@ -25,6 +25,7 @@
       </td>
       <td>
         <a href="/admin/clients/{{ c.id }}/edit" class="btn btn-sm btn-outline-secondary">Modifica</a>
+        <a href="/admin/clients/{{ c.id }}/secret" class="btn btn-sm btn-outline-info">Credenziali</a>
         <form method="post" action="/admin/clients/{{ c.id }}/toggle" class="d-inline">
           <button class="btn btn-sm btn-outline-warning">{% if c.enabled %}Disabilita{% else %}Abilita{% endif %}</button>
         </form>
