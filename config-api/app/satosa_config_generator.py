@@ -597,6 +597,7 @@ def _eid_locale_strings(cie_saml_login_url: str, cie_oidc_login_url: str | None)
 
 _DEFAULT_BACKEND_ROUTER_PY = '''\
 import logging
+from satosa.context import Context
 from satosa.micro_services.base import RequestMicroService
 
 logger = logging.getLogger(__name__)
@@ -610,7 +611,7 @@ class DefaultBackendRouter(RequestMicroService):
 
     def process(self, context, data):
         if not context.target_backend:
-            entity_id = getattr(context, "target_entity_id", None)
+            entity_id = context.get_decoration(Context.KEY_TARGET_ENTITYID)
             if entity_id and self.cie_oidc_provider_urls and entity_id in self.cie_oidc_provider_urls:
                 context.target_backend = "CieOidcRp"
                 logger.info(f"DefaultBackendRouter: CIE OIDC entity {entity_id} → CieOidcRp")

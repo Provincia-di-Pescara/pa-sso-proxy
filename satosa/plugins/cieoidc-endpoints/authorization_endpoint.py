@@ -106,7 +106,7 @@ class AuthorizationHandler(BaseEndpoint):
             f"Entering method: {inspect.getframeinfo(inspect.currentframe()).function}. Params [context {context}]"
         )
 
-        provider_url = context.internal_data.get("target_entity_id")
+        provider_url = context.get_decoration(Context.KEY_TARGET_ENTITYID)
 
         trust_chain = self.__get_trust_chain(provider_url)
 
