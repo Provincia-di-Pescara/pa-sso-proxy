@@ -99,6 +99,26 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
         "cert_file": cert_path,
         "encryption_keypairs": [{"key_file": key_path, "cert_file": cert_path}],
         "attribute_map_dir": "/satosa_proxy/attributes-map",
+        "custom_attribute_consuming_services": [
+            {
+                "service_name": "min",
+                "attributes": ["spidCode", "name", "familyName", "fiscalNumber", "email"],
+            },
+            {
+                "service_name": "med",
+                "attributes": ["spidCode", "name", "familyName", "fiscalNumber", "email", "gender", "dateOfBirth", "placeOfBirth", "countyOfBirth", "mobilePhone"],
+            },
+            {
+                "service_name": "max",
+                "attributes": [
+                    "spidCode", "name", "familyName", "placeOfBirth", "countyOfBirth",
+                    "dateOfBirth", "gender", "companyName", "registeredOffice",
+                    "fiscalNumber", "ivaCode", "idCard", "mobilePhone", "email",
+                    "domicileStreetAddress", "domicilePostalCode", "domicileMunicipality",
+                    "domicileProvince", "domicileNation", "expirationDate", "digitalAddress"
+                ],
+            }
+        ],
         "organization": {
             "display_name": [[settings.org_display_name, "it"]],
             "name": [[settings.org_name, "it"]],
@@ -175,6 +195,20 @@ def _cie_saml_backend_yaml(hostname: str, cie_metadata_url: str, cert_path: str,
         "cert_file": cert_path,
         "encryption_keypairs": [{"key_file": key_path, "cert_file": cert_path}],
         "attribute_map_dir": "/satosa_proxy/attributes-map",
+        "custom_attribute_consuming_services": [
+            {
+                "service_name": "min",
+                "attributes": ["name", "familyName", "dateOfBirth", "fiscalNumber"],
+            },
+            {
+                "service_name": "med",
+                "attributes": ["name", "familyName", "dateOfBirth", "fiscalNumber", "gender", "placeOfBirth", "countyOfBirth"],
+            },
+            {
+                "service_name": "max",
+                "attributes": ["name", "familyName", "dateOfBirth", "fiscalNumber", "gender", "placeOfBirth", "countyOfBirth", "email", "mobilePhone", "address"],
+            }
+        ],
         "organization": {
             "display_name": [[settings.org_display_name, "it"]],
             "name": [[settings.org_name, "it"]],
@@ -753,13 +787,13 @@ async def generate_satosa_config(db: AsyncSession) -> None:
             spid_idps_json.append({
                 "organization_name": "Demo Provider",
                 "entity_id": "https://demo.spid.gov.it",
-                "logo_uri": "/static/img/spid-idp-spidtest.svg"
+                "logo_uri": "https://pagopa-prx.comune.montesilvano.pe.it/static/spid/spid-agid-logo-lb.png"
             })
         elif idp.alias == "spid-validator":
             spid_idps_json.append({
                 "organization_name": "AgID Validator",
                 "entity_id": "https://validator.spid.gov.it",
-                "logo_uri": "/static/img/spid-idp-spidtest.svg"
+                "logo_uri": "https://pagopa-prx.comune.montesilvano.pe.it/static/spid/spid-agid-logo-lb.png"
             })
         elif idp.registry_entity_id:
             spid_idps_json.append({

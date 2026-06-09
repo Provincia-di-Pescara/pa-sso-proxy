@@ -20,6 +20,8 @@ COPY plugins/cieoidc-backend/cieoidc.py /satosa_proxy/backends/cieoidc/cieoidc.p
 COPY plugins/cieoidc-endpoints/ /satosa_proxy/backends/cieoidc/endpoints/
 COPY plugins/cieoidc-models/    /satosa_proxy/backends/cieoidc/models/
 COPY plugins/redis_storage.py   /satosa_proxy/backends/cieoidc/storage/impl/redis_storage.py
+COPY plugins/spidsaml2.py       /satosa_proxy/backends/spidsaml2.py
+COPY plugins/ciesaml2.py        /satosa_proxy/backends/ciesaml2.py
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
