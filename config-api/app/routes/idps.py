@@ -171,6 +171,7 @@ async def idps_enable_all(request: Request, db: AsyncSession = Depends(get_db)):
         select(SpidIdP).where(
             SpidIdP.registry_entity_id != None,
             SpidIdP.alias.notin_(["spid-demo", "spid-validator"]),
+            SpidIdP.registry_disabled.is_not(True),
         )
     )
     for idp in result.scalars().all():

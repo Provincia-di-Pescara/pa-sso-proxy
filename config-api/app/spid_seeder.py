@@ -72,11 +72,13 @@ async def sync_spid_idps_from_registry(db: AsyncSession) -> int:
         alias = _normalize_alias(entity_id)
         row = by_entity_id.get(entity_id) or by_alias.get(alias)
         if row is None:
+            # Abilita automaticamente solo i provider attivi su AgID (_disabled != "Y")
+            is_registry_disabled = item.get("_disabled") == "Y"
             row = SpidIdP(
                 alias=alias,
                 display_name=item.get("organization_name") or entity_id,
                 metadata_url=f"https://registry.spid.gov.it/entities-idp/{quote(entity_id, safe='')}",
-                enabled=True,  # provider produzione abilitati di default
+                enabled=not is_registry_disabled,
             )
             db.add(row)
             inserted += 1
