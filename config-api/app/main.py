@@ -9,7 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from app.jinja_templates import templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from sqlalchemy import inspect, text
@@ -94,8 +94,7 @@ SESSION_SECRET = os.environ.get("SESSION_SECRET", "changeme")
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "changeme")
 
-templates = Jinja2Templates(directory="app/templates")
-templates.env.globals["app_version"] = get_display_version()
+
 
 
 async def _try_fetch_trust_mark(session) -> None:

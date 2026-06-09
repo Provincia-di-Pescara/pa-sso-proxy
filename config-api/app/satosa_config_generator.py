@@ -453,6 +453,148 @@ def _cie_oidc_backend_yaml(
     }
 
 
+def _eid_locale_strings(cie_saml_login_url: str, cie_oidc_login_url: str | None) -> dict:
+    """Return eid locale dicts for 'it' and 'en' with correct CIE URLs substituted."""
+    it_wallet_it = {
+        "name": "IT-Wallet",
+        "logo_text": "Entra con IT-Wallet",
+        "logo": "it-wallet/wallet_icon.svg",
+        "login_url": "it-wallet.html",
+        "learn_more_descr": (
+            "IT-Wallet è il sistema italiano di portafogli digitali che ti permette di autenticarti online "
+            "e di accedere a servizi pubblici e privati in modo sicuro e veloce."
+        ),
+        "learn_more_link": "https://innovazione.gov.it/progetti/sistema-it-wallet/",
+        "learn_more_label": "Scopri come ottenerlo",
+    }
+    it_wallet_en = {
+        "name": "IT-Wallet",
+        "logo_text": "Login with IT-Wallet",
+        "logo": "it-wallet/wallet_icon.svg",
+        "login_url": "it-wallet.html",
+        "learn_more_descr": (
+            "IT-Wallet is Italy's national digital wallet system. It lets you authenticate online and access "
+            "public and private services securely and quickly."
+        ),
+        "learn_more_link": "https://innovazione.gov.it/progetti/sistema-it-wallet/",
+        "learn_more_label": "Find out how to get it",
+    }
+    cie_it = {
+        "name": "CIE",
+        "logo_text": "Entra con CIE",
+        "logo": "cie/cie_white.svg",
+        "login_url": cie_saml_login_url,
+        "learn_more_descr": (
+            "La CIE (Carta d'Identità Elettronica) è il documento d'identità elettronico italiano. "
+            "Usala per accedere ai servizi online in modo sicuro tramite il protocollo SAML2."
+        ),
+        "learn_more_link": "https://www.cartaidentita.interno.gov.it/",
+        "learn_more_label": "Scopri come ottenerla",
+    }
+    cie_en = {
+        "name": "CIE",
+        "logo_text": "Login with CIE",
+        "logo": "cie/cie_white.svg",
+        "login_url": cie_saml_login_url,
+        "learn_more_descr": (
+            "CIE (Carta d'Identità Elettronica) is the Italian electronic identity card. "
+            "Use it to access online services in a secure way via the SAML2 protocol."
+        ),
+        "learn_more_link": "https://www.cartaidentita.interno.gov.it/",
+        "learn_more_label": "Find out how to get it",
+    }
+    spid_it = {
+        "name": "SPID",
+        "logo_text": "Entra con SPID",
+        "logo": "https://raw.githubusercontent.com/italia/spid-idp-login-layout/master/img/spid-ico-circle-bb.svg",
+        "login_url": "#spid-idp-button-xlarge-post",
+        "learn_more_descr": (
+            "SPID (Sistema Pubblico di Identità Digitale) è il sistema pubblico di identità digitale italiano. "
+            "Scegli il tuo gestore di identità per accedere con le tue credenziali SPID."
+        ),
+        "learn_more_link": "https://www.spid.gov.it/",
+        "learn_more_label": "Scopri come ottenerla",
+    }
+    spid_en = {
+        "name": "SPID",
+        "logo_text": "Login with SPID",
+        "logo": "https://raw.githubusercontent.com/italia/spid-idp-login-layout/master/img/spid-ico-circle-bb.svg",
+        "login_url": "#spid-idp-button-xlarge-post",
+        "learn_more_descr": (
+            "SPID (Sistema Pubblico di Identità Digitale) is the Italian public digital identity system. "
+            "Choose your identity provider to log in with your SPID credentials."
+        ),
+        "learn_more_link": "https://www.spid.gov.it/",
+        "learn_more_label": "Find out how to get it",
+    }
+
+    def _digital_id(cie, spid, it_wallet, cie_oidc_login, lang):
+        d = {"it_wallet": it_wallet, "cie": cie, "spid": spid}
+        if cie_oidc_login:
+            cie_oidc_name = "CIE OpenID Connect"
+            cie_oidc_descr_it = (
+                "La CIE (Carta d'Identità Elettronica) può essere usata con il protocollo OIDC "
+                "per autenticarti e accedere ai servizi online."
+            )
+            cie_oidc_descr_en = (
+                "CIE (Carta d'Identità Elettronica) can be used with the OIDC protocol "
+                "to authenticate and access online services."
+            )
+            d["cie_oidc"] = {
+                "name": cie_oidc_name,
+                "logo_text": "Entra con CIE" if lang == "it" else "Login with CIE",
+                "logo": "cie/cie_white.svg",
+                "login_url": cie_oidc_login,
+                "learn_more_descr": cie_oidc_descr_it if lang == "it" else cie_oidc_descr_en,
+            }
+        return d
+
+    common_titles_it = {
+        "page_title": "Pagina di selezione del metodo di Autenticazione",
+        "login_logo": "Il tuo logo",
+        "login_digital_identity": "Accedi con un'identità digitale",
+        "login_alternative_method": "Accedi con un metodo alternativo",
+        "havent_digital_identy": "Non hai un'identità digitale?",
+        "find_how_to_get_digital_id": "Scopri come ottenerla",
+        "find_how_to_get_digital_id_url": "https://identitadigitale.gov.it/",
+        "learn_more": "Scopri di più",
+    }
+    common_titles_en = {
+        "page_title": "Authentication method selection page",
+        "login_logo": "Your logo",
+        "login_digital_identity": "Sign in with a digital identity",
+        "login_alternative_method": "Sign in with an alternative method",
+        "havent_digital_identy": "Don't have a digital identity?",
+        "find_how_to_get_digital_id": "Find out how to get one",
+        "find_how_to_get_digital_id_url": "https://identitadigitale.gov.it/",
+        "learn_more": "Learn more",
+    }
+    footer_it = {
+        "legal_notice": "Note legali",
+        "privacy_policy": "Privacy Policy",
+        "accessibility_statement": "Dichiarazione Accessibilità",
+    }
+    footer_en = {
+        "legal_notice": "Legal notice",
+        "privacy_policy": "Privacy Policy",
+        "accessibility_statement": "Accessibility statement",
+    }
+
+    it_locale = {
+        "header": {"region_name": "Nome dell'Organizzazione"},
+        "titles": common_titles_it,
+        "digital_id": _digital_id(cie_it, spid_it, it_wallet_it, cie_oidc_login_url, "it"),
+        "footer": footer_it,
+    }
+    en_locale = {
+        "header": {"region_name": "Organisation Name"},
+        "titles": common_titles_en,
+        "digital_id": _digital_id(cie_en, spid_en, it_wallet_en, cie_oidc_login_url, "en"),
+        "footer": footer_en,
+    }
+    return {"it": it_locale, "en": en_locale}
+
+
 _DEFAULT_BACKEND_ROUTER_PY = '''\
 import logging
 from satosa.micro_services.base import RequestMicroService
@@ -464,11 +606,17 @@ class DefaultBackendRouter(RequestMicroService):
     def __init__(self, config, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.default_backend = config.get("default_backend", "spidSaml2")
+        self.cie_oidc_provider_urls = set(config.get("cie_oidc_provider_urls", []))
 
     def process(self, context, data):
         if not context.target_backend:
-            context.target_backend = self.default_backend
-            logger.info(f"DefaultBackendRouter: set target_backend={self.default_backend}")
+            entity_id = context.target_entity_id
+            if entity_id and self.cie_oidc_provider_urls and entity_id in self.cie_oidc_provider_urls:
+                context.target_backend = "CieOidcRp"
+                logger.info(f"DefaultBackendRouter: CIE OIDC entity {entity_id} → CieOidcRp")
+            else:
+                context.target_backend = self.default_backend
+                logger.info(f"DefaultBackendRouter: set target_backend={self.default_backend}")
         return super().process(context, data)
 '''
 
@@ -563,10 +711,18 @@ async def generate_satosa_config(db: AsyncSession) -> None:
     with open(os.path.join(conf_dir, "default_backend_router.py"), "w") as f:
         f.write(_DEFAULT_BACKEND_ROUTER_PY)
 
+    cie_oidc_urls = (
+        [cie_config.oidc_provider_url]
+        if include_cie_oidc and cie_config and cie_config.oidc_provider_url
+        else []
+    )
     _write(conf_dir, "default_router.yaml", {
         "name": "DefaultRouter",
         "module": "default_backend_router.DefaultBackendRouter",
-        "config": {"default_backend": "spidSaml2"},
+        "config": {
+            "default_backend": "spidSaml2",
+            "cie_oidc_provider_urls": cie_oidc_urls,
+        },
     })
 
     _write(conf_dir, "disco_to_target_issuer.yaml", {
@@ -636,6 +792,21 @@ async def generate_satosa_config(db: AsyncSession) -> None:
             ]
 
     _write_json(conf_dir, "spid-idps-default.json", spid_idps_json)
+
+    # Generate locale overrides with correct CIE URLs (served by uWSGI static-map)
+    cie_saml_entity_id = "https://idserver.servizicie.interno.gov.it/idp/profile/SAML2/POST/SSO"
+    cie_saml_login_url = (
+        f"/Saml2/disco?entityID={cie_saml_entity_id}"
+        f"&return=https://{hostname}/Saml2/disco"
+    )
+    cie_oidc_login_url = (
+        f"/Saml2/disco?entityID={cie_config.oidc_provider_url}"
+        if include_cie_oidc and cie_config and cie_config.oidc_provider_url
+        else None
+    )
+    os.makedirs(os.path.join(conf_dir, "locales"), exist_ok=True)
+    for lang, strings in _eid_locale_strings(cie_saml_login_url, cie_oidc_login_url).items():
+        _write_json(conf_dir, f"locales/eid-{lang}.json", strings)
 
     _write(conf_dir, "proxy.yaml", _proxy_yaml(hostname, include_cie_oidc))
     _write(conf_dir, "oidc_frontend.yaml", _oidc_frontend_yaml(hostname))

@@ -4,7 +4,7 @@ import secrets
 import bcrypt
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.jinja_templates import templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,7 @@ from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+
 
 
 def _auth_check(request: Request):

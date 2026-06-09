@@ -5,7 +5,7 @@ from urllib.parse import quote
 import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.jinja_templates import templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +17,7 @@ from app.satosa_reload import reload_satosa
 from app.spid_seeder import sync_spid_idps_from_registry
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+
 
 SPID_REGISTRY_API_LIST_URL = os.environ.get(
     "SPID_REGISTRY_API_LIST_URL",

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.jinja_templates import templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +21,7 @@ from app.satosa_reload import reload_satosa
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+
 
 
 # URL fissi CIE OIDC per ambiente. Provider URL (lista providers SATOSA) = URL OP,

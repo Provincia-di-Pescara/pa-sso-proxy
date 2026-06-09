@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.jinja_templates import templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +11,7 @@ from app.models import EnteSettings, SpidCert
 from app.spid_cert import generate_spid_cert
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+
 
 
 def _auth_check(request: Request) -> bool:

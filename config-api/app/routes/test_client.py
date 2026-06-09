@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.jinja_templates import templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,7 +19,7 @@ from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+
 
 TEST_CLIENT_ID = "__admin_test__"
 SATOSA_INTERNAL_URL = os.environ.get("SATOSA_INTERNAL_URL", "http://satosa:8080")
