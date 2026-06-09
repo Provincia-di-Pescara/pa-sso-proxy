@@ -98,6 +98,9 @@ def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
 
 def _oidc_frontend_yaml(hostname: str) -> dict:
     base = _base_url(hostname)
+    # Use Redis DB 1 for OIDC authz_state — CIE backend occupies DB 0
+    _redis_scheme, _redis_hostpath = REDIS_URL.split("://", 1)
+    redis_db1 = f"{_redis_scheme}://{_redis_hostpath.split('/')[0]}/1"
     return {
         "name": "OIDC",
         "module": _OIDC_FRONTEND_EXT_CLASS,
@@ -105,6 +108,7 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
         "config": {
             "signing_key_path": "/satosa-conf/oidc_signing_key.pem",
             "client_db_path": "/satosa-conf/oidc_clients.json",
+            "db_uri": redis_db1,
             "provider": {
                 "response_types_supported": ["code"],
                 "scopes_supported": ["openid", "profile", "email"],
@@ -799,7 +803,8 @@ async def generate_satosa_config(db: AsyncSession) -> None:
             { "organization_name": "TeamSystem ID", "entity_id": "https://spid.teamsystem.com/idp", "logo_uri": "/static/img/spid-idp-teamsystemid.svg" },
             { "organization_name": "Intesa Sanpaolo", "entity_id": "https://spid.intesaid.com/saml2/idp/metadata", "logo_uri": "/static/img/spid-idp-intesaid.svg" }
         ]
-    random.shuffle(spid_idps_json)
+    spid_idps_json.sort(key=lambda x: x["organization_name"])
+
 
     _write_json(conf_dir, "spid-idps-default.json", spid_idps_json)
 
