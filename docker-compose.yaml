@@ -23,9 +23,6 @@ services:
       - proxy-internal
 
   satosa:
-    build:
-      context: ./satosa
-      dockerfile: Dockerfile
     image: ${SATOSA_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-satosa:latest}
     restart: unless-stopped
     depends_on:
@@ -49,9 +46,6 @@ services:
       start_period: 60s
 
   config-api:
-    build:
-      context: ./config-api
-      dockerfile: Dockerfile
     image: ${CONFIG_API_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-config-api:latest}
     restart: unless-stopped
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
@@ -80,9 +74,6 @@ services:
       retries: 5
 
   nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
     image: ${NGINX_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-nginx:latest}
     restart: unless-stopped
     depends_on:

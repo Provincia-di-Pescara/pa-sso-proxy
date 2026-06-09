@@ -610,7 +610,7 @@ class DefaultBackendRouter(RequestMicroService):
 
     def process(self, context, data):
         if not context.target_backend:
-            entity_id = context.target_entity_id
+            entity_id = getattr(context, "target_entity_id", None)
             if entity_id and self.cie_oidc_provider_urls and entity_id in self.cie_oidc_provider_urls:
                 context.target_backend = "CieOidcRp"
                 logger.info(f"DefaultBackendRouter: CIE OIDC entity {entity_id} → CieOidcRp")
