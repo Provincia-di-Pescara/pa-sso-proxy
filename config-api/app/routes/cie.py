@@ -30,12 +30,12 @@ CIE_OIDC_ENVIRONMENTS = {
     "collaudo": {
         "provider_url": "https://preproduzione.cie.interno.gov.it/idp/oidc/op",
         "trust_anchor_url": "https://preproduzione.cie.interno.gov.it",
-        "authority_hint_url": "https://preproduzione.cie.interno.gov.it/idp/oidc/op",
+        "authority_hint_url": "https://preproduzione.cie.interno.gov.it",
     },
     "produzione": {
         "provider_url": "https://oidc.idserver.servizicie.interno.gov.it",
-        "trust_anchor_url": "https://registry.servizicie.interno.gov.it",
-        "authority_hint_url": "https://oidc.idserver.servizicie.interno.gov.it",
+        "trust_anchor_url": "https://oidc.registry.servizicie.interno.gov.it",
+        "authority_hint_url": "https://oidc.registry.servizicie.interno.gov.it",
     },
 }
 

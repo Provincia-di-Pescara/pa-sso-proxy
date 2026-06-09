@@ -68,10 +68,11 @@ class EntityConfigHandler(BaseEndpoint):
             # Rimuovi campi None: i validatori CIE rifiutano campi null nel JWT.
             for _key in [k for k, v in list(fed_meta.items()) if v is None]:
                 fed_meta.pop(_key)
-        # Rimuovi campi interni che non devono comparire nella entity configuration
-        # pubblicata (violerebbero la spec OIDC o confonderebbero l'IdP)
+        # Rimuovi campi interni; "claim" viene rinominato in "claims" (nome standard OIDC)
         for _key in self._INTERNAL_METADATA_KEYS:
-            _meta[self._entity_type].pop(_key, None)
+            _val = _meta[self._entity_type].pop(_key, None)
+            if _key == "claim" and _val is not None:
+                _meta[self._entity_type]["claims"] = _val
         return _meta
 
     def _validate_configs(self):
