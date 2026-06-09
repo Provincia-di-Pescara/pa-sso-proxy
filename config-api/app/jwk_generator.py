@@ -41,7 +41,7 @@ def generate_jwk(name: str, use: str) -> JwkKey:
     # Formato interno SATOSA: include alg e use per routing corretto
     public_jwk = {
         "kty": "RSA",
-        "alg": "RS256" if use in ("federation", "sig") else "RSA-OAEP-256",
+        "alg": "RS256" if use in ("federation", "sig") else "RSA-OAEP",
         "use": use,
         "kid": kid,
         "e": e_b64,

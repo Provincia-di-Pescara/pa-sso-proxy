@@ -285,8 +285,8 @@ def _cie_oidc_backend_yaml(
             "subject_type": "pairwise",
             "id_token_signed_response_alg": "RS256",
             "userinfo_signed_response_alg": "RS256",
-            "userinfo_encrypted_response_alg": "RSA-OAEP-256",
-            "userinfo_encrypted_response_enc": "A256GCM",
+            "userinfo_encrypted_response_alg": "RSA-OAEP",
+            "userinfo_encrypted_response_enc": "A256CBC-HS512",
             "token_endpoint_auth_method": "private_key_jwt",
             "scope": "openid email",
             "code_challenge": {"length": 64, "method": "S256"},
@@ -330,7 +330,7 @@ def _cie_oidc_backend_yaml(
                     "supported": {"alg": ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]},
                 },
                 "encrypt": {
-                    "default": {"alg": "RSA-OAEP-256", "enc": "A256GCM"},
+                    "default": {"alg": "RSA-OAEP", "enc": "A256CBC-HS512"},
                     "supported": {
                         "alg": [
                             "RSA-OAEP", "RSA-OAEP-256", "ECDH-ES",
@@ -412,8 +412,8 @@ def _cie_oidc_backend_yaml(
                         "trust_marks": trust_marks,
                         "default_sign_alg": "RS256",
                         "supported_sign_alg": ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"],
-                        "default_enc_alg": "RSA-OAEP-256",
-                        "default_enc_enc": "A256GCM",
+                        "default_enc_alg": "RSA-OAEP",
+                        "default_enc_enc": "A256CBC-HS512",
                         "supported_enc_alg": [
                             "RSA-OAEP", "RSA-OAEP-256", "ECDH-ES",
                             "ECDH-ES+A128KW", "ECDH-ES+A192KW", "ECDH-ES+A256KW",
