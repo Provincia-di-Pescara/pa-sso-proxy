@@ -1,0 +1,285 @@
+/* ============================================================================
+   SSO Proxy — Pagina di scelta provider + errori
+   Stili componenti. Token da colors_and_type.css (Montesilvano / .italia).
+   Tutto namespaced `sso-` per non collidere col design canvas.
+   ============================================================================ */
+
+/* ---------- ARTBOARD SHELL ---------- */
+.sso {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-1);
+  color: var(--fg-1);
+  font-family: var(--font-sans);
+  font-size: var(--fs-16);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+.sso *, .sso *::before, .sso *::after { box-sizing: border-box; }
+
+/* ---------- SLIM PA BAR (.italia) ---------- */
+.sso-slim {
+  background: var(--bi-navy);
+  color: #fff;
+  font-size: var(--fs-13);
+  flex: 0 0 auto;
+}
+.sso-slim-in {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--sp-5); height: 38px; gap: var(--sp-4);
+}
+.sso-slim .gov {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  opacity: .94; min-width: 0;
+}
+.sso-slim .gov-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--it-green); flex: 0 0 auto; }
+.sso-slim .gov span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sso-lang { display: flex; gap: 4px; align-items: center; flex: 0 0 auto; }
+.sso-lang b { padding: 2px 7px; border-radius: 3px; font-weight: 600; }
+.sso-lang b.on { background: rgba(255,255,255,.16); }
+.sso-lang b.off { opacity: .6; font-weight: 400; }
+
+/* ---------- ENTE BRAND ---------- */
+.sso-brand {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-5) var(--sp-5);
+  flex: 0 0 auto;
+}
+.sso-brand.center { flex-direction: column; text-align: center; gap: var(--sp-3); padding-bottom: var(--sp-4); }
+.sso-brand.center .sso-brand-eyebrow,
+.sso-brand.center .sso-brand-title,
+.sso-brand.center .sso-brand-sub { white-space: nowrap; }
+.sso-crest { width: 52px; height: 52px; flex: 0 0 auto; }
+.sso-crest.lg { width: 64px; height: 64px; }
+.sso-brand-eyebrow {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--fg-3); margin: 0 0 2px;
+}
+.sso-brand-title {
+  font-weight: 700; font-size: var(--fs-20); color: var(--bi-navy);
+  line-height: 1.1; letter-spacing: -0.005em; margin: 0;
+}
+.sso-brand-sub { font-size: var(--fs-13); color: var(--fg-2); margin: 3px 0 0; }
+
+/* ---------- MAIN AREA ---------- */
+.sso-main {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: var(--sp-4) var(--sp-5) var(--sp-6);
+}
+.sso-main.top { justify-content: flex-start; padding-top: var(--sp-2); }
+
+/* ---------- LOGIN CARD ---------- */
+.sso-card {
+  background: var(--bg-0);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  padding: var(--sp-6);
+  width: 100%; max-width: 440px;
+}
+.sso-card.tight { padding: var(--sp-5); }
+.sso-kicker {
+  font-size: var(--fs-12); font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--brand-primary); margin: 0 0 var(--sp-2);
+}
+.sso-title { font-size: var(--fs-24); font-weight: 700; color: var(--fg-1); margin: 0 0 var(--sp-2); line-height: var(--lh-snug); letter-spacing: -.005em; }
+.sso-lead { font-size: var(--fs-15, 0.9375rem); color: var(--fg-2); margin: 0 0 var(--sp-5); line-height: var(--lh-normal); }
+
+/* app-context chip */
+.sso-appctx {
+  display: flex; align-items: center; gap: var(--sp-3);
+  background: var(--bi-primary-a4);
+  border: 1px solid var(--bi-primary-a16);
+  border-radius: var(--r-sm);
+  padding: var(--sp-3) var(--sp-4);
+  margin: 0 0 var(--sp-5);
+}
+.sso-appctx .ico {
+  width: 34px; height: 34px; border-radius: var(--r-sm); flex: 0 0 auto;
+  background: var(--bi-primary-a8); color: var(--bi-primary);
+  display: flex; align-items: center; justify-content: center;
+}
+.sso-appctx .ico svg { width: 18px; height: 18px; }
+.sso-appctx .lbl { font-size: var(--fs-12); color: var(--fg-3); margin: 0; line-height: 1.3; }
+.sso-appctx .val { font-size: var(--fs-15, .9375rem); font-weight: 600; color: var(--fg-1); margin: 0; line-height: 1.3; }
+
+/* ---------- METHOD STACK ---------- */
+.sso-methods { display: flex; flex-direction: column; gap: var(--sp-3); }
+.sso-or {
+  display: flex; align-items: center; gap: var(--sp-3);
+  color: var(--fg-3); font-size: var(--fs-13); text-transform: uppercase; letter-spacing: .06em;
+  margin: var(--sp-1) 0;
+}
+.sso-or::before, .sso-or::after { content: ""; flex: 1; height: 1px; background: var(--border-1); }
+
+/* ---------- SPID OFFICIAL SMART BUTTON ---------- */
+.spid-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; min-height: 48px; padding: 10px 16px;
+  background: #06c; color: #fff;
+  border: none; border-radius: var(--r-sm);
+  font-family: var(--font-sans); font-weight: 700; font-size: var(--fs-16);
+  cursor: pointer; transition: background var(--dur-fast) var(--ease-out);
+  position: relative; white-space: nowrap;
+}
+.spid-btn:hover { background: #0059b3; }
+.spid-btn .spid-mark { width: 26px; height: 26px; flex: 0 0 auto; }
+.spid-btn .spid-word { font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+.spid-btn .chev { position: absolute; right: 14px; width: 16px; height: 16px; opacity: .9; transition: transform var(--dur-base) var(--ease-out); }
+.spid-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+/* ---------- CIE OFFICIAL BUTTON ---------- */
+.cie-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; min-height: 48px; padding: 10px 16px;
+  background: #fff; color: var(--bi-navy);
+  border: 1.5px solid var(--bi-navy); border-radius: var(--r-sm);
+  font-family: var(--font-sans); font-weight: 700; font-size: var(--fs-16);
+  cursor: pointer; transition: background var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+}
+.cie-btn:hover { background: #f0f4f8; }
+.cie-btn .cie-mark { width: 30px; height: 22px; flex: 0 0 auto; }
+
+/* generic federation method button (white-label N providers) */
+.fed-btn {
+  display: flex; align-items: center; gap: var(--sp-3);
+  width: 100%; min-height: 48px; padding: 10px var(--sp-4);
+  background: #fff; color: var(--fg-1);
+  border: 1.5px solid var(--border-2); border-radius: var(--r-sm);
+  font-family: var(--font-sans); font-weight: 600; font-size: var(--fs-16);
+  cursor: pointer; text-align: left; transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+.fed-btn:hover { border-color: var(--bi-primary); background: var(--bi-primary-a4); }
+.fed-btn .fed-ico { width: 32px; height: 32px; border-radius: var(--r-sm); flex: 0 0 auto; display: flex; align-items: center; justify-content: center; background: var(--bg-2); color: var(--fg-2); }
+.fed-btn .fed-ico svg { width: 18px; height: 18px; }
+.fed-btn .fed-arrow { margin-left: auto; color: var(--fg-3); width: 18px; height: 18px; flex: 0 0 auto; }
+
+/* ---------- SPID IDP PANEL (expanded) ---------- */
+.idp-panel {
+  margin-top: var(--sp-3);
+  border: 1px solid var(--border-1); border-radius: var(--r-md);
+  background: var(--bg-0); box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+.idp-panel-head { padding: var(--sp-4) var(--sp-4) var(--sp-2); }
+.idp-panel-head .t { font-size: var(--fs-14); font-weight: 700; color: var(--fg-1); margin: 0; }
+.idp-panel-head .s { font-size: var(--fs-12); color: var(--fg-3); margin: 3px 0 0; }
+.idp-grid {
+  display: grid; grid-template-columns: 1fr; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+}
+.idp-tile {
+  display: flex; align-items: center; gap: var(--sp-3);
+  height: 44px; padding: 0 var(--sp-4);
+  border: 1px solid var(--border-1); border-radius: var(--r-sm);
+  background: #fff; cursor: pointer;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.idp-tile:hover { border-color: var(--bi-primary); box-shadow: var(--shadow-1); }
+.idp-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.idp-name { font-size: var(--fs-14); font-weight: 600; color: var(--fg-1); white-space: nowrap; }
+.idp-tile .idp-go { margin-left: auto; color: var(--fg-3); width: 16px; height: 16px; flex: 0 0 auto; }
+.idp-foot {
+  border-top: 1px solid var(--border-1); padding: var(--sp-3) var(--sp-4);
+  display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); align-items: center;
+  background: var(--bg-1);
+}
+.idp-foot a { font-size: var(--fs-13); font-weight: 600; color: var(--fg-link); text-decoration: none; }
+.idp-foot a:hover { text-decoration: underline; }
+.idp-foot .sep { color: var(--border-2); }
+
+/* helper links under methods */
+.sso-help { margin-top: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-2); }
+.sso-help a { font-size: var(--fs-14); color: var(--fg-link); text-decoration: none; font-weight: 600; }
+.sso-help a:hover { text-decoration: underline; }
+.sso-help .muted { font-size: var(--fs-13); color: var(--fg-3); }
+
+/* ---------- FOOTER ---------- */
+.sso-foot {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border-1);
+  background: var(--bg-0);
+  padding: var(--sp-4) var(--sp-5);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4);
+  font-size: var(--fs-12); color: var(--fg-3);
+}
+.sso-foot { flex-wrap: wrap; }
+.sso-foot .links { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); justify-content: flex-end; }
+.sso-foot a { color: var(--fg-2); text-decoration: none; white-space: nowrap; }
+.sso-foot a:hover { text-decoration: underline; }
+.sso-foot .agid { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--fg-2); }
+
+/* ---------- SPLIT LAYOUT (variant B) ---------- */
+.sso-split { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; }
+.sso-split-aside {
+  background: var(--bi-navy); color: #fff;
+  padding: var(--sp-7) var(--sp-6);
+  display: flex; flex-direction: column; gap: var(--sp-5);
+  position: relative; overflow: hidden;
+}
+.sso-split-aside::after {
+  content: ""; position: absolute; right: -120px; bottom: -120px; width: 360px; height: 360px;
+  background: radial-gradient(circle, rgba(255,255,255,.06), transparent 65%);
+}
+.sso-split-aside .crest-row { display: flex; align-items: center; gap: var(--sp-3); position: relative; z-index: 1; }
+.sso-split-aside .crest-row .et { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; opacity: .7; margin: 0; }
+.sso-split-aside .crest-row .nm { font-size: var(--fs-18); font-weight: 700; margin: 2px 0 0; white-space: nowrap; }
+.sso-split-aside h2 { font-size: var(--fs-28); font-weight: 700; color: #fff; line-height: var(--lh-snug); margin: 0; position: relative; z-index: 1; letter-spacing: -.01em; }
+.sso-split-aside p { font-size: var(--fs-15, .9375rem); color: rgba(255,255,255,.82); margin: 0; line-height: var(--lh-normal); position: relative; z-index: 1; }
+.sso-reassure { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: auto; position: relative; z-index: 1; }
+.sso-reassure .item { display: flex; gap: var(--sp-3); align-items: flex-start; }
+.sso-reassure .item svg { width: 20px; height: 20px; flex: 0 0 auto; color: var(--ms-gold-300); margin-top: 1px; }
+.sso-reassure .item p { font-size: var(--fs-13); color: rgba(255,255,255,.88); margin: 0; }
+.sso-split-main { padding: var(--sp-7) var(--sp-6); display: flex; flex-direction: column; justify-content: center; background: var(--bg-0); }
+
+/* ---------- METHOD TILES (variant C) ---------- */
+.sso-bigtile {
+  display: flex; align-items: center; gap: var(--sp-4);
+  width: 100%; padding: var(--sp-4) var(--sp-5);
+  border: 1.5px solid var(--border-2); border-radius: var(--r-md);
+  background: #fff; cursor: pointer; text-align: left;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast);
+}
+.sso-bigtile:hover { border-color: var(--bi-primary); box-shadow: var(--shadow-2); transform: translateY(-1px); }
+.sso-bigtile .bt-badge { width: 52px; height: 52px; border-radius: var(--r-sm); flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+.sso-bigtile .bt-badge.spid { background: #06c; }
+.sso-bigtile .bt-badge.cie { background: #fff; border: 1.5px solid var(--bi-navy); }
+.sso-bigtile .bt-t { font-size: var(--fs-18); font-weight: 700; color: var(--fg-1); margin: 0; }
+.sso-bigtile .bt-s { font-size: var(--fs-13); color: var(--fg-3); margin: 2px 0 0; }
+.sso-bigtile .bt-arrow { margin-left: auto; color: var(--fg-3); width: 22px; height: 22px; flex: 0 0 auto; }
+
+/* ---------- ERROR SCREENS ---------- */
+.sso-err-icon {
+  width: 64px; height: 64px; border-radius: 50%; margin: 0 auto var(--sp-4);
+  display: flex; align-items: center; justify-content: center;
+}
+.sso-err-icon svg { width: 32px; height: 32px; }
+.sso-err-icon.warn { background: var(--ms-warning-bg); color: var(--ms-warning); }
+.sso-err-icon.danger { background: var(--ms-danger-bg); color: var(--ms-danger); }
+.sso-err-icon.neutral { background: var(--bg-2); color: var(--fg-2); }
+.sso-card.err { text-align: center; max-width: 460px; }
+.sso-card.err .sso-title { margin-bottom: var(--sp-3); }
+.sso-card.err .sso-lead { margin-bottom: var(--sp-5); }
+.sso-err-code {
+  display: inline-block; margin-top: var(--sp-4);
+  font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-3);
+  background: var(--bg-1); border: 1px solid var(--border-1); border-radius: var(--r-sm);
+  padding: 4px 10px;
+}
+.sso-btn-row { display: flex; flex-direction: column; gap: var(--sp-3); }
+.btn-primary, .btn-outline {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 46px; padding: 10px 20px;
+  font-family: var(--font-sans); font-weight: 600; font-size: var(--fs-16);
+  border-radius: var(--r-sm); border: 1.5px solid transparent; cursor: pointer;
+  text-decoration: none; transition: all var(--dur-fast) var(--ease-out);
+}
+.btn-primary { background: var(--bi-primary); color: #fff; }
+.btn-primary:hover { background: var(--bi-primary-h); }
+.btn-outline { background: #fff; color: var(--bi-primary); border-color: var(--border-2); }
+.btn-outline:hover { background: var(--bi-primary-a8); border-color: var(--bi-primary); }
+.btn-primary svg, .btn-outline svg { width: 18px; height: 18px; }

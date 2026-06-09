@@ -52,7 +52,6 @@ async def test_proxy_yaml_uses_backend_modules_format(full_db, tmp_path, monkeyp
     assert "BACKEND_MODULES" in proxy
     assert "FRONTEND_MODULES" in proxy
     assert "/satosa-conf/spid_backend.yaml" in proxy["BACKEND_MODULES"]
-    assert "/satosa-conf/cie_saml_backend.yaml" in proxy["BACKEND_MODULES"]
     assert "/satosa-conf/oidc_frontend.yaml" in proxy["FRONTEND_MODULES"]
 
 

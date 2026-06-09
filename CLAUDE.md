@@ -27,7 +27,6 @@ IdP → satosa (callback) → JWT con attributi → App
 ### SATOSA — backend supportati
 
 - `spid_backend` — SPID SAML (tutti gli IdP ufficiali AgID)
-- `cie_saml_backend` — CIE SAML (Ministero dell'Interno)
 - `cie_oidc_backend` — CIE OIDC Federation 1.0 (codice in `satosa/plugins/`, mantenuto in questo repo)
 
 ### Config API (`config-api/`)

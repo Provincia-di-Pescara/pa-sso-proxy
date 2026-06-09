@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SSO Proxy — Scelta provider &amp; errori</title>
+<link rel="stylesheet" href="assets/colors_and_type.css">
+<link rel="stylesheet" href="assets/sso.css">
+<style>
+  html, body { margin: 0; height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="screens.jsx"></script>
+
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard, DCPostIt } = window;
+
+const ENTE = { eyebrow: "Città di", name: "Comune di Esempio", sub: "Servizi digitali" };
+const APP = "Portale dei Servizi";
+
+function App() {
+  return (
+    <DesignCanvas>
+
+      {/* ---------------- DESKTOP LAYOUT VARIANTS ---------------- */}
+      <DCSection id="desktop" title="Pagina di scelta provider · Desktop"
+        subtitle="Tre direzioni di layout. Bottone SPID smart ufficiale AgID, CIE e N provider del tenant.">
+        <DCArtboard id="a-centered" label="A · Card centrata" width={1000} height={760}>
+          <window.ScreenCardCentered lang="it" ente={ENTE} app={APP} showCie={true} />
+        </DCArtboard>
+        <DCArtboard id="b-split" label="B · Due colonne" width={1000} height={760}>
+          <window.ScreenSplit lang="it" ente={ENTE} app={APP} showCie={true} />
+        </DCArtboard>
+        <DCArtboard id="c-tiles" label="C · Scelta guidata a tile" width={1000} height={760}>
+          <window.ScreenTiles lang="it" ente={ENTE} app={APP} showCie={true} />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ---------------- MOBILE STATES ---------------- */}
+      <DCSection id="mobile" title="Smartphone · stati &amp; interazione"
+        subtitle="Mobile-first. Stato chiuso, lista IdP SPID aperta, tenant senza CIE, e versione EN.">
+        <DCArtboard id="m-closed" label="Mobile · scelta" width={390} height={760}>
+          <window.ScreenCardCentered lang="it" ente={ENTE} app={APP} showCie={true} />
+        </DCArtboard>
+        <DCArtboard id="m-spid" label="Mobile · lista IdP SPID aperta" width={390} height={1440}>
+          <window.ScreenCardCentered lang="it" ente={ENTE} app={APP} showCie={true} spidExpanded={true} />
+        </DCArtboard>
+        <DCArtboard id="m-nocie" label="Mobile · tenant senza CIE (+ N provider)" width={390} height={760}>
+          <window.ScreenCardCentered lang="it" ente={ENTE} app={APP} showCie={false} showOther={true} />
+        </DCArtboard>
+        <DCArtboard id="m-en" label="Mobile · English" width={390} height={760}>
+          <window.ScreenCardCentered lang="en" ente={ENTE} app={APP} showCie={true} />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ---------------- ERROR SCREENS ---------------- */}
+      <DCSection id="errors" title="Schermate di errore"
+        subtitle="Messaggi chiari, non tecnici. Sempre due vie: riprova oppure torna all'applicativo.">
+        <DCArtboard id="e-generic" label="Errore generico · riprova / torna all'app" width={720} height={560}>
+          <window.ScreenError lang="it" ente={ENTE} app={APP} kind="generic" />
+        </DCArtboard>
+        <DCArtboard id="e-cancel" label="Accesso annullato dall'utente" width={720} height={560}>
+          <window.ScreenError lang="it" ente={ENTE} app={APP} kind="cancelled" />
+        </DCArtboard>
+        <DCArtboard id="e-denied" label="Accesso negato · consenso rifiutato" width={720} height={560}>
+          <window.ScreenError lang="it" ente={ENTE} app={APP} kind="denied" />
+        </DCArtboard>
+      </DCSection>
+
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" fill="#003366"/>
+    <rect x="30" y="30" width="40" height="40" rx="6" fill="#fff"/>
+    <circle cx="50" cy="44" r="6" fill="#06c"/>
+    <rect x="38" y="56" width="24" height="5" rx="2.5" fill="#06c"/>
+  </svg>
+</template>
+</body>
+</html>

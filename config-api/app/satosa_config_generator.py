@@ -41,14 +41,12 @@ def _trust_mark_id_from_jwt(trust_mark_jwt: str) -> str:
 
 
 _SPID_BACKEND_CLASS = "backends.spidsaml2.SpidSAMLBackend"
-_CIE_SAML_BACKEND_CLASS = "backends.ciesaml2.CieSAMLBackend"
 _OIDC_FRONTEND_CLASS = "satosa.frontends.openid_connect.OpenIDConnectFrontend"
 
 
 def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
     backend_modules = [
         "/satosa-conf/spid_backend.yaml",
-        "/satosa-conf/cie_saml_backend.yaml",
     ]
     if include_cie_oidc:
         backend_modules.append("/satosa-conf/cie_oidc_backend.yaml")
@@ -189,87 +187,6 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
     }
 
 
-def _cie_saml_backend_yaml(hostname: str, cie_metadata_url: str, cert_path: str, key_path: str, settings: "EnteSettings") -> dict:
-    sp_config = {
-        "key_file": key_path,
-        "cert_file": cert_path,
-        "encryption_keypairs": [{"key_file": key_path, "cert_file": cert_path}],
-        "attribute_map_dir": "/satosa_proxy/attributes-map",
-        "custom_attribute_consuming_services": [
-            {
-                "service_name": "min",
-                "attributes": ["name", "familyName", "dateOfBirth", "fiscalNumber"],
-            },
-            {
-                "service_name": "med",
-                "attributes": ["name", "familyName", "dateOfBirth", "fiscalNumber", "gender", "placeOfBirth", "countyOfBirth"],
-            },
-            {
-                "service_name": "max",
-                "attributes": ["name", "familyName", "dateOfBirth", "fiscalNumber", "gender", "placeOfBirth", "countyOfBirth", "email", "mobilePhone", "address"],
-            }
-        ],
-        "organization": {
-            "display_name": [[settings.org_display_name, "it"]],
-            "name": [[settings.org_name, "it"]],
-            "url": [[settings.org_url, "it"]],
-        },
-        "contact_person": [
-            {
-                "contact_type": "administrative",
-                "company": settings.org_name,
-                "email_address": settings.contact_email,
-                "telephone_number": settings.contact_phone,
-                "cie_info": {
-                    "Public": "",
-                    "IPACode": settings.ipa_code,
-                    "Municipality": settings.org_city,
-                },
-            }
-        ],
-        "metadata": {"local": ["/satosa_proxy/metadata/idp/cie-production.xml"]},
-        "entityid": "<base_url>/<name>/metadata",
-        "accepted_time_diff": 10,
-        "service": {
-            "sp": {
-                "authn_requests_signed": True,
-                "want_response_signed": True,
-                "want_assertions_signed": True,
-                "signing_algorithm": "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
-                "digest_algorithm": "http://www.w3.org/2001/04/xmlenc#sha256",
-                "only_use_keys_in_metadata": True,
-                "name_id_format_allow_create": False,
-                "name_id_format": "urn:oasis:names:tc:SAML:2.0:nameid-format:transient",
-                "requested_attribute_name_format": "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
-                "allow_unknown_attributes": True,
-                "allow_unsolicited": True,
-                "required_attributes": ["name", "familyName", "dateOfBirth", "fiscalNumber"],
-                "endpoints": {
-                    "assertion_consumer_service": [
-                        ["<base_url>/<name>/acs/post", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],
-                    ],
-                    "single_logout_service": [
-                        ["<base_url>/<name>/ls/post/", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],
-                    ],
-                    "discovery_response": [
-                        ["<base_url>/<name>/disco", "urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol"],
-                    ],
-                },
-            }
-        },
-    }
-    return {
-        "name": "cieSaml2",
-        "module": _CIE_SAML_BACKEND_CLASS,
-        "config": {
-            "template_folder": "/satosa_proxy/templates",
-            "static_storage_url": f"{_base_url(hostname)}/static",
-            "error_template": "spid_login_error.html",
-            "entityid_endpoint": True,
-            "sp_config": sp_config,
-            "disco_srv": f"{_base_url(hostname)}/static/disco.html",
-        },
-    }
 
 
 def _cie_oidc_backend_yaml(
@@ -487,7 +404,7 @@ def _cie_oidc_backend_yaml(
     }
 
 
-def _eid_locale_strings(cie_saml_login_url: str, cie_oidc_login_url: str | None) -> dict:
+def _eid_locale_strings(cie_oidc_login_url: str | None) -> dict:
     """Return eid locale dicts for 'it' and 'en' with correct CIE URLs substituted."""
     it_wallet_it = {
         "name": "IT-Wallet",
@@ -517,10 +434,10 @@ def _eid_locale_strings(cie_saml_login_url: str, cie_oidc_login_url: str | None)
         "name": "CIE",
         "logo_text": "Entra con CIE",
         "logo": "cie/cie_white.svg",
-        "login_url": cie_saml_login_url,
+        "login_url": cie_oidc_login_url or "",
         "learn_more_descr": (
             "La CIE (Carta d'Identità Elettronica) è il documento d'identità elettronico italiano. "
-            "Usala per accedere ai servizi online in modo sicuro tramite il protocollo SAML2."
+            "Usala per accedere ai servizi online in modo sicuro tramite il protocollo OpenID Connect."
         ),
         "learn_more_link": "https://www.cartaidentita.interno.gov.it/",
         "learn_more_label": "Scopri come ottenerla",
@@ -529,10 +446,10 @@ def _eid_locale_strings(cie_saml_login_url: str, cie_oidc_login_url: str | None)
         "name": "CIE",
         "logo_text": "Login with CIE",
         "logo": "cie/cie_white.svg",
-        "login_url": cie_saml_login_url,
+        "login_url": cie_oidc_login_url or "",
         "learn_more_descr": (
             "CIE (Carta d'Identità Elettronica) is the Italian electronic identity card. "
-            "Use it to access online services in a secure way via the SAML2 protocol."
+            "Use it to access online services securely via the OpenID Connect protocol."
         ),
         "learn_more_link": "https://www.cartaidentita.interno.gov.it/",
         "learn_more_label": "Find out how to get it",
@@ -822,25 +739,20 @@ async def generate_satosa_config(db: AsyncSession) -> None:
 
     _write_json(conf_dir, "spid-idps-default.json", spid_idps_json)
 
-    # Generate locale overrides with correct CIE URLs (served by uWSGI static-map)
-    cie_saml_entity_id = "https://idserver.servizicie.interno.gov.it/idp/profile/SAML2/POST/SSO"
-    cie_saml_login_url = (
-        f"/Saml2/disco?entityID={cie_saml_entity_id}"
-        f"&return=https://{hostname}/Saml2/disco"
-    )
+    # Generate locale overrides with correct CIE URLs (CIE is OIDC only)
     cie_oidc_login_url = (
         f"/Saml2/disco?entityID={cie_config.oidc_provider_url}"
         if include_cie_oidc and cie_config and cie_config.oidc_provider_url
         else None
     )
     os.makedirs(os.path.join(conf_dir, "locales"), exist_ok=True)
-    for lang, strings in _eid_locale_strings(cie_saml_login_url, cie_oidc_login_url).items():
+    for lang, strings in _eid_locale_strings(cie_oidc_login_url).items():
         _write_json(conf_dir, f"locales/eid-{lang}.json", strings)
 
     _write(conf_dir, "proxy.yaml", _proxy_yaml(hostname, include_cie_oidc))
     _write(conf_dir, "oidc_frontend.yaml", _oidc_frontend_yaml(hostname))
     _write(conf_dir, "spid_backend.yaml", _spid_backend_yaml(hostname, enabled_idps, cert_path, key_path, settings))
-    _write(conf_dir, "cie_saml_backend.yaml", _cie_saml_backend_yaml(hostname, cie_metadata_url, cert_path, key_path, settings))
+
 
     if include_cie_oidc:
         _write(

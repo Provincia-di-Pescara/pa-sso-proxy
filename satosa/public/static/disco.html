@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accesso sicuro — Servizi digitali</title>
+  <meta name="description" content="Scegli il sistema di identità digitale per accedere ai servizi.">
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="stylesheet" href="/static/sso/sso.css">
+</head>
+<body>
+<div class="sso">
+
+  <!-- SLIM PA BAR (.italia) -->
+  <div class="sso-slim">
+    <div class="sso-slim-in">
+      <span class="gov">
+        <span class="gov-dot"></span>
+        <span>Sito ufficiale della Pubblica Amministrazione</span>
+      </span>
+      <span class="sso-lang">
+        <span class="active" id="lang-it">IT</span>
+        <span id="lang-en">EN</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- ENTE BRAND (populated from eid locale JSON) -->
+  <div class="sso-brand" id="ente-brand">
+    <!-- Placeholder crest istituzionale -->
+    <svg class="sso-crest-svg" viewBox="0 0 64 64" fill="none" aria-label="Logo ente" role="img">
+      <rect x="2" y="2" width="60" height="60" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5"/>
+      <path d="M32 13 L48 21 H16 Z" fill="#64748B"/>
+      <rect x="17" y="21" width="30" height="3" fill="#64748B"/>
+      <rect x="20" y="26" width="4" height="18" fill="#94A3B8"/>
+      <rect x="30" y="26" width="4" height="18" fill="#94A3B8"/>
+      <rect x="40" y="26" width="4" height="18" fill="#94A3B8"/>
+      <rect x="15" y="45" width="34" height="4" rx="1" fill="#64748B"/>
+    </svg>
+    <div>
+      <p class="sso-brand-name" id="ente-name">Servizi digitali</p>
+    </div>
+  </div>
+
+  <!-- MAIN CARD -->
+  <main class="sso-main">
+    <div class="sso-card">
+
+      <p class="sso-kicker">Accesso ai servizi</p>
+      <h1 class="sso-title" id="page-title">Entra nell'area riservata</h1>
+      <p class="sso-lead" id="page-lead">Scegli il sistema di identità digitale con cui vuoi accedere.</p>
+
+      <!-- APP CONTEXT CHIP (shown when relay state contains app name) -->
+      <div class="sso-appctx" id="app-ctx" style="display:none">
+        <span class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </span>
+        <div>
+          <p class="lbl">Stai accedendo a</p>
+          <p class="val" id="app-name-val"></p>
+        </div>
+      </div>
+
+      <!-- METHOD STACK -->
+      <div class="sso-methods">
+
+        <!-- SPID SMART BUTTON -->
+        <button class="spid-btn" id="spid-toggle" aria-expanded="false"
+                aria-controls="spid-idp-panel" type="button" onclick="ssoToggleSpid()">
+          <svg class="spid-mark" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+            <circle cx="13" cy="6" r="3.1" fill="#fff"/>
+            <circle cx="6.6" cy="18.4" r="3.1" fill="#fff"/>
+            <circle cx="19.4" cy="18.4" r="3.1" fill="#fff"/>
+            <path d="M13 6 L6.6 18.4 M13 6 L19.4 18.4 M6.6 18.4 L19.4 18.4"
+                  stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".85"/>
+          </svg>
+          <span class="spid-word">Entra con SPID</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6"/>
+          </svg>
+        </button>
+
+        <!-- SPID IdP PANEL -->
+        <div class="idp-panel" id="spid-idp-panel" role="region" aria-label="Scegli il tuo gestore SPID">
+          <div class="idp-panel-head">
+            <p class="t">Scegli il tuo gestore di identità</p>
+            <p class="s">Accedi con le credenziali SPID che già possiedi.</p>
+          </div>
+          <div class="idp-grid" id="spid-idp-list">
+            <!-- Populated by JS -->
+          </div>
+          <div class="idp-foot">
+            <a href="https://www.spid.gov.it/richiedi-spid/" target="_blank" rel="noopener">
+              Non hai SPID? Scopri come richiederlo
+            </a>
+            <span class="sep">·</span>
+            <a href="https://www.spid.gov.it/" target="_blank" rel="noopener">Maggiori informazioni</a>
+          </div>
+        </div>
+
+        <!-- CIE BUTTON (shown by JS when eid locale provides cie login_url) -->
+        <a class="cie-btn" id="cie-btn" href="#" style="display:none">
+          <svg viewBox="0 0 30 22" fill="none" aria-hidden="true" style="height:22px;flex:0 0 auto">
+            <rect x="1" y="1" width="28" height="20" rx="3" fill="#fff" stroke="#003366" stroke-width="1.5"/>
+            <rect x="1" y="1" width="28" height="5.5" rx="3" fill="#003366"/>
+            <circle cx="8" cy="14" r="3.4" fill="#003366"/>
+            <rect x="14" y="11" width="11" height="1.8" rx=".9" fill="#94A3B8"/>
+            <rect x="14" y="15" width="8" height="1.8" rx=".9" fill="#94A3B8"/>
+          </svg>
+          Entra con CIE
+        </a>
+
+      </div><!-- /sso-methods -->
+
+      <!-- HELP LINKS -->
+      <div class="sso-help">
+        <a href="https://www.spid.gov.it/richiedi-spid/" target="_blank" rel="noopener">
+          Non hai SPID? Scopri come richiederlo
+        </a>
+        <a href="#" class="muted">Hai bisogno di aiuto?</a>
+      </div>
+
+    </div><!-- /sso-card -->
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="sso-foot">
+    <span class="agid">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+           style="flex:0 0 auto">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      SPID · CIE · AgID
+    </span>
+    <span class="links">
+      <a href="#">Privacy</a>
+      <a href="#">Note legali</a>
+      <a href="#">Accessibilità</a>
+      <a href="#">Assistenza</a>
+    </span>
+  </footer>
+
+</div><!-- /sso -->
+
+<script>
+/* ============================================================
+   SSO Disco Page — Logic
+   ============================================================ */
+
+/* Toggle SPID IdP panel */
+function ssoToggleSpid() {
+  var btn   = document.getElementById('spid-toggle');
+  var panel = document.getElementById('spid-idp-panel');
+  var open  = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  panel.style.display = open ? 'none' : 'block';
+  if (!open) { ssoLoadIdps(); }
+}
+
+/* Disco endpoint — SATOSA appends ?entityID=...&return=... */
+var DISCO_EP = '/spidSaml2/disco';
+
+var _idpsLoaded = false;
+function ssoLoadIdps() {
+  if (_idpsLoaded) return;
+  _idpsLoaded = true;
+  var container = document.getElementById('spid-idp-list');
+
+  fetch('/static/js/spid-idps-default.json')
+    .then(function(r) { return r.json(); })
+    .then(function(idps) {
+      if (!container || !Array.isArray(idps)) return;
+      idps.forEach(function(idp) {
+        var href = DISCO_EP
+          + '?entityID=' + encodeURIComponent(idp.entity_id)
+          + '&return=' + encodeURIComponent(DISCO_EP);
+
+        var a = document.createElement('a');
+        a.className = 'idp-tile';
+        a.href = href;
+
+        if (idp.logo_uri) {
+          var img = document.createElement('img');
+          img.className = 'idp-logo';
+          img.src = idp.logo_uri;
+          img.alt = idp.organization_name;
+          img.onerror = function() { this.replaceWith(ssoMakeDot()); };
+          a.appendChild(img);
+        } else {
+          a.appendChild(ssoMakeDot());
+        }
+
+        var name = document.createElement('span');
+        name.className = 'idp-name';
+        name.textContent = idp.organization_name;
+        a.appendChild(name);
+        container.appendChild(a);
+      });
+    })
+    .catch(function() {
+      if (container) {
+        container.innerHTML =
+          '<p style="padding:12px;font-size:.875rem;color:var(--fg-3)">'
+          + 'Nessun provider disponibile al momento.</p>';
+      }
+    });
+}
+
+function ssoMakeDot() {
+  var span = document.createElement('span');
+  span.style.cssText = 'width:9px;height:9px;border-radius:50%;'
+    + 'background:var(--bi-primary);flex:0 0 auto;display:inline-block';
+  return span;
+}
+
+/* Load locale strings (eid-it.json) for CIE login URL etc. */
+(function() {
+  fetch('/static/locales/eid-it.json')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      /* CIE button */
+      var cie = data && data.digital_id && data.digital_id.cie;
+      if (cie && cie.login_url && cie.login_url !== '#' && cie.login_url !== '') {
+        var cieBtn = document.getElementById('cie-btn');
+        if (cieBtn) { cieBtn.href = cie.login_url; cieBtn.style.display = ''; }
+      }
+      /* Ente name from locale header */
+      if (data && data.header && data.header.region_name) {
+        var el = document.getElementById('ente-name');
+        if (el) el.textContent = data.header.region_name;
+      }
+    })
+    .catch(function() {});
+})();
+</script>
+</body>
+</html>
