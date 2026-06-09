@@ -37,6 +37,9 @@ services:
       - SATOSA_CONFIG=/satosa-conf/proxy.yaml
       - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
       - REDIS_URL=redis://redis:6379/0
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     volumes:
       - proxy_satosa_conf:/satosa-conf
     networks:
