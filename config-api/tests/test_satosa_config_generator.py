@@ -396,11 +396,11 @@ async def test_satosa_config_generator_combined_providers(db_session, tmp_path, 
     # 2. Aruba PEC
     # 3. Demo Provider
     assert idps[0]["organization_name"] == "AgID Validator"
-    assert idps[0]["logo_uri"] == "/static/img/spid-idp-spidtest.svg"
+    assert idps[0]["logo_uri"] == "https://pagopa-prx.comune.montesilvano.pe.it/static/spid/spid-agid-logo-lb.png"
 
     assert idps[1]["organization_name"] == "Aruba PEC"
     assert idps[1]["logo_uri"] == "/static/img/spid-idp-arubaid.svg"
 
     assert idps[2]["organization_name"] == "Demo Provider"
-    assert idps[2]["logo_uri"] == "/static/img/spid-idp-spidtest.svg"
+    assert idps[2]["logo_uri"] == "https://pagopa-prx.comune.montesilvano.pe.it/static/spid/spid-agid-logo-lb.png"
 
