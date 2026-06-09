@@ -100,12 +100,26 @@
           <a href="https://www.spid.gov.it/serve-aiuto" target="_blank" rel="noopener">Serve aiuto?</a>
         </div>
 
-        <div class="idp-panel-head">
-          <p class="t">Scegli il tuo gestore di identità</p>
-          <p class="s">Accedi con le credenziali SPID che già possiedi.</p>
+        <div class="sso-spid-btn-container" style="margin-bottom: var(--sp-4);">
+          <button class="spid-btn" id="spid-toggle" aria-expanded="false"
+                  aria-controls="spid-idp-panel" type="button" onclick="ssoToggleSpidList()">
+            <img class="spid-mark" src="/static/spid/spid-ico-circle-bb.svg" alt="">
+            <span class="spid-word">Entra con SPID</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"/>
+            </svg>
+          </button>
         </div>
-        <div class="idp-grid" id="spid-idp-list">
-          <!-- Populated by JS -->
+
+        <div class="idp-panel" id="spid-idp-panel" style="display: none;">
+          <div class="idp-panel-head">
+            <p class="t">Scegli il tuo gestore di identità</p>
+            <p class="s">Accedi con le credenziali SPID che già possiedi.</p>
+          </div>
+          <div class="idp-grid" id="spid-idp-list">
+            <!-- Populated by JS -->
+          </div>
         </div>
 
         <div class="panel-foot-logo">
@@ -175,7 +189,19 @@ function ssoTab(name) {
   document.querySelectorAll('.sso-tab-panel').forEach(function(p) {
     p.hidden = (p.id !== 'panel-' + name);
   });
-  if (name === 'spid') ssoLoadIdps();
+}
+
+/* Toggle SPID IdP panel */
+function ssoToggleSpidList() {
+  var btn = document.getElementById('spid-toggle');
+  var panel = document.getElementById('spid-idp-panel');
+  if (!btn || !panel) return;
+  var open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  panel.style.display = open ? 'none' : 'block';
+  if (!open) {
+    ssoLoadIdps();
+  }
 }
 
 /* Fisher-Yates shuffle */
@@ -300,9 +326,6 @@ function ssoMakeDot() {
     el.style.display = '';
   }
 })();
-
-/* Load SPID providers immediately (SPID tab is default) */
-ssoLoadIdps();
 </script>
 </body>
 </html>
