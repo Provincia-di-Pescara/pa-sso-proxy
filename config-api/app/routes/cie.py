@@ -72,11 +72,15 @@ async def cie_config_get(request: Request, db: AsyncSession = Depends(get_db)):
     public_jwks = {"keys": [k.public_jwk for k in jwk_keys if k.public_jwk]}
     public_jwks_json = json.dumps(public_jwks, indent=4)
 
-    # Formato portale CIE: chiavi private complete, senza alg/use
-    portal_keys = [portal_jwk(k.private_jwk) for k in jwk_keys if k.private_jwk and all(
+    # Formato portale CIE: SOLO chiave federation con campi privati, senza alg/use
+    fed_keys = [k for k in jwk_keys if k.use == "federation" and k.private_jwk and all(
         f in k.private_jwk for f in ("d", "p", "q", "dp", "dq", "qi")
     )]
-    portal_jwks_json = json.dumps({"keys": portal_keys}, indent=4)
+    portal_jwks_json = json.dumps(
+        {"keys": [portal_jwk(k.private_jwk) for k in fed_keys]}, indent=4
+    )
+
+    generated_at = max((k.created_at for k in jwk_keys), default=None) if jwk_keys else None
 
     proxy_hostname = os.environ.get("PROXY_HOSTNAME", "")
     derived_client_id = f"https://{proxy_hostname}/CieOidcRp" if proxy_hostname else ""
@@ -89,6 +93,7 @@ async def cie_config_get(request: Request, db: AsyncSession = Depends(get_db)):
             "jwk_keys": jwk_keys,
             "public_jwks_json": public_jwks_json,
             "portal_jwks_json": portal_jwks_json,
+            "generated_at": generated_at,
             "environments": CIE_OIDC_ENVIRONMENTS,
             "derived_client_id": derived_client_id,
         },
@@ -159,6 +164,54 @@ async def cie_config_post(
     return RedirectResponse("/admin/cie", status_code=302)
 
 
+@router.post("/cie/generate-all")
+async def cie_generate_all(request: Request, db: AsyncSession = Depends(get_db)):
+    """Genera (o rigenera) tutte e 3 le chiavi JWK in un colpo."""
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+
+    # Cancella tutte le chiavi esistenti e azzera FK
+    result = await db.execute(select(CieConfig).where(CieConfig.id == 1))
+    config = result.scalar_one_or_none()
+    if config is not None:
+        config.jwk_federation_id = None
+        config.jwk_core_sig_id = None
+        config.jwk_core_enc_id = None
+        await db.commit()
+
+    old_keys = await _get_all_keys(db)
+    for k in old_keys:
+        await db.delete(k)
+    await db.commit()
+
+    # Genera 3 nuove chiavi
+    suffix = uuid4().hex[:8]
+    fed = generate_jwk(f"cie-federation-{suffix}", "federation")
+    sig = generate_jwk(f"cie-sig-{suffix}", "sig")
+    enc = generate_jwk(f"cie-enc-{suffix}", "enc")
+    db.add_all([fed, sig, enc])
+    await db.flush()  # popola gli id
+
+    # Auto-assegna FK
+    if config is None:
+        config = CieConfig(id=1)
+        db.add(config)
+    config.jwk_federation_id = fed.id
+    config.jwk_core_sig_id = sig.id
+    config.jwk_core_enc_id = enc.id
+    await db.commit()
+
+    keys = await _get_all_keys(db)
+    await _write_jwks_safe(keys)
+    try:
+        await generate_and_write(db)
+        await asyncio.to_thread(reload_satosa)
+    except Exception:
+        logger.warning("generate_and_write failed after key regeneration", exc_info=True)
+
+    return RedirectResponse("/admin/cie", status_code=302)
+
+
 @router.post("/cie/generate-jwk/{use}")
 async def cie_generate_jwk(
     request: Request,
@@ -192,7 +245,6 @@ async def cie_delete_jwk(
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
 
-    # Clear FK references in CieConfig if they point to this key
     result = await db.execute(select(CieConfig).where(CieConfig.id == 1))
     config = result.scalar_one_or_none()
     if config is not None:
