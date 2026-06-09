@@ -73,4 +73,44 @@
   </div>
 
 </div>
+
+{% if cie_config and cie_config.oidc_federation_enabled %}
+<div class="row g-3 mt-1">
+  <div class="col-md-12">
+    <div class="card {% if cie_config.trust_mark %}border-success{% else %}border-warning{% endif %}">
+      <div class="card-body">
+        <h6 class="card-subtitle mb-2 text-muted">CIE OIDC Federation</h6>
+        <div class="d-flex gap-4 flex-wrap align-items-start">
+          <div>
+            <small class="text-muted d-block">Trust Mark</small>
+            {% if cie_config.trust_mark %}
+              <span class="badge bg-success">presente</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">assente</span>
+              <small class="text-muted d-block">verrà recuperato al prossimo riavvio config-api</small>
+            {% endif %}
+          </div>
+          <div>
+            <small class="text-muted d-block">Ambiente</small>
+            <span class="badge bg-secondary">{{ cie_config.oidc_environment or '—' }}</span>
+          </div>
+          {% if cie_oidc_client_id %}
+          <div>
+            <small class="text-muted d-block">Client ID (Entity ID)</small>
+            <code class="small">{{ cie_oidc_client_id }}</code>
+          </div>
+          {% endif %}
+          <div>
+            <small class="text-muted d-block">Entity Configuration</small>
+            <a href="{{ cie_oidc_client_id | replace('/CieOidcRp', '') }}/.well-known/openid-federation" target="_blank" class="small">
+              /.well-known/openid-federation ↗
+            </a>
+          </div>
+        </div>
+        <a href="/admin/cie" class="btn btn-sm btn-outline-primary mt-2">Configura</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

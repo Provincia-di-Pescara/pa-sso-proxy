@@ -9,7 +9,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import EnteSettings, OIDCClient, SpidCert, SpidIdP
+from app.models import CieConfig, EnteSettings, OIDCClient, SpidCert, SpidIdP
+from app.satosa_config_generator import _cie_oidc_client_id
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -45,6 +46,11 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
 
     settings = (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
 
+    cie_config = (await db.execute(select(CieConfig).where(CieConfig.id == 1))).scalar_one_or_none()
+    cie_oidc_client_id = None
+    if cie_config and cie_config.oidc_federation_enabled and settings:
+        cie_oidc_client_id = _cie_oidc_client_id(settings.proxy_hostname)
+
     return templates.TemplateResponse(request, "dashboard.html.j2", {
         "user": user,
         "clients_total": clients_total,
@@ -55,4 +61,6 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "cert_days": cert_days,
         "settings": settings,
         "satosa_status": await _satosa_status(),
+        "cie_config": cie_config,
+        "cie_oidc_client_id": cie_oidc_client_id,
     })
