@@ -525,7 +525,9 @@ async def generate_satosa_config(db: AsyncSession) -> None:
             r = await db.execute(select(JwkKey).where(JwkKey.id == cie_config.jwk_federation_id))
             k = r.scalar_one_or_none()
             if k:
-                jwk_federation = k.private_jwk
+                # Strip 'use' so cryptojwt accepts the key for signing
+                # (cryptojwt rejects use=federation; RFC 7517 absent=any purpose)
+                jwk_federation = {kk: v for kk, v in k.private_jwk.items() if kk != "use"}
         if cie_config.jwk_core_sig_id:
             r = await db.execute(select(JwkKey).where(JwkKey.id == cie_config.jwk_core_sig_id))
             k = r.scalar_one_or_none()
