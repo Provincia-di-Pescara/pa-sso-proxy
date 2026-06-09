@@ -43,6 +43,34 @@ def _trust_mark_id_from_jwt(trust_mark_jwt: str) -> str:
 
 _SPID_BACKEND_CLASS = "backends.spidsaml2.SpidSAMLBackend"
 _OIDC_FRONTEND_CLASS = "satosa.frontends.openid_connect.OpenIDConnectFrontend"
+_OIDC_FRONTEND_EXT_CLASS = "oidc_frontend_ext.OIDCFrontendWithEndSession"
+
+# Custom OIDC frontend extension deployed to satosa-conf:
+# - adds end_session_endpoint to OIDC discovery document
+# - handles RP-initiated logout (redirects to post_logout_redirect_uri)
+# - uses extra_scopes to release fiscal_number when profile scope is requested
+_OIDC_FRONTEND_EXT_PY = '''\
+from satosa.frontends.openid_connect import OpenIDConnectFrontend
+from satosa.response import SeeOther, Response
+
+
+class OIDCFrontendWithEndSession(OpenIDConnectFrontend):
+    def register_endpoints(self, backend_names):
+        url_map = super().register_endpoints(backend_names)
+        end_session_url = "{}/end_session".format(self.endpoint_baseurl)
+        self.provider.configuration_information["end_session_endpoint"] = end_session_url
+        url_map.append(("^{}/end_session$".format(self.name), self.end_session))
+        return url_map
+
+    def end_session(self, context):
+        params = context.request or {}
+        redirect_uri = params.get("post_logout_redirect_uri")
+        if isinstance(redirect_uri, list):
+            redirect_uri = redirect_uri[0] if redirect_uri else None
+        if redirect_uri:
+            return SeeOther(redirect_uri)
+        return Response("Logout completato", status="200 OK")
+'''
 
 
 def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
@@ -69,10 +97,11 @@ def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
 
 
 def _oidc_frontend_yaml(hostname: str) -> dict:
+    base = _base_url(hostname)
     return {
         "name": "OIDC",
-        "module": _OIDC_FRONTEND_CLASS,
-        "issuer": _base_url(hostname),
+        "module": _OIDC_FRONTEND_EXT_CLASS,
+        "issuer": base,
         "config": {
             "signing_key_path": "/satosa-conf/oidc_signing_key.pem",
             "client_db_path": "/satosa-conf/oidc_clients.json",
@@ -81,6 +110,11 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
                 "scopes_supported": ["openid", "profile", "email"],
                 "subject_types_supported": ["pairwise", "public"],
                 "id_token_lifetime": 3600,
+                # extra_scopes adds fiscal_number to scope2claims for profile scope
+                # so that fiscal_number is released in userinfo without explicit claims param
+                "extra_scopes": {
+                    "profile": ["fiscal_number"],
+                },
             },
         },
     }
@@ -88,7 +122,15 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
 
 def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_path: str, settings: "EnteSettings") -> dict:
     local_metadata = ["/satosa_proxy/metadata/idp/spid-entities-idps.xml"]
-    remote_metadata = [{"url": idp.metadata_url} for idp in enabled_idps]
+    # Production IdPs are already in the local aggregate XML; their metadata_url
+    # endpoints redirect (307) which pysaml2 does not follow → SourceNotFound crash.
+    # Only demo/test IdPs need remote metadata (their URLs return 200 directly).
+    _TEST_ALIASES = {"spid-demo", "spid-validator"}
+    remote_metadata = [
+        {"url": idp.metadata_url}
+        for idp in enabled_idps
+        if idp.metadata_url and idp.alias in _TEST_ALIASES
+    ]
     metadata_config = {"local": local_metadata}
     if remote_metadata:
         metadata_config["remote"] = remote_metadata
@@ -683,6 +725,9 @@ async def generate_satosa_config(db: AsyncSession) -> None:
 
     with open(os.path.join(conf_dir, "default_backend_router.py"), "w", encoding="utf-8") as f:
         f.write(_DEFAULT_BACKEND_ROUTER_PY)
+
+    with open(os.path.join(conf_dir, "oidc_frontend_ext.py"), "w", encoding="utf-8") as f:
+        f.write(_OIDC_FRONTEND_EXT_PY)
 
     cie_oidc_urls = (
         [cie_config.oidc_provider_url]

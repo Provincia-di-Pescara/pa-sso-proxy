@@ -142,6 +142,15 @@ async def test_client_start(request: Request, db: AsyncSession = Depends(get_db)
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
         "acr_values": acr,
+        "claims": json.dumps({
+            "userinfo": {
+                "fiscal_number": {"essential": True},
+                "given_name": None,
+                "family_name": None,
+                "email": None,
+                "https://attributes.eid.gov.it/fiscal_number": {"essential": True},
+            }
+        }),
     })
     return RedirectResponse(auth_url, status_code=302)
 
