@@ -1,191 +1,202 @@
 {% extends "base.html.j2" %}
 {% block title %}Configurazione CIE OIDC — PA SSO Proxy{% endblock %}
+{% block page_title %}CIE OIDC{% endblock %}
+
 {% block content %}
-<h2>CIE OIDC</h2>
-
-<form method="post" action="/admin/cie" class="mb-5">
-  <h5 class="mt-3 mb-3">Configurazione</h5>
-  <div class="mb-3">
-    <label class="form-label" for="saml_metadata_url">SAML Metadata URL</label>
-    <input type="url" class="form-control" id="saml_metadata_url" name="saml_metadata_url"
-           value="{{ config.saml_metadata_url if config else 'https://idserver.servizicie.interno.gov.it/idp/shibboleth?Metadata' }}">
-  </div>
-
-  {% if derived_client_id %}
-  <div class="mb-3">
-    <label class="form-label">Client ID <span class="badge bg-secondary">auto</span></label>
-    <input type="text" class="form-control font-monospace" value="{{ derived_client_id }}" readonly>
-    <div class="form-text">Derivato da PROXY_HOSTNAME. Da registrare nel portale federazione CIE.</div>
-  </div>
-  {% endif %}
-
-  <div class="mb-3">
-    <label class="form-label" for="jwk_federation_id">JWK Federation</label>
-    <select class="form-select" id="jwk_federation_id" name="jwk_federation_id">
-      <option value="">— nessuna —</option>
-      {% for key in jwk_keys %}
-      <option value="{{ key.id }}"
-        {% if config and config.jwk_federation_id == key.id %}selected{% endif %}>
-        {{ key.name }} ({{ key.use }})
-      </option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="mb-3">
-    <label class="form-label" for="jwk_core_sig_id">JWK Core Signature</label>
-    <select class="form-select" id="jwk_core_sig_id" name="jwk_core_sig_id">
-      <option value="">— nessuna —</option>
-      {% for key in jwk_keys %}
-      <option value="{{ key.id }}"
-        {% if config and config.jwk_core_sig_id == key.id %}selected{% endif %}>
-        {{ key.name }} ({{ key.use }})
-      </option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="mb-3">
-    <label class="form-label" for="jwk_core_enc_id">JWK Core Encryption</label>
-    <select class="form-select" id="jwk_core_enc_id" name="jwk_core_enc_id">
-      <option value="">— nessuna —</option>
-      {% for key in jwk_keys %}
-      <option value="{{ key.id }}"
-        {% if config and config.jwk_core_enc_id == key.id %}selected{% endif %}>
-        {{ key.name }} ({{ key.use }})
-      </option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="card mt-4">
-    <div class="card-header">
-      <h5 class="mb-0">OIDC Federation (CIE 1.0)</h5>
-    </div>
-    <div class="card-body">
-      <div class="form-check form-switch mb-3">
-        <input class="form-check-input" type="checkbox" role="switch"
-               id="oidc_federation_enabled" name="oidc_federation_enabled"
-               {% if config and config.oidc_federation_enabled %}checked{% endif %}>
-        <label class="form-check-label" for="oidc_federation_enabled">Abilita backend CIE OIDC Federation</label>
+<form method="post" action="/admin/cie" style="max-width:720px;">
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">Configurazione base</div>
+    <div class="a-card-body">
+      <div class="a-form-group">
+        <label class="a-label" for="saml_metadata_url">SAML Metadata URL</label>
+        <input type="url" class="a-input" id="saml_metadata_url" name="saml_metadata_url"
+               value="{{ config.saml_metadata_url if config else 'https://idserver.servizicie.interno.gov.it/idp/shibboleth?Metadata' }}">
       </div>
 
-      <div class="row g-3">
-        <div class="col-md-12">
-          <label class="form-label" for="oidc_environment">Ambiente</label>
-          <select class="form-select" id="oidc_environment" name="oidc_environment">
-            <option value="">— seleziona —</option>
-            <option value="collaudo"
-              {% if config and config.oidc_environment == 'collaudo' %}selected{% endif %}>
-              Pre-produzione (Collaudo)
+      {% if derived_client_id %}
+      <div class="a-form-group">
+        <label class="a-label">Client ID <span class="a-badge a-badge-neutral" style="text-transform:none;letter-spacing:0;">auto</span></label>
+        <input type="text" class="a-input a-input-ro a-mono" value="{{ derived_client_id }}" readonly>
+        <div class="a-form-hint">Derivato da PROXY_HOSTNAME. Da registrare nel portale federazione CIE.</div>
+      </div>
+      {% endif %}
+
+      <div class="a-form-grid-2">
+        <div class="a-form-group">
+          <label class="a-label" for="jwk_federation_id">JWK Federation</label>
+          <select class="a-select" id="jwk_federation_id" name="jwk_federation_id">
+            <option value="">— nessuna —</option>
+            {% for key in jwk_keys %}
+            <option value="{{ key.id }}"
+              {% if config and config.jwk_federation_id == key.id %}selected{% endif %}>
+              {{ key.name }} ({{ key.use }})
             </option>
-            <option value="produzione"
-              {% if config and config.oidc_environment == 'produzione' %}selected{% endif %}>
-              Produzione
-            </option>
+            {% endfor %}
           </select>
-          <div class="form-text">
-            Imposta automaticamente Provider URL, Trust Anchor e Authority Hint.
-          </div>
-          <div id="env-urls-preview" class="small text-muted mt-2 font-monospace"></div>
         </div>
-        <div class="col-md-4">
-          <label class="form-label">Homepage URI</label>
-          <input type="text" class="form-control" name="homepage_uri"
+        <div class="a-form-group">
+          <label class="a-label" for="jwk_core_sig_id">JWK Core Signature</label>
+          <select class="a-select" id="jwk_core_sig_id" name="jwk_core_sig_id">
+            <option value="">— nessuna —</option>
+            {% for key in jwk_keys %}
+            <option value="{{ key.id }}"
+              {% if config and config.jwk_core_sig_id == key.id %}selected{% endif %}>
+              {{ key.name }} ({{ key.use }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="a-form-group">
+          <label class="a-label" for="jwk_core_enc_id">JWK Core Encryption</label>
+          <select class="a-select" id="jwk_core_enc_id" name="jwk_core_enc_id">
+            <option value="">— nessuna —</option>
+            {% for key in jwk_keys %}
+            <option value="{{ key.id }}"
+              {% if config and config.jwk_core_enc_id == key.id %}selected{% endif %}>
+              {{ key.name }} ({{ key.use }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">OIDC Federation (CIE 1.0)</div>
+    <div class="a-card-body">
+      <div class="a-form-group" style="display:flex;align-items:center;gap:10px;">
+        <label class="a-toggle">
+          <input type="checkbox" id="oidc_federation_enabled" name="oidc_federation_enabled"
+                 {% if config and config.oidc_federation_enabled %}checked{% endif %}>
+          <span class="a-toggle-slider"></span>
+        </label>
+        <label for="oidc_federation_enabled" style="font-size:13px;color:var(--fg-2);cursor:pointer;">Abilita backend CIE OIDC Federation</label>
+      </div>
+
+      <div class="a-form-group">
+        <label class="a-label" for="oidc_environment">Ambiente</label>
+        <select class="a-select" id="oidc_environment" name="oidc_environment">
+          <option value="">— seleziona —</option>
+          <option value="collaudo"
+            {% if config and config.oidc_environment == 'collaudo' %}selected{% endif %}>
+            Pre-produzione (Collaudo)
+          </option>
+          <option value="produzione"
+            {% if config and config.oidc_environment == 'produzione' %}selected{% endif %}>
+            Produzione
+          </option>
+        </select>
+        <div class="a-form-hint">Imposta automaticamente Provider URL, Trust Anchor e Authority Hint.</div>
+        <div id="env-urls-preview" class="a-mono a-muted" style="font-size:11px;margin-top:6px;line-height:1.7;"></div>
+      </div>
+
+      <div class="a-form-grid-2">
+        <div class="a-form-group">
+          <label class="a-label">Homepage URI</label>
+          <input type="text" class="a-input" name="homepage_uri"
                  value="{{ config.homepage_uri or '' if config else '' }}">
         </div>
-        <div class="col-md-4">
-          <label class="form-label">Policy URI</label>
-          <input type="text" class="form-control" name="policy_uri"
+        <div class="a-form-group">
+          <label class="a-label">Policy URI</label>
+          <input type="text" class="a-input" name="policy_uri"
                  value="{{ config.policy_uri or '' if config else '' }}">
         </div>
-        <div class="col-md-4">
-          <label class="form-label">Logo URI</label>
-          <input type="text" class="form-control" name="logo_uri"
+        <div class="a-form-group">
+          <label class="a-label">Logo URI</label>
+          <input type="text" class="a-input" name="logo_uri"
                  value="{{ config.logo_uri or '' if config else '' }}">
         </div>
-        <div class="col-md-12">
-          <label class="form-label">
-            Trust Mark (JWT)
-            <span class="badge bg-secondary">auto-fetch a startup</span>
-          </label>
-          <textarea class="form-control font-monospace" name="trust_mark" rows="3"
-                    placeholder="Recuperato automaticamente dal registry CIE. Inserire manualmente solo se il fetch fallisce.">{{ config.trust_mark or '' if config else '' }}</textarea>
-          {% if config and config.trust_mark %}
-          <div class="form-text text-success">Trust mark presente.</div>
-          {% else %}
-          <div class="form-text text-warning">Trust mark assente — verrà recuperato automaticamente al prossimo avvio se il Client ID è registrato nel portale CIE.</div>
-          {% endif %}
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">PEC ente <small class="text-muted">(richiesta dal portale CIE)</small></label>
-          <input type="email" class="form-control" name="oidc_contact_email"
+        <div class="a-form-group">
+          <label class="a-label">PEC ente <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--fg-muted);">(richiesta dal portale CIE)</span></label>
+          <input type="email" class="a-input" name="oidc_contact_email"
                  value="{{ config.oidc_contact_email or '' if config else '' }}">
         </div>
       </div>
+
+      <div class="a-form-group" style="grid-column:1/-1;">
+        <label class="a-label">
+          Trust Mark (JWT)
+          <span class="a-badge a-badge-neutral" style="text-transform:none;letter-spacing:0;margin-left:4px;">auto-fetch a startup</span>
+        </label>
+        <textarea class="a-textarea a-mono" name="trust_mark" rows="3"
+                  placeholder="Recuperato automaticamente dal registry CIE.">{{ config.trust_mark or '' if config else '' }}</textarea>
+        {% if config and config.trust_mark %}
+        <div class="a-form-hint" style="color:var(--success);">Trust mark presente.</div>
+        {% else %}
+        <div class="a-form-hint" style="color:var(--warning);">Trust mark assente — verrà recuperato automaticamente al prossimo avvio se il Client ID è registrato nel portale CIE.</div>
+        {% endif %}
+      </div>
     </div>
   </div>
 
-  <button type="submit" class="btn btn-primary mt-3">Salva configurazione</button>
+  <button type="submit" class="a-btn a-btn-primary">Salva configurazione</button>
 </form>
 
-<hr>
+<hr class="a-separator">
 
-<h5 class="mt-4 mb-2">Chiavi JWK</h5>
-
-<div class="mb-3 d-flex align-items-center gap-3">
-  <form method="post" action="/admin/cie/generate-all" class="d-inline"
-        onsubmit="return !{{ 'true' if jwk_keys else 'false' }} || confirm('Rigenera tutte le chiavi JWK?\n\nLe chiavi esistenti verranno eliminate. Dopo la rigenerazione dovrai aggiornare il portale federazione CIE con il nuovo JWKS.')">
-    <button type="submit" class="btn btn-outline-primary btn-sm">
-      {{ 'Rigenera chiavi' if jwk_keys else 'Genera chiavi' }}
-    </button>
-  </form>
-  {% if jwk_keys %}
-  <span class="badge bg-success">{{ jwk_keys | length }} chiavi</span>
-  {% if generated_at %}
-  <small class="text-muted">Generate il {{ generated_at.strftime('%Y-%m-%d %H:%M') }} UTC</small>
-  {% endif %}
-  {% endif %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--fg-muted);">Chiavi JWK</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    {% if jwk_keys %}
+    <span class="a-badge a-badge-success">{{ jwk_keys | length }} chiavi</span>
+    {% if generated_at %}
+    <span class="a-muted" style="font-size:12px;">Generate il <span class="a-mono">{{ generated_at.strftime('%Y-%m-%d %H:%M') }} UTC</span></span>
+    {% endif %}
+    {% endif %}
+    <form method="post" action="/admin/cie/generate-all" style="display:inline;"
+          onsubmit="return !{{ 'true' if jwk_keys else 'false' }} || confirm('Rigenera tutte le chiavi JWK?\n\nLe chiavi esistenti verranno eliminate. Dopo la rigenerazione dovrai aggiornare il portale federazione CIE con il nuovo JWKS.')">
+      <button type="submit" class="a-btn a-btn-secondary a-btn-sm">
+        {{ 'Rigenera chiavi' if jwk_keys else 'Genera chiavi' }}
+      </button>
+    </form>
+  </div>
 </div>
 
 {% if jwk_keys %}
-<ul class="nav nav-tabs mb-0" id="jwksTabs">
-  <li class="nav-item">
-    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-portal">
-      Portale CIE <span class="badge bg-warning text-dark ms-1">incolla qui</span>
+<div class="a-card">
+  <div class="a-tabs" id="jwksTabs">
+    <button class="a-tab active" data-tab="tab-portal" onclick="switchTab('tab-portal', this)">
+      Portale CIE <span class="a-badge a-badge-warning" style="margin-left:4px;">incolla qui</span>
     </button>
-  </li>
-  <li class="nav-item">
-    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-satosa">
+    <button class="a-tab" data-tab="tab-satosa" onclick="switchTab('tab-satosa', this)">
       SATOSA interno
     </button>
-  </li>
-</ul>
-<div class="tab-content border border-top-0 rounded-bottom mb-4">
-  <div class="tab-pane fade show active p-3" id="tab-portal">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <small class="text-muted">Chiave federation completa (kty/kid/e/n/d/p/q/dp/dq/qi) — incollare nel portale federazione CIE.</small>
-      <button type="button" class="btn btn-sm btn-outline-warning" onclick="copyPortalJwks()">Copia</button>
-    </div>
-    <pre class="mb-0 small"><code id="jwks-portal">{{ portal_jwks_json }}</code></pre>
   </div>
-  <div class="tab-pane fade p-3" id="tab-satosa">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <small class="text-muted">Chiavi pubbliche con alg/use — esposte da SATOSA su /openid_relying_party/jwks.json.</small>
-      <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyPublicJwks()">Copia</button>
+  <div id="tab-portal" class="a-tab-panel" style="padding:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span class="a-muted" style="font-size:12px;">Chiave federation completa (kty/kid/e/n/d/p/q/dp/dq/qi) — incollare nel portale federazione CIE.</span>
+      <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyPortalJwks(event)">Copia</button>
     </div>
-    <pre class="mb-0 small"><code id="jwks-public">{{ public_jwks_json }}</code></pre>
+    <pre style="margin:0;font-size:11px;background:var(--bg-1);padding:12px;border-radius:4px;overflow-x:auto;"><code id="jwks-portal">{{ portal_jwks_json }}</code></pre>
+  </div>
+  <div id="tab-satosa" class="a-tab-panel" style="padding:16px;display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span class="a-muted" style="font-size:12px;">Chiavi pubbliche con alg/use — esposte da SATOSA su /openid_relying_party/jwks.json.</span>
+      <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyPublicJwks(event)">Copia</button>
+    </div>
+    <pre style="margin:0;font-size:11px;background:var(--bg-1);padding:12px;border-radius:4px;overflow-x:auto;"><code id="jwks-public">{{ public_jwks_json }}</code></pre>
   </div>
 </div>
 {% else %}
-<p class="text-muted">Nessuna chiave JWK generata.</p>
+<div class="a-muted" style="font-size:13px;">Nessuna chiave JWK generata.</div>
 {% endif %}
 
 <script>
   const CIE_ENVIRONMENTS = {{ environments | tojson }};
 
+  function switchTab(tabId, btn) {
+    document.querySelectorAll('.a-tab-panel').forEach(function(p) { p.style.display = 'none'; });
+    document.querySelectorAll('#jwksTabs .a-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.getElementById(tabId).style.display = '';
+    btn.classList.add('active');
+  }
+
   function renderEnvUrls() {
-    const sel = document.getElementById('oidc_environment');
-    const preview = document.getElementById('env-urls-preview');
+    var sel = document.getElementById('oidc_environment');
+    var preview = document.getElementById('env-urls-preview');
     if (!sel || !preview) return;
-    const env = CIE_ENVIRONMENTS[sel.value];
+    var env = CIE_ENVIRONMENTS[sel.value];
     if (!env) { preview.textContent = ''; return; }
     preview.innerHTML =
       'Provider: ' + env.provider_url + '<br>' +
@@ -194,23 +205,23 @@
   }
 
   function _copyFromEl(elId, btn) {
-    const el = document.getElementById(elId);
+    var el = document.getElementById(elId);
     if (!el || !btn) return;
     navigator.clipboard.writeText(el.textContent).then(function () {
-      const prev = btn.textContent;
+      var prev = btn.textContent;
       btn.textContent = 'Copiato!';
       setTimeout(function () { btn.textContent = prev; }, 1500);
     });
   }
-  function copyPortalJwks() {
+  function copyPortalJwks(event) {
     _copyFromEl('jwks-portal', event.target);
   }
-  function copyPublicJwks() {
+  function copyPublicJwks(event) {
     _copyFromEl('jwks-public', event.target);
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    const sel = document.getElementById('oidc_environment');
+    var sel = document.getElementById('oidc_environment');
     if (sel) { sel.addEventListener('change', renderEnvUrls); renderEnvUrls(); }
   });
 </script>
