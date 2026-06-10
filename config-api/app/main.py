@@ -155,6 +155,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
+
+@app.middleware("http")
+async def add_settings_to_state(request: Request, call_next):
+    if request.url.path.startswith("/admin"):
+        try:
+            async with AsyncSessionLocal() as db:
+                s = (await db.execute(
+                    select(EnteSettings).where(EnteSettings.id == 1)
+                )).scalar_one_or_none()
+                request.state.s = s
+        except Exception:
+            request.state.s = None
+    response = await call_next(request)
+    return response
+
 app.mount("/admin/static", StaticFiles(directory="app/static"), name="static")
 
 app.include_router(dashboard.router, prefix="/admin")

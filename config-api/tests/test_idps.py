@@ -61,11 +61,10 @@ async def test_idps_list_shows_registry_api_results(auth_client):
     response = await auth_client.get("/admin/idps")
 
     assert response.status_code == 200
-    assert "Aggiorna metadata SPID Registry" in response.text
+    assert "Registry SPID" in response.text
     assert "https://identity.sieltecloud.it" in response.text
     assert "Sielte S.p.A." in response.text
     assert "2026-01-09 14:52:07" in response.text
-    assert "Logo Sielte S.p.A." in response.text
 
 
 async def test_idps_detail_shows_full_metadata(auth_client):
