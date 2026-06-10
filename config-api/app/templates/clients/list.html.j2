@@ -1,44 +1,55 @@
 {% extends "base.html.j2" %}
 {% block title %}Clienti OIDC — PA SSO Proxy{% endblock %}
+{% block page_title %}Clienti OIDC{% endblock %}
+
+{% block topbar_actions %}
+<a href="/admin/clients/new" class="a-btn a-btn-primary a-btn-sm">+ Aggiungi client</a>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2>Clienti OIDC</h2>
-  <a href="/admin/clients/new" class="btn btn-primary btn-sm">+ Aggiungi client</a>
-</div>
 {% if clients %}
-<table class="table table-sm table-hover">
-  <thead>
-    <tr>
-      <th>Nome</th><th>Client ID</th><th>Redirect URI</th><th>Scopes</th><th>Stato</th><th>Azioni</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for c in clients %}
-    <tr>
-      <td>{{ c.name }}</td>
-      <td><code>{{ c.client_id }}</code></td>
-      <td><small>{{ c.redirect_uris | join('<br>'|safe) }}</small></td>
-      <td><small>{{ c.allowed_scopes | join(', ') }}</small></td>
-      <td>
-        {% if c.enabled %}<span class="badge bg-success">Attivo</span>
-        {% else %}<span class="badge bg-secondary">Disabilitato</span>{% endif %}
-      </td>
-      <td>
-        <a href="/admin/clients/{{ c.id }}/edit" class="btn btn-sm btn-outline-secondary">Modifica</a>
-        <a href="/admin/clients/{{ c.id }}/secret" class="btn btn-sm btn-outline-info">Credenziali</a>
-        <form method="post" action="/admin/clients/{{ c.id }}/toggle" class="d-inline">
-          <button class="btn btn-sm btn-outline-warning">{% if c.enabled %}Disabilita{% else %}Abilita{% endif %}</button>
-        </form>
-        <form method="post" action="/admin/clients/{{ c.id }}/delete" class="d-inline"
-              onsubmit="return confirm('Eliminare {{ c.name }}?')">
-          <button class="btn btn-sm btn-outline-danger">Elimina</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="a-card">
+  <div class="a-table-wrap">
+    <table class="a-table">
+      <thead>
+        <tr>
+          <th>Nome</th><th>Client ID</th><th>Redirect URI</th><th>Scopes</th><th>Stato</th><th>Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clients %}
+        <tr>
+          <td>{{ c.name }}</td>
+          <td><code class="a-mono">{{ c.client_id }}</code></td>
+          <td style="font-size:12px;">{{ c.redirect_uris | join('<br>'|safe) }}</td>
+          <td style="font-size:12px;">{{ c.allowed_scopes | join(', ') }}</td>
+          <td>
+            {% if c.enabled %}<span class="a-badge a-badge-success">Attivo</span>
+            {% else %}<span class="a-badge a-badge-neutral">Disabilitato</span>{% endif %}
+          </td>
+          <td>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <a href="/admin/clients/{{ c.id }}/edit" class="a-btn a-btn-secondary a-btn-sm">Modifica</a>
+              <a href="/admin/clients/{{ c.id }}/secret" class="a-btn a-btn-secondary a-btn-sm">Credenziali</a>
+              <form method="post" action="/admin/clients/{{ c.id }}/toggle" style="display:inline;">
+                <button class="a-btn a-btn-neutral a-btn-sm">{% if c.enabled %}Disabilita{% else %}Abilita{% endif %}</button>
+              </form>
+              <form method="post" action="/admin/clients/{{ c.id }}/delete" style="display:inline;"
+                    onsubmit="return confirm('Eliminare {{ c.name }}?')">
+                <button class="a-btn a-btn-danger a-btn-sm">Elimina</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% else %}
-<p class="text-muted">Nessun client OIDC configurato. <a href="/admin/clients/new">Aggiungi il primo.</a></p>
+<div class="a-card" style="padding:32px 20px;text-align:center;">
+  <div class="a-muted">Nessun client OIDC configurato.</div>
+  <div style="margin-top:8px;"><a href="/admin/clients/new" class="a-btn a-btn-primary a-btn-sm">Aggiungi il primo</a></div>
+</div>
 {% endif %}
 {% endblock %}

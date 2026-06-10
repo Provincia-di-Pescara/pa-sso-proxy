@@ -1,55 +1,69 @@
 {% extends "base.html.j2" %}
 {% block title %}{% if client %}Modifica client{% else %}Nuovo client{% endif %} — PA SSO Proxy{% endblock %}
+{% block page_title %}{% if client %}Modifica {{ client.name }}{% else %}Nuovo client OIDC{% endif %}{% endblock %}
+
 {% block content %}
-<h2>{% if client %}Modifica {{ client.name }}{% else %}Nuovo client OIDC{% endif %}</h2>
-{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
-<form method="post" class="mt-3" style="max-width:600px">
-  <div class="mb-3">
-    <label class="form-label">Nome applicazione</label>
-    <input type="text" name="name" class="form-control" required
-           value="{{ client.name if client else '' }}">
-  </div>
-  <div class="mb-3">
-    <label class="form-label">Redirect URI <small class="text-muted">(una per riga)</small></label>
-    <textarea name="redirect_uris" class="form-control" rows="3" required>{{ client.redirect_uris | join('\n') if client else '' }}</textarea>
-  </div>
-  <div class="mb-3">
-    <label class="form-label d-block">Scopes</label>
-    {% set current_scopes = client.allowed_scopes if client else ['openid'] %}
-    {% for scope in ['openid', 'profile', 'email'] %}
-    <div class="form-check form-check-inline">
-      <input class="form-check-input" type="checkbox" name="scopes" value="{{ scope }}"
-             {% if scope in current_scopes %}checked{% endif %}>
-      <label class="form-check-label">{{ scope }}</label>
+{% if error %}<div class="a-alert a-alert-danger">{{ error }}</div>{% endif %}
+
+<div style="max-width:600px;">
+  <form method="post">
+    <div class="a-form-group">
+      <label class="a-label">Nome applicazione</label>
+      <input type="text" name="name" class="a-input" required
+             value="{{ client.name if client else '' }}">
     </div>
-    {% endfor %}
-  </div>
-  {% if client %}
-  <div class="mb-3">
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="enabled" value="1"
-             {% if client.enabled %}checked{% endif %}>
-      <label class="form-check-label">Abilitato</label>
+
+    <div class="a-form-group">
+      <label class="a-label">Redirect URI <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--fg-muted);">(una per riga)</span></label>
+      <textarea name="redirect_uris" class="a-textarea" rows="3" required>{{ client.redirect_uris | join('\n') if client else '' }}</textarea>
+    </div>
+
+    <div class="a-form-group">
+      <label class="a-label">Scopes</label>
+      <div class="a-check-group">
+        {% set current_scopes = client.allowed_scopes if client else ['openid'] %}
+        {% for scope in ['openid', 'profile', 'email'] %}
+        <label class="a-check-chip {% if scope in current_scopes %}selected{% endif %}">
+          <input type="checkbox" name="scopes" value="{{ scope }}"
+                 {% if scope in current_scopes %}checked{% endif %}
+                 onchange="this.closest('.a-check-chip').classList.toggle('selected', this.checked)">
+          {{ scope }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if client %}
+    <div class="a-form-group" style="display:flex;align-items:center;gap:10px;">
+      <label class="a-toggle">
+        <input type="checkbox" name="enabled" value="1" {% if client.enabled %}checked{% endif %}>
+        <span class="a-toggle-slider"></span>
+      </label>
+      <span style="font-size:13px;color:var(--fg-2);">Abilitato</span>
+    </div>
+    {% endif %}
+
+    <div style="display:flex;gap:10px;margin-top:24px;">
+      <button type="submit" class="a-btn a-btn-primary">Salva</button>
+      <a href="/admin/clients" class="a-btn a-btn-secondary">Annulla</a>
+    </div>
+  </form>
+
+  {% if client and proxy_hostname %}
+  <div class="a-card" style="margin-top:24px;">
+    <div class="a-card-header">Endpoint OIDC del proxy</div>
+    <div class="a-card-body" style="font-size:13px;">
+      <div style="margin-bottom:10px;"><strong>Discovery:</strong><br>
+        <code class="a-mono">https://{{ proxy_hostname }}/OIDC/.well-known/openid-configuration</code></div>
+      <div style="margin-bottom:10px;"><strong>Authorization:</strong><br>
+        <code class="a-mono">https://{{ proxy_hostname }}/OIDC/authorization</code></div>
+      <div style="margin-bottom:10px;"><strong>Token:</strong><br>
+        <code class="a-mono">https://{{ proxy_hostname }}/OIDC/token</code></div>
+      <div><strong>Logout (end_session):</strong><br>
+        <code class="a-mono">https://{{ proxy_hostname }}/OIDC/end_session</code><br>
+        <span class="a-muted" style="font-size:12px;">Parametri: <code>post_logout_redirect_uri</code> (obbligatorio), <code>id_token_hint</code> (consigliato)</span></div>
     </div>
   </div>
   {% endif %}
-  <button type="submit" class="btn btn-primary">Salva</button>
-  <a href="/admin/clients" class="btn btn-secondary ms-2">Annulla</a>
-</form>
-{% if client and proxy_hostname %}
-<div class="card mt-4" style="max-width:600px">
-  <div class="card-header">Endpoint OIDC del proxy</div>
-  <div class="card-body small">
-    <p class="mb-1"><strong>Discovery:</strong><br>
-      <code>https://{{ proxy_hostname }}/OIDC/.well-known/openid-configuration</code></p>
-    <p class="mb-1"><strong>Authorization:</strong><br>
-      <code>https://{{ proxy_hostname }}/OIDC/authorization</code></p>
-    <p class="mb-1"><strong>Token:</strong><br>
-      <code>https://{{ proxy_hostname }}/OIDC/token</code></p>
-    <p class="mb-0"><strong>Logout (end_session):</strong><br>
-      <code>https://{{ proxy_hostname }}/OIDC/end_session</code><br>
-      <span class="text-muted">Parametri: <code>post_logout_redirect_uri</code> (obbligatorio), <code>id_token_hint</code> (consigliato)</span></p>
-  </div>
 </div>
-{% endif %}
 {% endblock %}

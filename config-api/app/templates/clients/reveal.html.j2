@@ -1,18 +1,37 @@
 {% extends "base.html.j2" %}
 {% block title %}{% if is_new %}Client creato{% else %}Credenziali client{% endif %} — PA SSO Proxy{% endblock %}
+{% block page_title %}{% if is_new %}Client OIDC creato{% else %}Credenziali client OIDC{% endif %}{% endblock %}
+
 {% block content %}
-<div class="alert {% if is_new %}alert-success{% else %}alert-info{% endif %}">
-  <h4 class="alert-heading">{% if is_new %}Client OIDC creato{% else %}Credenziali client OIDC{% endif %}</h4>
+<div style="max-width:560px;">
   {% if is_new %}
-  <p><strong>Attenzione:</strong> il client secret è mostrato per la prima volta. Copialo ora.</p>
+  <div class="a-alert a-alert-warning" style="margin-bottom:20px;">
+    <div><strong>Attenzione:</strong> il client secret è mostrato per la prima volta. Copialo ora — non sarà più visibile.</div>
+  </div>
   {% endif %}
-  <hr>
-  {% if client_id %}
-  <p class="mb-1"><strong>Client ID:</strong> <code>{{ client_id }}</code></p>
-  <p class="mb-0"><strong>Client Secret:</strong> <code>{{ client_secret if client_secret else '(non disponibile)' }}</code></p>
-  {% else %}
-  <p class="mb-0 text-muted">Secret già visualizzato o sessione scaduta.</p>
-  {% endif %}
+
+  <div class="a-card">
+    <div class="a-card-header">
+      {% if is_new %}Nuove credenziali{% else %}Credenziali{% endif %}
+    </div>
+    <div class="a-card-body">
+      {% if client_id %}
+      <div class="a-form-group">
+        <label class="a-label">Client ID</label>
+        <input class="a-input a-input-ro" type="text" value="{{ client_id }}" readonly>
+      </div>
+      <div class="a-form-group" style="margin-bottom:0;">
+        <label class="a-label">Client Secret</label>
+        <input class="a-input a-input-ro" type="text" value="{{ client_secret if client_secret else '(non disponibile)' }}" readonly>
+      </div>
+      {% else %}
+      <div class="a-muted">Secret già visualizzato o sessione scaduta.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div style="margin-top:20px;">
+    <a href="/admin/clients" class="a-btn a-btn-primary">Vai alla lista clienti</a>
+  </div>
 </div>
-<a href="/admin/clients" class="btn btn-primary mt-2">Vai alla lista clienti</a>
 {% endblock %}
