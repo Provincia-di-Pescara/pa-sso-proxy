@@ -46,6 +46,13 @@
     </div>
 
     <div class="mb-3">
+      <label for="vat_number" class="form-label">Partita IVA ente <span class="text-danger">*</span></label>
+      <input type="text" class="form-control" id="vat_number" name="vat_number" required
+             value="{{ s.vat_number if s else '' }}">
+      <div class="form-text">Usata nel tag <code>spid:FiscalCode</code> del metadata SPID.</div>
+    </div>
+
+    <div class="mb-3">
       <label for="contact_email" class="form-label">Email contatto tecnico</label>
       <input type="email" class="form-control" id="contact_email" name="contact_email"
              value="{{ s.contact_email if s else '' }}">

@@ -41,6 +41,7 @@ async def settings_save(
     legal_notes_url: str = Form(default=""),
     accessibility_url: str = Form(default=""),
     support_url: str = Form(default=""),
+    vat_number: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     if not _auth_check(request):
@@ -64,5 +65,6 @@ async def settings_save(
     s.legal_notes_url = legal_notes_url
     s.accessibility_url = accessibility_url
     s.support_url = support_url
+    s.vat_number = vat_number
     await db.commit()
     return RedirectResponse("/admin/settings", status_code=302)

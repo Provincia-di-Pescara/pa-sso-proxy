@@ -22,3 +22,4 @@ class EnteSettings(Base):
     legal_notes_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     accessibility_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     support_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    vat_number: Mapped[str] = mapped_column(String(32), nullable=False, default="")

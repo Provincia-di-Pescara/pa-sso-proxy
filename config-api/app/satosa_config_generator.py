@@ -181,7 +181,7 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
                 "given_name": settings.org_display_name,
                 "email_address": settings.contact_email,
                 "telephone_number": settings.contact_phone,
-                "FiscalCode": settings.ipa_code,
+                "FiscalCode": settings.vat_number,
                 "IPACode": settings.ipa_code,
                 "Public": "",
             }
