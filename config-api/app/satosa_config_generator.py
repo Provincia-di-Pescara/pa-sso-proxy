@@ -92,6 +92,7 @@ def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
         "MICRO_SERVICES": [
             "/satosa-conf/disco_to_target_issuer.yaml",
             "/satosa-conf/default_router.yaml",
+            "/satosa-conf/access_log_reporter.yaml",
         ],
     }
 
@@ -618,6 +619,74 @@ def _eid_locale_strings(cie_oidc_login_url: str | None, settings: "EnteSettings 
     return {"it": it_locale, "en": en_locale}
 
 
+_ACCESS_LOG_REPORTER_PY = '''\
+import json
+import logging
+import os
+import urllib.parse
+import urllib.request
+
+from satosa.micro_services.base import ResponseMicroService
+
+logger = logging.getLogger(__name__)
+
+_CONFIG_API_URL = os.environ.get("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
+
+
+def _post_access_log(report_url, provider_type, client_id, result, error_code=None):
+    try:
+        payload = json.dumps({
+            "provider_type": provider_type,
+            "client_id": client_id,
+            "result": result,
+            "error_code": error_code,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            report_url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=0.5)
+    except Exception:
+        pass
+
+
+class AccessLogReporter(ResponseMicroService):
+    def __init__(self, config, internal_attributes, base_url, name):
+        super().__init__(config, internal_attributes, base_url, name)
+        self._report_url = config.get(
+            "report_url", f"{_CONFIG_API_URL}/internal/access-log"
+        )
+
+    def process(self, context, internal_data):
+        provider_type = "spid"
+        try:
+            backend = getattr(context, "target_backend", "") or ""
+            if "cie" in backend.lower():
+                provider_type = "cie"
+        except Exception:
+            pass
+
+        client_id = None
+        try:
+            for v in context.state.values():
+                if isinstance(v, dict) and "oidc_request" in v:
+                    oidc_request = v.get("oidc_request") or ""
+                    if oidc_request:
+                        params = urllib.parse.parse_qs(oidc_request)
+                        cid_list = params.get("client_id")
+                        if cid_list:
+                            client_id = cid_list[0]
+                    break
+        except Exception:
+            pass
+
+        _post_access_log(self._report_url, provider_type, client_id, "success")
+        return super().process(context, internal_data)
+'''
+
+
 _DEFAULT_BACKEND_ROUTER_PY = '''\
 import logging
 from satosa.context import Context
@@ -737,6 +806,18 @@ async def generate_satosa_config(db: AsyncSession) -> None:
 
     with open(os.path.join(conf_dir, "oidc_frontend_ext.py"), "w", encoding="utf-8") as f:
         f.write(_OIDC_FRONTEND_EXT_PY)
+
+    with open(os.path.join(conf_dir, "access_log_reporter.py"), "w", encoding="utf-8") as f:
+        f.write(_ACCESS_LOG_REPORTER_PY)
+
+    config_api_url = os.environ.get("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
+    _write(conf_dir, "access_log_reporter.yaml", {
+        "name": "AccessLogReporter",
+        "module": "access_log_reporter.AccessLogReporter",
+        "config": {
+            "report_url": f"{config_api_url}/internal/access-log",
+        },
+    })
 
     cie_oidc_urls = (
         [cie_config.oidc_provider_url]

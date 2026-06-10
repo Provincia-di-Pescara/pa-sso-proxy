@@ -24,6 +24,24 @@ from .spidsaml2_validator import Saml2ResponseValidator
 logger = logging.getLogger(__name__)
 
 
+def _post_access_log(provider_type, client_id, result, error_code=None):
+    try:
+        import json as _json
+        import os as _os
+        import urllib.request as _urlreq
+        _url = _os.environ.get("CONFIG_API_INTERNAL_URL", "http://config-api:8000") + "/internal/access-log"
+        _payload = _json.dumps({
+            "provider_type": provider_type,
+            "client_id": client_id,
+            "result": result,
+            "error_code": error_code,
+        }).encode("utf-8")
+        _req = _urlreq.Request(_url, data=_payload, headers={"Content-Type": "application/json"}, method="POST")
+        _urlreq.urlopen(_req, timeout=0.5)
+    except Exception:
+        pass
+
+
 #
 # Messaggi di Errore SPID
 #
@@ -472,6 +490,7 @@ class SpidSAMLBackend(SAMLBackend):
         if context is not None:
             client_redirect_uri = None
             client_state = None
+            _log_client_id = None
             try:
                 import urllib.parse as _up
                 for v in context.state.values():
@@ -481,12 +500,17 @@ class SpidSAMLBackend(SAMLBackend):
                             params = _up.parse_qs(oidc_request)
                             redirect_uri_list = params.get("redirect_uri")
                             state_list = params.get("state")
+                            client_id_list = params.get("client_id")
                             if redirect_uri_list:
                                 client_redirect_uri = redirect_uri_list[0]
                                 client_state = state_list[0] if state_list else None
+                            if client_id_list:
+                                _log_client_id = client_id_list[0]
                         break
             except Exception as exc:
                 logger.warning(f"Could not extract redirect_uri from context.state: {exc}")
+
+            _post_access_log("spid", _log_client_id, "failure", str(err)[:64] if err else None)
 
             if client_redirect_uri:
                 import json as _json

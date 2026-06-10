@@ -31,14 +31,34 @@
   <div class="row">
     <div class="col-md-2">
       <ul class="nav flex-column nav-pills">
-        <li class="nav-item"><a class="nav-link" href="/admin/">Dashboard</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/clients">Clienti OIDC</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/idps">Provider SPID</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/cie">CIE OIDC</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/certs">Certificati</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/settings">Impostazioni</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/test-client">Test Auth</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/backup">Backup &amp; Ripristino</a></li>
+        <li><span class="nav-section-label">Generale</span></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path == '/admin/' %}active{% endif %}" href="/admin/">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/access-log') %}active{% endif %}" href="/admin/access-log">Monitoraggio</a></li>
+
+        <li><span class="nav-section-label">Provider di Identità</span></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/idps') %}active{% endif %}" href="/admin/idps">Provider SPID</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/cie') %}active{% endif %}" href="/admin/cie">CIE OIDC</a></li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.url.path.startswith('/admin/eidas') %}active{% endif %} text-muted" href="/admin/eidas">
+            eIDAS <span class="badge bg-secondary ms-1" style="font-size:.65rem;vertical-align:middle;">soon</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.url.path.startswith('/admin/itwallet') %}active{% endif %} text-muted" href="/admin/itwallet">
+            IT Wallet <span class="badge bg-secondary ms-1" style="font-size:.65rem;vertical-align:middle;">soon</span>
+          </a>
+        </li>
+
+        <li><span class="nav-section-label">Applicazioni</span></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/clients') %}active{% endif %}" href="/admin/clients">Clienti OIDC</a></li>
+
+        <li><span class="nav-section-label">Configurazione</span></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/settings') %}active{% endif %}" href="/admin/settings">Impostazioni</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/certs') %}active{% endif %}" href="/admin/certs">Certificati SPID</a></li>
+
+        <li><span class="nav-section-label">Strumenti</span></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/test-client') %}active{% endif %}" href="/admin/test-client">Test Auth</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/backup') %}active{% endif %}" href="/admin/backup">Backup &amp; Ripristino</a></li>
       </ul>
     </div>
     <div class="col-md-10">

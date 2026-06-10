@@ -27,6 +27,24 @@ from pyeudiw.trust.dynamic import CombinedTrustEvaluator  # todo remove pyeudiw 
 logger = logging.getLogger(__name__)
 
 
+def _post_access_log(provider_type, client_id, result, error_code=None):
+    try:
+        import json as _json
+        import os as _os
+        import urllib.request as _urlreq
+        _url = _os.environ.get("CONFIG_API_INTERNAL_URL", "http://config-api:8000") + "/internal/access-log"
+        _payload = _json.dumps({
+            "provider_type": provider_type,
+            "client_id": client_id,
+            "result": result,
+            "error_code": error_code,
+        }).encode("utf-8")
+        _req = _urlreq.Request(_url, data=_payload, headers={"Content-Type": "application/json"}, method="POST")
+        _urlreq.urlopen(_req, timeout=0.5)
+    except Exception:
+        pass
+
+
 class AuthorizationCallBackHandler(BaseEndpoint):
 
     def __init__(
@@ -231,6 +249,7 @@ class AuthorizationCallBackHandler(BaseEndpoint):
         # di successo. Lo stesso pattern è usato in spidsaml2.py per oidc_request.
         client_redirect_uri = None
         client_state = None
+        _log_client_id = None
         try:
             for v in context.state.values():
                 if isinstance(v, dict) and "oidc_request" in v:
@@ -239,12 +258,17 @@ class AuthorizationCallBackHandler(BaseEndpoint):
                         params = urllib.parse.parse_qs(oidc_request)
                         redirect_uri_list = params.get("redirect_uri")
                         state_list = params.get("state")
+                        client_id_list = params.get("client_id")
                         if redirect_uri_list:
                             client_redirect_uri = redirect_uri_list[0]
                             client_state = state_list[0] if state_list else None
-                            break
+                        if client_id_list:
+                            _log_client_id = client_id_list[0]
+                        break
         except Exception as exc:
             logger.warning(f"Could not extract redirect_uri from context.state: {exc}")
+
+        _post_access_log("cie", _log_client_id, "failure", error[:64] if error else None)
 
         # ── 2. Redirect OIDC-conforme verso il client originante ─────────────────
         if client_redirect_uri:

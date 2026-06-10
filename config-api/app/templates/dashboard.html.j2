@@ -13,6 +13,7 @@
   {% endif %}
 </div>
 
+{# ── Riga 1: Stato sistema ───────────────────────────────────────────────── #}
 <div class="row g-3">
 
   <div class="col-md-3">
@@ -77,6 +78,159 @@
 
 </div>
 
+{# ── Riga 2: Statistiche accessi ─────────────────────────────────────────── #}
+<h5 class="mt-4 mb-2 text-muted" style="font-size:.85rem; text-transform:uppercase; letter-spacing:.05em;">Monitoraggio Accessi</h5>
+
+{% if access and access.has_data %}
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-subtitle mb-1 text-muted">Oggi</h6>
+        <p class="card-text fs-3 fw-bold">{{ access.today.total }}</p>
+        <p class="card-text">
+          <span class="badge bg-success">{{ access.today.success }} ok</span>
+          {% if access.today.failure > 0 %}<span class="badge bg-warning text-dark ms-1">{{ access.today.failure }} falliti</span>{% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-subtitle mb-1 text-muted">Ultimi 7 giorni</h6>
+        <p class="card-text fs-3 fw-bold">{{ access.week.total }}</p>
+        <p class="card-text">
+          <span class="badge bg-success">{{ access.week.success }} ok</span>
+          {% if access.week.failure > 0 %}<span class="badge bg-warning text-dark ms-1">{{ access.week.failure }} falliti</span>{% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-subtitle mb-1 text-muted">Ultimi 30 giorni</h6>
+        <p class="card-text fs-3 fw-bold">{{ access.month.total }}</p>
+        <p class="card-text">
+          <span class="badge bg-success">{{ access.month.success }} ok</span>
+          {% if access.month.failure > 0 %}<span class="badge bg-warning text-dark ms-1">{{ access.month.failure }} falliti</span>{% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-subtitle mb-2 text-muted">Per provider (30 giorni)</h6>
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Provider</th><th class="text-end">OK</th><th class="text-end">KO</th><th class="text-end">Tot.</th></tr></thead>
+          <tbody>
+            {% for pt, s in access.by_provider.items() %}
+            <tr>
+              <td>
+                {% if pt == 'spid' %}<span class="badge bg-primary">SPID</span>
+                {% elif pt == 'cie' %}<span class="badge bg-info text-dark">CIE</span>
+                {% elif pt == 'eidas' %}<span class="badge bg-secondary">eIDAS</span>
+                {% elif pt == 'itwallet' %}<span class="badge bg-dark">IT Wallet</span>
+                {% else %}<span class="badge bg-light text-dark">{{ pt }}</span>
+                {% endif %}
+              </td>
+              <td class="text-end text-success">{{ s.success }}</td>
+              <td class="text-end text-warning">{{ s.failure }}</td>
+              <td class="text-end">{{ s.success + s.failure }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-subtitle mb-2 text-muted">Per client OIDC (30 giorni)</h6>
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Client</th><th class="text-end">Totale</th><th>Tasso OK</th></tr></thead>
+          <tbody>
+            {% for cid, s in access.by_client.items() %}
+            {% set pct = ((s.success / s.total) * 100) | round | int if s.total > 0 else 0 %}
+            <tr>
+              <td><small>{{ cid }}</small></td>
+              <td class="text-end">{{ s.total }}</td>
+              <td style="width:120px;">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="progress flex-grow-1" style="height:5px;">
+                    <div class="progress-bar {% if pct >= 90 %}bg-success{% elif pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}"
+                         style="width:{{ pct }}%"></div>
+                  </div>
+                  <small class="text-muted">{{ pct }}%</small>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Riga 3: Attività recente ─────────────────────────────────────────────── #}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="card-subtitle text-muted">Attività recente</h6>
+      <a href="/admin/access-log" class="btn btn-sm btn-outline-secondary">Tutti i log</a>
+    </div>
+    {% if access.recent %}
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Timestamp</th><th>Provider</th><th>Client</th><th>Esito</th><th>Errore</th></tr></thead>
+        <tbody>
+          {% for log in access.recent %}
+          <tr>
+            <td><small class="text-muted font-monospace">{{ log.timestamp.strftime('%m-%d %H:%M:%S') if log.timestamp else '—' }}</small></td>
+            <td>
+              {% if log.provider_type == 'spid' %}<span class="badge bg-primary">SPID</span>
+              {% elif log.provider_type == 'cie' %}<span class="badge bg-info text-dark">CIE</span>
+              {% else %}<span class="badge bg-secondary">{{ log.provider_type }}</span>
+              {% endif %}
+            </td>
+            <td><small>{{ log.client_id or '—' }}</small></td>
+            <td>
+              {% if log.result == 'success' %}<span class="badge bg-success">OK</span>
+              {% elif log.result == 'failure' %}<span class="badge bg-warning text-dark">KO</span>
+              {% else %}<span class="badge bg-danger">Err</span>
+              {% endif %}
+            </td>
+            <td><small class="text-muted">{{ log.error_code or '—' }}</small></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted mb-0 small">Nessun accesso recente.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% else %}
+<div class="card mb-3 border-secondary">
+  <div class="card-body text-center py-4">
+    <p class="text-muted mb-1">Nessun dato di accesso disponibile.</p>
+    <p class="text-muted small mb-0">Il plugin di monitoraggio SATOSA non è ancora attivo oppure non ci sono ancora accessi registrati.
+      <a href="/admin/access-log">Vai al Monitoraggio</a></p>
+  </div>
+</div>
+{% endif %}
+
+{# ── Riga 4: CIE Federation ──────────────────────────────────────────────── #}
 {% if cie_config and cie_config.oidc_federation_enabled %}
 <div class="row g-3 mt-1">
   <div class="col-md-12">

@@ -1,3 +1,5 @@
 body { font-size: 0.9rem; }
 .nav-pills .nav-link { color: #333; }
 .nav-pills .nav-link:hover { background-color: #f0f0f0; }
+.nav-pills .nav-link.active { background-color: #0d6efd; color: #fff; }
+.nav-section-label { font-size: .7rem; text-transform: uppercase; color: #6c757d; padding: .75rem .75rem .25rem; display: block; }

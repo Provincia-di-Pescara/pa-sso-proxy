@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, Request
@@ -9,11 +9,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import CieConfig, EnteSettings, OIDCClient, SpidCert, SpidIdP
+from app.models import AccessLog, CieConfig, EnteSettings, OIDCClient, SpidCert, SpidIdP
 from app.satosa_config_generator import _cie_oidc_client_id
 
 router = APIRouter()
-
 
 SATOSA_INTERNAL_URL = os.environ.get("SATOSA_INTERNAL_URL", "http://satosa:8080")
 
@@ -25,6 +24,76 @@ async def _satosa_status() -> str:
         return "running"
     except Exception:
         return "unreachable"
+
+
+async def _access_stats(db: AsyncSession) -> dict:
+    try:
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=6)
+        month_start = today_start - timedelta(days=29)
+
+        async def _counts(since):
+            total = (await db.execute(
+                select(func.count()).select_from(AccessLog).where(AccessLog.timestamp >= since)
+            )).scalar() or 0
+            success = (await db.execute(
+                select(func.count()).select_from(AccessLog)
+                .where(AccessLog.timestamp >= since, AccessLog.result == "success")
+            )).scalar() or 0
+            return total, success
+
+        today_total, today_ok = await _counts(today_start)
+        week_total, week_ok = await _counts(week_start)
+        month_total, month_ok = await _counts(month_start)
+
+        # Per-provider breakdown (last 30 days)
+        prov_rows = (await db.execute(
+            select(AccessLog.provider_type, AccessLog.result, func.count().label("cnt"))
+            .where(AccessLog.timestamp >= month_start)
+            .group_by(AccessLog.provider_type, AccessLog.result)
+        )).all()
+        by_provider = {}
+        for row in prov_rows:
+            pt = row.provider_type
+            if pt not in by_provider:
+                by_provider[pt] = {"success": 0, "failure": 0}
+            if row.result == "success":
+                by_provider[pt]["success"] += row.cnt
+            else:
+                by_provider[pt]["failure"] += row.cnt
+
+        # Per-client breakdown (last 30 days)
+        cli_rows = (await db.execute(
+            select(AccessLog.client_id, AccessLog.result, func.count().label("cnt"))
+            .where(AccessLog.timestamp >= month_start)
+            .group_by(AccessLog.client_id, AccessLog.result)
+        )).all()
+        by_client = {}
+        for row in cli_rows:
+            cid = row.client_id or "(nessuno)"
+            if cid not in by_client:
+                by_client[cid] = {"total": 0, "success": 0}
+            by_client[cid]["total"] += row.cnt
+            if row.result == "success":
+                by_client[cid]["success"] += row.cnt
+
+        # Recent activity (last 20)
+        recent = list((await db.execute(
+            select(AccessLog).order_by(AccessLog.timestamp.desc()).limit(20)
+        )).scalars().all())
+
+        return {
+            "today": {"total": today_total, "success": today_ok, "failure": today_total - today_ok},
+            "week": {"total": week_total, "success": week_ok, "failure": week_total - week_ok},
+            "month": {"total": month_total, "success": month_ok, "failure": month_total - month_ok},
+            "by_provider": by_provider,
+            "by_client": by_client,
+            "recent": recent,
+            "has_data": month_total > 0,
+        }
+    except Exception:
+        return {"has_data": False, "recent": []}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -51,6 +120,8 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     if cie_config and cie_config.oidc_federation_enabled and settings:
         cie_oidc_client_id = _cie_oidc_client_id(settings.proxy_hostname)
 
+    access = await _access_stats(db)
+
     return templates.TemplateResponse(request, "dashboard.html.j2", {
         "user": user,
         "clients_total": clients_total,
@@ -63,4 +134,5 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "satosa_status": await _satosa_status(),
         "cie_config": cie_config,
         "cie_oidc_client_id": cie_oidc_client_id,
+        "access": access,
     })

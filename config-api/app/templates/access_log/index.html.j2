@@ -1,0 +1,107 @@
+{% extends "base.html.j2" %}
+{% block title %}Monitoraggio Accessi — PA SSO Proxy{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Monitoraggio Accessi</h2>
+  <a href="/admin/access-log/export?provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}"
+     class="btn btn-sm btn-outline-secondary">
+    Esporta CSV
+  </a>
+</div>
+
+<form method="get" action="/admin/access-log" class="row g-2 mb-3">
+  <div class="col-md-2">
+    <select name="provider_type" class="form-select form-select-sm">
+      <option value="">Tutti i provider</option>
+      <option value="spid" {% if provider_type == 'spid' %}selected{% endif %}>SPID</option>
+      <option value="cie" {% if provider_type == 'cie' %}selected{% endif %}>CIE</option>
+      <option value="eidas" {% if provider_type == 'eidas' %}selected{% endif %}>eIDAS</option>
+      <option value="itwallet" {% if provider_type == 'itwallet' %}selected{% endif %}>IT Wallet</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <select name="result" class="form-select form-select-sm">
+      <option value="">Tutti gli esiti</option>
+      <option value="success" {% if result_filter == 'success' %}selected{% endif %}>Successo</option>
+      <option value="failure" {% if result_filter == 'failure' %}selected{% endif %}>Fallito</option>
+      <option value="error" {% if result_filter == 'error' %}selected{% endif %}>Errore</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <input type="date" name="from_date" value="{{ from_date }}" class="form-control form-control-sm" placeholder="Dal">
+  </div>
+  <div class="col-md-2">
+    <input type="date" name="to_date" value="{{ to_date }}" class="form-control form-control-sm" placeholder="Al">
+  </div>
+  <div class="col-md-3">
+    <button type="submit" class="btn btn-sm btn-primary">Filtra</button>
+    <a href="/admin/access-log" class="btn btn-sm btn-outline-secondary">Reset</a>
+  </div>
+</form>
+
+{% if logs %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover">
+    <thead class="table-light">
+      <tr>
+        <th>Timestamp</th>
+        <th>Provider</th>
+        <th>Client</th>
+        <th>Esito</th>
+        <th>Codice errore</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td><small class="text-muted font-monospace">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '—' }}</small></td>
+        <td>
+          {% if log.provider_type == 'spid' %}<span class="badge bg-primary">SPID</span>
+          {% elif log.provider_type == 'cie' %}<span class="badge bg-info text-dark">CIE</span>
+          {% elif log.provider_type == 'eidas' %}<span class="badge bg-secondary">eIDAS</span>
+          {% elif log.provider_type == 'itwallet' %}<span class="badge bg-dark">IT Wallet</span>
+          {% else %}<span class="badge bg-light text-dark">{{ log.provider_type }}</span>
+          {% endif %}
+        </td>
+        <td><small>{{ log.client_id or '—' }}</small></td>
+        <td>
+          {% if log.result == 'success' %}<span class="badge bg-success">Successo</span>
+          {% elif log.result == 'failure' %}<span class="badge bg-warning text-dark">Fallito</span>
+          {% else %}<span class="badge bg-danger">Errore</span>
+          {% endif %}
+        </td>
+        <td><small class="text-muted">{{ log.error_code or '—' }}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<nav>
+  <ul class="pagination pagination-sm">
+    {% if page > 1 %}
+    <li class="page-item">
+      <a class="page-link" href="/admin/access-log?page={{ page - 1 }}&provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}">Precedente</a>
+    </li>
+    {% else %}
+    <li class="page-item disabled"><span class="page-link">Precedente</span></li>
+    {% endif %}
+    <li class="page-item active"><span class="page-link">{{ page }}</span></li>
+    {% if has_next %}
+    <li class="page-item">
+      <a class="page-link" href="/admin/access-log?page={{ page + 1 }}&provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}">Successiva</a>
+    </li>
+    {% else %}
+    <li class="page-item disabled"><span class="page-link">Successiva</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% else %}
+<div class="text-center py-5 text-muted">
+  <p class="mb-1">Nessun accesso registrato per i filtri selezionati.</p>
+  {% if not provider_type and not result_filter and not from_date and not to_date %}
+  <p class="small">Il plugin di monitoraggio SATOSA non è ancora attivo, oppure non ci sono ancora accessi registrati.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
