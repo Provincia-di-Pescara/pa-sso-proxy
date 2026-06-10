@@ -122,6 +122,9 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
 
     access = await _access_stats(db)
 
+    clients_res = await db.execute(select(OIDCClient.client_id, OIDCClient.name))
+    client_name_map = {row.client_id: row.name for row in clients_res.all()}
+
     return templates.TemplateResponse(request, "dashboard.html.j2", {
         "user": user,
         "clients_total": clients_total,
@@ -135,4 +138,5 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "cie_config": cie_config,
         "cie_oidc_client_id": cie_oidc_client_id,
         "access": access,
+        "client_name_map": client_name_map,
     })

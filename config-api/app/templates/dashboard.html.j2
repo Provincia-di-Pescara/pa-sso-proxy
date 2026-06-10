@@ -160,7 +160,7 @@
             {% for cid, s in access.by_client.items() %}
             {% set pct = ((s.success / s.total) * 100) | round | int if s.total > 0 else 0 %}
             <tr>
-              <td><small>{{ cid }}</small></td>
+              <td><small>{{ client_name_map.get(cid, cid) }}</small></td>
               <td class="text-end">{{ s.total }}</td>
               <td style="width:120px;">
                 <div class="d-flex align-items-center gap-2">
@@ -201,7 +201,7 @@
               {% else %}<span class="badge bg-secondary">{{ log.provider_type }}</span>
               {% endif %}
             </td>
-            <td><small>{{ log.client_id or '—' }}</small></td>
+            <td><small>{{ client_name_map.get(log.client_id, log.client_id) or '—' }}</small></td>
             <td>
               {% if log.result == 'success' %}<span class="badge bg-success">OK</span>
               {% elif log.result == 'failure' %}<span class="badge bg-warning text-dark">KO</span>

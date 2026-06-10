@@ -63,7 +63,7 @@
           {% else %}<span class="badge bg-light text-dark">{{ log.provider_type }}</span>
           {% endif %}
         </td>
-        <td><small>{{ log.client_id or '—' }}</small></td>
+        <td><small>{{ client_name_map.get(log.client_id, log.client_id) or '—' }}</small></td>
         <td>
           {% if log.result == 'success' %}<span class="badge bg-success">Successo</span>
           {% elif log.result == 'failure' %}<span class="badge bg-warning text-dark">Fallito</span>

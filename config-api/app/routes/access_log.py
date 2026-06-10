@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.jinja_templates import templates
-from app.models import AccessLog
+from app.models import AccessLog, OIDCClient
 
 router = APIRouter()
 
@@ -67,6 +67,9 @@ async def access_log_list(
     has_next = len(rows) > _PAGE_SIZE
     rows = rows[:_PAGE_SIZE]
 
+    clients_res = await db.execute(select(OIDCClient.client_id, OIDCClient.name))
+    client_name_map = {row.client_id: row.name for row in clients_res.all()}
+
     return templates.TemplateResponse(request, "access_log/index.html.j2", {
         "logs": rows,
         "page": page,
@@ -75,6 +78,7 @@ async def access_log_list(
         "result_filter": result or "",
         "from_date": from_date or "",
         "to_date": to_date or "",
+        "client_name_map": client_name_map,
     })
 
 
