@@ -2,6 +2,15 @@
 
 Questo file fornisce contesto a Claude Code quando lavora su questo repository.
 
+## Comandi rapidi
+
+```bash
+docker compose up -d --build   # build + avvia stack
+docker compose logs -f config-api
+docker compose logs -f satosa
+docker compose restart satosa  # dopo modifica manuale a satosa-conf
+```
+
 ## Cos'è
 
 Docker Compose stack per SSO centralizzato di Pubblica Amministrazione italiana. Permette a N applicativi dell'ente di autenticare cittadini tramite SPID e CIE, esponendo un'unica interfaccia OIDC standard (PKCE).
@@ -54,33 +63,39 @@ Reload graceful uWSGI: zero downtime (worker swap in-flight). Schedulato di nott
 
 ```
 satosa/
-  templates/              Template YAML per config SATOSA (placeholder → sostituiti da generator)
-  static/                 File statici SATOSA (discovery page assets)
+  plugins/                Plugin Python custom (SPID backend, CIE OIDC backend, endpoints)
+    spidsaml2.py          Backend SPID SAML2
+    cieoidc-backend/      Backend CIE OIDC Federation
+    cieoidc-endpoints/    Endpoint CIE OIDC (callback, entity config, …)
+  public/                 Asset statici discovery page
 config-api/
   app/
     main.py               Entry point FastAPI
-    routes/               Blueprint per ogni sezione WebUI
+    routes/               Route per ogni sezione WebUI
+      dashboard.py        Dashboard + statistiche accessi
       clients.py          Gestione client OIDC
       idps.py             Gestione IdP SPID/CIE
+      cie.py              Configurazione CIE OIDC Federation
       settings.py         Impostazioni ente
-      keys.py             JWK management
       certs.py            Certificato SPID
+      access_log.py       Monitoraggio accessi (filtri, paginazione, CSV)
+      internal.py         POST /internal/access-log (chiamato da SATOSA, no auth)
+      placeholders.py     eIDAS e IT Wallet coming-soon
+      test_client.py      Test flow OIDC
+      backup.py           Backup/ripristino configurazione JSON
     templates/            Jinja2 HTML templates
     models/               SQLAlchemy models
-      client.py
-      idp.py
-      settings.py
-      key.py
-    satosa_generator.py   Genera config SATOSA da DB
+      client.py, idp.py, cie.py, settings.py, key.py, cert.py
+      access_log.py       Log accessi anonimi
+    satosa_config_generator.py   Genera YAML SATOSA + plugin Python da DB
+    satosa_generator.py   Wrapper: chiama generator + scrive cert/key
     metadata_watcher.py   Cron aggiornamento metadata IdP
+  alembic/versions/       Migrazioni DB (001–006)
 nginx/
   conf.d/
     proxy.conf            Route: / → satosa, /admin → config-api
 docs/
-  architecture.md         Architettura dettagliata
-  deployment.md           Guida deploy (Portainer)
-  spid-registration.md    Procedura accreditamento AgID SPID
-  cie-oidc-registration.md Registrazione portale CIE OIDC
+  architecture.md, deployment.md, spid-registration.md, cie-oidc-registration.md
 ```
 
 ## Variabili d'ambiente chiave
@@ -93,6 +108,8 @@ Tutte in `.env` (vedi `.env.example`). Le variabili sono passate dal compose a s
 | `ADMIN_USER` / `ADMIN_PASSWORD` | config-api WebUI |
 | `POSTGRES_*` | config-api (SQLAlchemy), postgres |
 | `ORG_*` / `IPA_CODE` | config-api (impostazioni ente default) |
+| `SATOSA_INTERNAL_URL` | config-api → health check SATOSA (dashboard) |
+| `CONFIG_API_INTERNAL_URL` | SATOSA plugins → POST /internal/access-log |
 
 ## Relazione con altri repository
 
@@ -137,3 +154,9 @@ Il config-api segnala il reload toccando `/satosa-conf/.reload` (volume condivis
 
 ### SATOSA OIDC multi-client
 La sezione `clients` nel config OIDC di SATOSA è generata da `satosa_generator.py`. Ogni client ha: `client_id`, `client_secret` (hash), `redirect_uris`, `allowed_scopes`. Il generator scrive il file e triggera reload.
+
+### Plugin SATOSA generati a runtime
+`satosa_config_generator.py` scrive moduli Python in `/satosa-conf/` a ogni rigenerazione config (es. `default_backend_router.py`, `oidc_frontend_ext.py`, `access_log_reporter.py`). Questi file sono caricati da SATOSA via `CUSTOM_PLUGIN_MODULE_PATHS: ["/satosa-conf"]`. Non modificarli direttamente in satosa-conf — vengono sovrascritti al prossimo reload.
+
+### Access log pipeline
+Ogni auth SATOSA completata (successo o errore) → `POST http://config-api:8000/internal/access-log` (rete Docker interna, nginx non lo espone, nessuna autenticazione necessaria). Endpoint fire-and-forget: risponde sempre 200, errori DB non bloccano SATOSA. Tabella `access_log` (migration 006): nessun PII — solo `provider_type` / `client_id` / `result` / `error_code`.
