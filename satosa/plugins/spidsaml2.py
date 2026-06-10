@@ -161,8 +161,33 @@ class SpidSAMLBackend(SAMLBackend):
             if contact["contact_type"] == "other":
                 spid_contact.loadd(contact_kwargs)
                 contact_kwargs["contact_type"] = contact["contact_type"]
-                for k, v in contact.items():
+
+                # Enforce specific order of SPID ContactPerson extensions
+                ordered_keys = ["given_name", "FiscalCode", "IPACode", "Public"]
+                ext_keys = []
+                for k in contact.keys():
                     if k in contact_kwargs:
+                        continue
+                    if k == "Aggregated":
+                        spid_contact.extension_attributes = {
+                            "spid:entityType": "spid:aggregated"
+                        }
+                        continue
+                    ext_keys.append(k)
+
+                # Sort extension keys so they match ordered_keys, keeping other keys at the end
+                def sort_key(x):
+                    try:
+                        return ordered_keys.index(x)
+                    except ValueError:
+                        return len(ordered_keys)
+
+                ext_keys.sort(key=sort_key)
+
+                for k in ext_keys:
+                    v = contact[k]
+                    # Skip empty optional elements (except for Public/Private flags which must be empty)
+                    if k not in ["Public", "Private"] and not v:
                         continue
                     ext = saml2.ExtensionElement(
                         k, namespace=SPID_PREFIXES["spid"], text=v
@@ -173,11 +198,6 @@ class SpidSAMLBackend(SAMLBackend):
                         spid_contact.extension_attributes = {
                             "spid:entityType": "spid:aggregator"
                         }
-                    if k == "Aggregated":
-                        spid_contact.extension_attributes = {
-                            "spid:entityType": "spid:aggregated"
-                        }
-                        continue
                     spid_extensions.children.append(ext)
 
                 spid_contact.extensions = spid_extensions

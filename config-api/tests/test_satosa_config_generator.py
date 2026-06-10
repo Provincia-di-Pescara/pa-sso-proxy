@@ -414,3 +414,33 @@ async def test_satosa_config_generator_combined_providers(db_session, tmp_path, 
     assert idps[2]["organization_name"] == "Demo Provider"
     assert idps[2]["logo_uri"] == "https://pagopa-prx.comune.montesilvano.pe.it/static/spid/spid-agid-logo-lb.png"
 
+
+async def test_spid_backend_yaml_has_contact_person(full_db, tmp_path, monkeypatch):
+    from app.models import EnteSettings
+    from sqlalchemy import update
+
+    # Update vat_number for the test
+    await full_db.execute(
+        update(EnteSettings)
+        .where(EnteSettings.id == 1)
+        .values(vat_number="00193460680")
+    )
+    await full_db.commit()
+
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+
+    spid = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
+    contact_person = spid["config"]["sp_config"]["contact_person"]
+    assert len(contact_person) == 1
+    cp = contact_person[0]
+    assert cp["contact_type"] == "other"
+    assert cp["given_name"] == "Ente Test SPA"
+    assert cp["email_address"] == "e@ente.it"
+    assert cp["telephone_number"] == "+39001"
+    assert cp["FiscalCode"] == "00193460680"
+    assert cp["IPACode"] == "P_TEST"
+    assert cp["Public"] == ""
+
+

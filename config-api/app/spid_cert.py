@@ -23,16 +23,23 @@ def generate_spid_cert(settings: EnteSettings) -> SpidCert:
 
     privkey = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
+    import os
+    base_url = os.environ.get("PROXY_BASE_URL", "").rstrip("/") or f"https://{settings.proxy_hostname}"
+    entity_id = f"{base_url}/spidSaml2/metadata"
+
     subject = x509.Name([
         NameAttribute(x509.oid.NameOID.COMMON_NAME, settings.proxy_hostname),
         NameAttribute(x509.oid.NameOID.ORGANIZATION_NAME, settings.org_name),
-        NameAttribute(OID_ENTITY_ID, f"https://{settings.proxy_hostname}"),
+        NameAttribute(OID_ENTITY_ID, entity_id),
         NameAttribute(OID_ORG_IDENTIFIER, f"PA:IT-{settings.ipa_code}"),
         NameAttribute(x509.oid.NameOID.COUNTRY_NAME, "IT"),
         NameAttribute(x509.oid.NameOID.LOCALITY_NAME, settings.org_city),
     ])
 
     now = datetime.now(timezone.utc)
+    user_notice_agid = x509.UserNotice(notice_reference=None, explicit_text="agIDcert")
+    user_notice_sp = x509.UserNotice(notice_reference=None, explicit_text="cert_SP_Pub")
+
     cert = (
         x509.CertificateBuilder()
         .subject_name(subject)
@@ -53,9 +60,8 @@ def generate_spid_cert(settings: EnteSettings) -> SpidCert:
         )
         .add_extension(
             x509.CertificatePolicies([
-                x509.PolicyInformation(OID_AGID_ROOT, None),
-                x509.PolicyInformation(OID_AGID_CERT, None),
-                x509.PolicyInformation(OID_CERT_SP_PUB, None),
+                x509.PolicyInformation(OID_AGID_CERT, [user_notice_agid]),
+                x509.PolicyInformation(OID_CERT_SP_PUB, [user_notice_sp]),
             ]),
             critical=False,
         )
