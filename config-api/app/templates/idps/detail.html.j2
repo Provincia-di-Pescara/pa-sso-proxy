@@ -1,109 +1,97 @@
 {% extends "base.html.j2" %}
 {% block title %}Dettaglio metadata SPID — PA SSO Proxy{% endblock %}
+{% block page_title %}Dettaglio metadata SPID{% endblock %}
+{% block page_subtitle %}<div class="a-topbar-sub">Vista live del singolo metadata dal registry AgID</div>{% endblock %}
+
+{% block topbar_actions %}
+<a href="/admin/idps" class="a-btn a-btn-secondary a-btn-sm">← Torna alla lista</a>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div>
-    <h2>Dettaglio metadata SPID</h2>
-    <p class="text-muted mb-0">Vista live del singolo metadata recuperata dal registry AgID.</p>
-  </div>
-  <a href="/admin/idps" class="btn btn-outline-secondary btn-sm">Torna alla lista</a>
-</div>
-
 {% if detail_call.ok %}
-<div class="card mb-4">
-  <div class="card-body">
-    <div class="row g-3">
-      <div class="col-md-6">
-        <div class="small text-muted">Endpoint</div>
-        <code class="d-block text-break">{{ detail_call.request_url }}</code>
-      </div>
-      <div class="col-md-2">
-        <div class="small text-muted">Tot metadata</div>
-        <div>{{ detail_call.headers.tot_metadata or '—' }}</div>
-      </div>
-      <div class="col-md-2">
-        <div class="small text-muted">Pagina</div>
-        <div>{{ detail_call.headers.current_page or '—' }}</div>
-      </div>
-      <div class="col-md-2">
-        <div class="small text-muted">Last modified</div>
-        <div><small>{{ detail_call.headers.last_modified or '—' }}</small></div>
-      </div>
+<div class="a-card" style="margin-bottom:14px;">
+  <div class="a-card-body" style="display:grid;grid-template-columns:1fr auto auto auto;gap:20px;align-items:start;">
+    <div>
+      <div class="a-label">Endpoint</div>
+      <code class="a-mono" style="font-size:11px;word-break:break-all;">{{ detail_call.request_url }}</code>
+    </div>
+    <div>
+      <div class="a-label">Tot metadata</div>
+      <div style="font-size:14px;">{{ detail_call.headers.tot_metadata or '—' }}</div>
+    </div>
+    <div>
+      <div class="a-label">Pagina</div>
+      <div style="font-size:14px;">{{ detail_call.headers.current_page or '—' }}</div>
+    </div>
+    <div>
+      <div class="a-label">Last modified</div>
+      <div class="a-mono" style="font-size:11px;">{{ detail_call.headers.last_modified or '—' }}</div>
     </div>
   </div>
 </div>
 
-<div class="card mb-4">
-  <div class="card-header">
-    <strong>Campi principali</strong>
-  </div>
-  <div class="card-body">
-    <div class="table-responsive">
-      <table class="table table-sm mb-0">
-        <tbody>
-          {% set summary_keys = [
-            ('entity_id', 'Entity ID'),
-            ('organization_display_name', 'Organization display name'),
-            ('organization_name', 'Organization name'),
-            ('code', 'Code'),
-            ('create_date', 'Create date'),
-            ('lastupdate_date', 'Last update date'),
-            ('delete_date', 'Delete date'),
-            ('_disabled', 'Disabled'),
-            ('_deleted', 'Deleted'),
-            ('registry_link', 'Registry link')
-          ] %}
-          {% for key, label in summary_keys %}
-          {% if detail_call.detail.get(key) is not none %}
-          <tr>
-            <th class="text-nowrap" style="width: 240px;">{{ label }}</th>
-            <td>
-              {% set value = detail_call.detail.get(key) %}
-              {% if value is mapping or (value is sequence and value is not string) %}
-                <pre class="mb-0 small bg-light p-2 rounded">{{ value | tojson(indent=2) }}</pre>
-              {% else %}
-                {{ value }}
-              {% endif %}
-            </td>
-          </tr>
-          {% endif %}
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+<div class="a-card" style="margin-bottom:14px;">
+  <div class="a-card-header">Campi principali</div>
+  <div class="a-table-wrap">
+    <table class="a-table">
+      <tbody>
+        {% set summary_keys = [
+          ('entity_id', 'Entity ID'),
+          ('organization_display_name', 'Organization display name'),
+          ('organization_name', 'Organization name'),
+          ('code', 'Code'),
+          ('create_date', 'Create date'),
+          ('lastupdate_date', 'Last update date'),
+          ('delete_date', 'Delete date'),
+          ('_disabled', 'Disabled'),
+          ('_deleted', 'Deleted'),
+          ('registry_link', 'Registry link')
+        ] %}
+        {% for key, label in summary_keys %}
+        {% if detail_call.detail.get(key) is not none %}
+        <tr>
+          <td style="width:240px;font-weight:600;font-size:12px;white-space:nowrap;color:var(--fg-muted);">{{ label }}</td>
+          <td>
+            {% set value = detail_call.detail.get(key) %}
+            {% if value is mapping or (value is sequence and value is not string) %}
+              <pre style="margin:0;font-size:11px;background:var(--bg-1);padding:8px;border-radius:4px;overflow-x:auto;">{{ value | tojson(indent=2) }}</pre>
+            {% else %}
+              <span class="a-mono" style="font-size:12px;">{{ value }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 
-<div class="card mb-4">
-  <div class="card-header">
-    <strong>Tutti i campi</strong>
-  </div>
-  <div class="card-body">
-    <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0">
-        <tbody>
-          {% for key, value in detail_call.detail.items() %}
-          <tr>
-            <th class="text-nowrap" style="width: 240px;">{{ key }}</th>
-            <td>
-              {% if value is mapping or (value is sequence and value is not string) %}
-                <pre class="mb-0 small bg-light p-2 rounded">{{ value | tojson(indent=2) }}</pre>
-              {% elif value is none %}
-                <span class="text-muted">—</span>
-              {% else %}
-                {{ value }}
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+<div class="a-card">
+  <div class="a-card-header">Tutti i campi</div>
+  <div class="a-table-wrap">
+    <table class="a-table">
+      <tbody>
+        {% for key, value in detail_call.detail.items() %}
+        <tr>
+          <td style="width:240px;font-weight:600;font-size:12px;white-space:nowrap;color:var(--fg-muted);">{{ key }}</td>
+          <td>
+            {% if value is mapping or (value is sequence and value is not string) %}
+              <pre style="margin:0;font-size:11px;background:var(--bg-1);padding:8px;border-radius:4px;overflow-x:auto;">{{ value | tojson(indent=2) }}</pre>
+            {% elif value is none %}
+              <span class="a-muted">—</span>
+            {% else %}
+              <span class="a-mono" style="font-size:12px;">{{ value }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
+
 {% else %}
-<div class="alert alert-warning">
-  Impossibile recuperare il metadata live: {{ detail_call.error }}
-</div>
+<div class="a-alert a-alert-warning">Impossibile recuperare il metadata live: {{ detail_call.error }}</div>
 {% endif %}
 {% endblock %}

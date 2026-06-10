@@ -1,216 +1,189 @@
 {% extends "base.html.j2" %}
 {% block title %}Provider SPID — PA SSO Proxy{% endblock %}
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2>Provider SPID</h2>
-  <div class="d-flex gap-2 align-items-center">
-    {% if proxy_hostname %}
-    <a href="https://{{ proxy_hostname }}/spidSaml2/metadata" target="_blank" class="btn btn-sm btn-outline-secondary">
-      📄 Metadata SP (AgID)
-    </a>
-    {% endif %}
-    <form method="post" action="/admin/idps/enable-all" class="d-inline">
-      <button class="btn btn-sm btn-outline-success">Abilita tutti</button>
-    </form>
-    <form method="post" action="/admin/idps/sync" class="d-inline">
-      <button class="btn btn-sm btn-primary">Sync manuale da Registry</button>
-    </form>
-  </div>
-</div>
+{% block page_title %}Provider SPID{% endblock %}
 
-<div class="card mb-4 border-primary">
-  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-    <h5 class="mb-0">Ambiente di Test / Validazione</h5>
-    <span class="badge bg-light text-primary">SPID SAML</span>
+{% block topbar_actions %}
+<div style="display:flex;gap:8px;align-items:center;">
+  {% if proxy_hostname %}
+  <a href="https://{{ proxy_hostname }}/spidSaml2/metadata" target="_blank" class="a-btn a-btn-secondary a-btn-sm">Metadata SP (AgID)</a>
+  {% endif %}
+  <form method="post" action="/admin/idps/enable-all" style="display:inline;">
+    <button class="a-btn a-btn-neutral a-btn-sm">Abilita tutti</button>
+  </form>
+  <form method="post" action="/admin/idps/sync" style="display:inline;">
+    <button class="a-btn a-btn-primary a-btn-sm">Sync da Registry</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block content %}
+{# Test/Validation providers #}
+<div class="a-card" style="margin-bottom:14px;">
+  <div class="a-card-header">
+    Ambiente di Test / Validazione
+    <span class="a-badge-spid">SPID SAML</span>
   </div>
-  <div class="card-body">
-    <p class="text-muted mb-4">
-      Attiva uno dei provider di test/validazione per effettuare l'integrazione o il collaudo del proxy. 
-      <strong>Solo un provider alla volta può essere attivo.</strong> L'attivazione di uno disabiliterà automaticamente l'altro.
-    </p>
-    
-    <div class="row g-4">
-      <!-- Demo Provider Card -->
-      <div class="col-md-6">
-        <div class="p-3 border rounded h-100 d-flex flex-column justify-content-between {% if demo_idp and demo_idp.enabled %}border-success bg-success bg-opacity-10{% endif %}" style="transition: all 0.2s ease;">
-          <div>
-            <div class="d-flex align-items-center justify-content-between mb-2">
-              <h6 class="mb-0">SPID Demo Provider</h6>
-              {% if demo_idp and demo_idp.enabled %}
-                <span class="badge bg-success">Attivo</span>
-              {% else %}
-                <span class="badge bg-secondary">Inattivo</span>
-              {% endif %}
-            </div>
-            <p class="small text-muted mb-3">
-              Permette l'autenticazione tramite il provider di demo ufficiale di SPID (per simulare cittadini ed effettuare collaudi).
-            </p>
-            <code class="d-block small text-break mb-3">{{ demo_idp.metadata_url if demo_idp else 'https://demo.spid.gov.it/metadata.xml' }}</code>
-          </div>
-          <div>
-            {% if demo_idp %}
-            <form method="post" action="/admin/idps/{{ demo_idp.id }}/toggle">
-              <button type="submit" class="btn btn-sm w-100 {% if demo_idp.enabled %}btn-outline-danger{% else %}btn-success{% endif %}">
-                {% if demo_idp.enabled %}Disattiva Demo{% else %}Attiva Demo{% endif %}
-              </button>
-            </form>
-            {% else %}
-            <button class="btn btn-sm btn-secondary w-100" disabled>In caricamento...</button>
-            {% endif %}
-          </div>
+  <div class="a-card-body">
+    <div class="a-muted" style="margin-bottom:16px;font-size:13px;">
+      Attiva uno dei provider di test/validazione per effettuare l'integrazione o il collaudo del proxy.
+      <strong>Solo un provider alla volta può essere attivo.</strong>
+    </div>
+    <div class="a-grid-2">
+      {# Demo Provider #}
+      <div class="a-card" style="{% if demo_idp and demo_idp.enabled %}border-color: var(--success);{% endif %}">
+        <div class="a-card-header">
+          SPID Demo Provider
+          {% if demo_idp and demo_idp.enabled %}
+            <span class="a-badge a-badge-success">Attivo</span>
+          {% else %}
+            <span class="a-badge a-badge-neutral">Inattivo</span>
+          {% endif %}
+        </div>
+        <div class="a-card-body">
+          <p style="font-size:13px;color:var(--fg-muted);margin-bottom:12px;">Permette l'autenticazione tramite il provider di demo ufficiale di SPID.</p>
+          <code class="a-mono" style="display:block;word-break:break-all;font-size:11px;margin-bottom:16px;">{{ demo_idp.metadata_url if demo_idp else 'https://demo.spid.gov.it/metadata.xml' }}</code>
+          {% if demo_idp %}
+          <form method="post" action="/admin/idps/{{ demo_idp.id }}/toggle">
+            <button type="submit" class="a-btn {% if demo_idp.enabled %}a-btn-danger{% else %}a-btn-primary{% endif %} a-btn-sm" style="width:100%;justify-content:center;">
+              {% if demo_idp.enabled %}Disattiva Demo{% else %}Attiva Demo{% endif %}
+            </button>
+          </form>
+          {% else %}
+          <button class="a-btn a-btn-neutral a-btn-sm" style="width:100%;" disabled>In caricamento...</button>
+          {% endif %}
         </div>
       </div>
-      
-      <!-- Validator Card -->
-      <div class="col-md-6">
-        <div class="p-3 border rounded h-100 d-flex flex-column justify-content-between {% if validator_idp and validator_idp.enabled %}border-success bg-success bg-opacity-10{% endif %}" style="transition: all 0.2s ease;">
-          <div>
-            <div class="d-flex align-items-center justify-content-between mb-2">
-              <h6 class="mb-0">Validator AgID</h6>
-              {% if validator_idp and validator_idp.enabled %}
-                <span class="badge bg-success">Attivo</span>
-              {% else %}
-                <span class="badge bg-secondary">Inattivo</span>
-              {% endif %}
-            </div>
-            <p class="small text-muted mb-3">
-              Permette di verificare la conformità del proxy inviando le richieste di autenticazione al validatore ufficiale di AgID.
-            </p>
-            <code class="d-block small text-break mb-3">{{ validator_idp.metadata_url if validator_idp else 'https://validator.spid.gov.it/metadata.xml' }}</code>
-          </div>
-          <div>
-            {% if validator_idp %}
-            <form method="post" action="/admin/idps/{{ validator_idp.id }}/toggle">
-              <button type="submit" class="btn btn-sm w-100 {% if validator_idp.enabled %}btn-outline-danger{% else %}btn-success{% endif %}">
-                {% if validator_idp.enabled %}Disattiva Validatore{% else %}Attiva Validatore{% endif %}
-              </button>
-            </form>
-            {% else %}
-            <button class="btn btn-sm btn-secondary w-100" disabled>In caricamento...</button>
-            {% endif %}
-          </div>
+
+      {# Validator #}
+      <div class="a-card" style="{% if validator_idp and validator_idp.enabled %}border-color: var(--success);{% endif %}">
+        <div class="a-card-header">
+          Validator AgID
+          {% if validator_idp and validator_idp.enabled %}
+            <span class="a-badge a-badge-success">Attivo</span>
+          {% else %}
+            <span class="a-badge a-badge-neutral">Inattivo</span>
+          {% endif %}
+        </div>
+        <div class="a-card-body">
+          <p style="font-size:13px;color:var(--fg-muted);margin-bottom:12px;">Permette di verificare la conformità del proxy tramite il validatore ufficiale di AgID.</p>
+          <code class="a-mono" style="display:block;word-break:break-all;font-size:11px;margin-bottom:16px;">{{ validator_idp.metadata_url if validator_idp else 'https://validator.spid.gov.it/metadata.xml' }}</code>
+          {% if validator_idp %}
+          <form method="post" action="/admin/idps/{{ validator_idp.id }}/toggle">
+            <button type="submit" class="a-btn {% if validator_idp.enabled %}a-btn-danger{% else %}a-btn-primary{% endif %} a-btn-sm" style="width:100%;justify-content:center;">
+              {% if validator_idp.enabled %}Disattiva Validatore{% else %}Attiva Validatore{% endif %}
+            </button>
+          </form>
+          {% else %}
+          <button class="a-btn a-btn-neutral a-btn-sm" style="width:100%;" disabled>In caricamento...</button>
+          {% endif %}
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="card mb-4 border-primary">
-  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-    <h5 class="mb-0">Certificato di Firma SPID (SAML SP)</h5>
-    <span class="badge bg-light text-primary">Certificato</span>
+{# Certificate section #}
+<div class="a-card" style="margin-bottom:14px;">
+  <div class="a-card-header">
+    Certificato di Firma SPID (SAML SP)
+    <span class="a-badge a-badge-neutral">Certificato</span>
   </div>
-  <div class="card-body">
-    {% if cert_error %}<div class="alert alert-danger py-2 mb-2">{{ cert_error }}</div>{% endif %}
+  <div class="a-card-body">
+    {% if cert_error %}<div class="a-alert a-alert-danger">{{ cert_error }}</div>{% endif %}
     {% if cert %}
       {% set days_left = (cert.not_valid_after - now).days %}
-      <div class="row align-items-center">
-        <div class="col-md-8">
-          {% if days_left < 30 %}
-            <div class="alert alert-danger py-2 mb-2">
-              Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}).
-            </div>
-          {% elif days_left < 90 %}
-            <div class="alert alert-warning py-2 mb-2">
-              Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}).
-            </div>
-          {% else %}
-            <div class="alert alert-success py-2 mb-2">
-              Certificato valido fino al <strong>{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</strong> ({{ days_left }} giorni rimanenti).
-            </div>
-          {% endif %}
-          <div class="small text-muted mb-1">Subject DN:</div>
-          <code class="d-block text-break bg-light p-2 rounded small mb-2">{{ cert.subject_dn }}</code>
-          <div class="small text-muted">Generato il: <span class="text-dark font-monospace">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
-        </div>
-        <div class="col-md-4 text-md-end mt-3 mt-md-0">
-          <form method="post" action="/admin/certs/generate">
-            <button type="submit" class="btn btn-outline-primary">Rigenera certificato</button>
-          </form>
-        </div>
+      {% if days_left < 30 %}
+        <div class="a-alert a-alert-danger">Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}).</div>
+      {% elif days_left < 90 %}
+        <div class="a-alert a-alert-warning">Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}).</div>
+      {% else %}
+        <div class="a-alert a-alert-success">Certificato valido fino al <strong>{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</strong> ({{ days_left }} giorni).</div>
+      {% endif %}
+      <div class="a-form-group">
+        <label class="a-label">Subject DN</label>
+        <input class="a-input a-input-ro" type="text" value="{{ cert.subject_dn }}" readonly>
       </div>
-    {% else %}
-      <div class="alert alert-warning mb-3">
-        Nessun certificato SPID configurato. Genera il certificato per abilitare l'autenticazione SPID.
-      </div>
+      <div class="a-muted" style="font-size:12px;margin-bottom:16px;">Generato il: <span class="a-mono">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
       <form method="post" action="/admin/certs/generate">
-        <button type="submit" class="btn btn-primary">Genera certificato</button>
+        <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Rigenera certificato</button>
+      </form>
+    {% else %}
+      <div class="a-alert a-alert-warning" style="margin-bottom:16px;">Nessun certificato SPID configurato. Genera il certificato per abilitare l'autenticazione SPID.</div>
+      <form method="post" action="/admin/certs/generate">
+        <button type="submit" class="a-btn a-btn-primary">Genera certificato</button>
       </form>
     {% endif %}
   </div>
 </div>
 
-<div class="card mb-4">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
-      <div>
-        <h5 class="card-title mb-1">Aggiorna metadata SPID Registry</h5>
-        <p class="text-muted mb-0">Lista locale sincronizzata giornalmente dal registry AgID.</p>
-      </div>
-      <div class="text-end">
-        <div class="small text-muted">Ultima sync DB</div>
-        <div><small>{{ last_sync_at.strftime('%d/%m/%Y %H:%M') if last_sync_at else '—' }}</small></div>
-      </div>
+{# Registry sync + IdP table #}
+<div class="a-card">
+  <div class="a-card-header">
+    <div>
+      <div>Registry SPID</div>
+      <div class="a-muted" style="font-size:11px;font-weight:400;">Lista locale sincronizzata giornalmente dal registry AgID.</div>
     </div>
-
-    {% if sync_status == 'ok' %}
-    <div class="alert alert-success py-2">
-      Sync completata. Nuovi IdP inseriti: {{ sync_inserted or '0' }}.
+    <div class="a-muted" style="font-size:12px;text-align:right;">
+      <div>Ultima sync DB</div>
+      <div class="a-mono">{{ last_sync_at.strftime('%d/%m/%Y %H:%M') if last_sync_at else '—' }}</div>
     </div>
-    {% elif sync_status == 'error' %}
-    <div class="alert alert-warning py-2">
-      Sync non riuscita ({{ sync_error or 'errore sconosciuto' }}).
-    </div>
-    {% endif %}
-
-    {% if idps %}
-    <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th>Logo</th>
-            <th>Entity ID</th>
-            <th>Organization name</th>
-            <th>Aggiornato da AgID</th>
-            <th>Ultima sync</th>
-            <th>Abilitato</th>
-            <th>Dettagli</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in idps %}
-          <tr>
-            <td style="width: 72px;">
-              {% if item.registry_logo_uri %}
-              <img src="{{ item.registry_logo_uri }}" alt="Logo {{ item.registry_organization_name or item.registry_entity_id }}" style="max-height: 32px; max-width: 64px; object-fit: contain;">
-              {% else %}
-              <span class="text-muted">—</span>
-              {% endif %}
-            </td>
-            <td><code class="text-break">{{ item.registry_entity_id or '—' }}</code></td>
-            <td>{{ item.registry_organization_name or item.display_name or '—' }}</td>
-            <td><small>{{ item.registry_lastupdate_date or '—' }}</small></td>
-            <td><small>{{ item.registry_synced_at.strftime('%d/%m/%Y %H:%M') if item.registry_synced_at else '—' }}</small></td>
-            <td>
-              <form method="post" action="/admin/idps/{{ item.id }}/toggle" class="d-inline">
-                {% if item.enabled %}
-                <button type="submit" class="btn btn-sm btn-success" title="Clicca per disabilitare">✓ Sì</button>
-                {% else %}
-                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Clicca per abilitare">No</button>
-                {% endif %}
-              </form>
-            </td>
-            <td>
-              <a class="btn btn-sm btn-outline-primary" href="/admin/idps/detail?entity_id={{ item.registry_entity_id | urlencode }}">Dettagli</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="text-muted mb-0">Nessun IdP sincronizzato dal registry.</p>
-    {% endif %}
   </div>
+  {% if sync_status == 'ok' %}
+  <div style="padding:8px 20px;border-bottom:1px solid var(--border-1);">
+    <div class="a-alert a-alert-success" style="margin-bottom:0;">Sync completata. Nuovi IdP inseriti: {{ sync_inserted or '0' }}.</div>
+  </div>
+  {% elif sync_status == 'error' %}
+  <div style="padding:8px 20px;border-bottom:1px solid var(--border-1);">
+    <div class="a-alert a-alert-warning" style="margin-bottom:0;">Sync non riuscita ({{ sync_error or 'errore sconosciuto' }}).</div>
+  </div>
+  {% endif %}
+  {% if idps %}
+  <div class="a-table-wrap">
+    <table class="a-table">
+      <thead>
+        <tr>
+          <th>Logo</th>
+          <th>Entity ID</th>
+          <th>Organization</th>
+          <th>Aggiornato</th>
+          <th>Sync</th>
+          <th>Abilitato</th>
+          <th>Dettagli</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in idps %}
+        <tr>
+          <td style="width:72px;">
+            {% if item.registry_logo_uri %}
+            <img src="{{ item.registry_logo_uri }}" alt="{{ item.registry_organization_name or item.registry_entity_id }}" style="max-height:32px;max-width:64px;object-fit:contain;">
+            {% else %}
+            <span class="a-muted">—</span>
+            {% endif %}
+          </td>
+          <td><code class="a-mono" style="font-size:11px;word-break:break-all;">{{ item.registry_entity_id or '—' }}</code></td>
+          <td>{{ item.registry_organization_name or item.display_name or '—' }}</td>
+          <td class="a-mono a-muted" style="font-size:11px;">{{ item.registry_lastupdate_date or '—' }}</td>
+          <td class="a-mono a-muted" style="font-size:11px;">{{ item.registry_synced_at.strftime('%d/%m/%Y %H:%M') if item.registry_synced_at else '—' }}</td>
+          <td>
+            <form method="post" action="/admin/idps/{{ item.id }}/toggle" style="display:inline;">
+              {% if item.enabled %}
+              <button type="submit" class="a-btn a-btn-sm" style="background:var(--success-bg);color:var(--success);border:1px solid var(--success);" title="Clicca per disabilitare">✓ Sì</button>
+              {% else %}
+              <button type="submit" class="a-btn a-btn-neutral a-btn-sm" title="Clicca per abilitare">No</button>
+              {% endif %}
+            </form>
+          </td>
+          <td>
+            <a class="a-btn a-btn-secondary a-btn-sm" href="/admin/idps/detail?entity_id={{ item.registry_entity_id | urlencode }}">Dettagli</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="a-card-body a-muted" style="font-size:13px;">Nessun IdP sincronizzato dal registry.</div>
+  {% endif %}
 </div>
 {% endblock %}
