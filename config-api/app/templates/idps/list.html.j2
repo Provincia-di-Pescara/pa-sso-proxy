@@ -126,7 +126,8 @@
             <th>Logo</th>
             <th>Entity ID</th>
             <th>Organization name</th>
-            <th>Last update date</th>
+            <th>Aggiornato da AgID</th>
+            <th>Ultima sync</th>
             <th>Abilitato</th>
             <th>Dettagli</th>
           </tr>
@@ -144,6 +145,7 @@
             <td><code class="text-break">{{ item.registry_entity_id or '—' }}</code></td>
             <td>{{ item.registry_organization_name or item.display_name or '—' }}</td>
             <td><small>{{ item.registry_lastupdate_date or '—' }}</small></td>
+            <td><small>{{ item.registry_synced_at.strftime('%d/%m/%Y %H:%M') if item.registry_synced_at else '—' }}</small></td>
             <td>
               <form method="post" action="/admin/idps/{{ item.id }}/toggle" class="d-inline">
                 {% if item.enabled %}
