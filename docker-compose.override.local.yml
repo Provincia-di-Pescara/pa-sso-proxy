@@ -8,3 +8,5 @@ services:
     image: pa-sso-proxy-config-api:local
     build:
       context: ./config-api
+    volumes:
+      - ./.git:/app/.git:ro

@@ -64,7 +64,6 @@ services:
       - PROXY_BASE_URL=${PROXY_BASE_URL:-}
     volumes:
       - proxy_satosa_conf:/satosa-conf
-      - ./.git:/app/.git:ro
     networks:
       - proxy-internal
     healthcheck:
