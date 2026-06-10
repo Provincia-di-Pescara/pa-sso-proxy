@@ -457,32 +457,78 @@ class SpidSAMLBackend(SAMLBackend):
         err="",
         template_path="templates",
         error_template="spid_login_error.html",
+        context=None,
+        error_type="generic",
     ):
         logger.debug(
             f"Entering method: {inspect.getframeinfo(inspect.currentframe()).function}. "
             f"Params[ message: {message}, troubleshoot: {troubleshoot}]"
         )
-        """
-        Todo: Jinja2 tempalte loader and rendering :)
-        """
-        logger.error(f"Failed to parse authn request: {message} {err}")
+        logger.error(f"SPID authentication error: {message} {err}")
+
+        # ── 1. Tenta redirect OIDC-conforme verso il client originante ────────────
+        # Il context.state SATOSA (cookie) contiene la richiesta OIDC originale
+        # con redirect_uri e state del client — stesso pattern del backend CIE.
+        if context is not None:
+            client_redirect_uri = None
+            client_state = None
+            try:
+                import urllib.parse as _up
+                for v in context.state.values():
+                    if isinstance(v, dict) and "oidc_request" in v:
+                        oidc_request = v.get("oidc_request") or ""
+                        if oidc_request:
+                            params = _up.parse_qs(oidc_request)
+                            redirect_uri_list = params.get("redirect_uri")
+                            state_list = params.get("state")
+                            if redirect_uri_list:
+                                client_redirect_uri = redirect_uri_list[0]
+                                client_state = state_list[0] if state_list else None
+                        break
+            except Exception as exc:
+                logger.warning(f"Could not extract redirect_uri from context.state: {exc}")
+
+            if client_redirect_uri:
+                import json as _json
+                error_params = {
+                    "error": "access_denied",
+                    "error_description": str(message),
+                }
+                if client_state:
+                    error_params["state"] = client_state
+                import urllib.parse as _up2
+                cancel_url = client_redirect_uri + "?" + _up2.urlencode(error_params)
+                logger.info(
+                    f"Redirecting back to client after SPID error: {cancel_url[:80]}..."
+                )
+                _js_url = _json.dumps(cancel_url)
+                html = (
+                    f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    f"<script>window.location.replace({_js_url});</script>"
+                    f"</head><body></body></html>"
+                ).encode("utf-8")
+                return Response(message=html, status="200 OK", content="text/html; charset=utf-8")
+
+        # ── 2. Fallback: pagina di errore branded ─────────────────────────────────
+        import os as _os
+        cancel_url = _os.environ.get("SATOSA_CANCEL_REDIRECT_URL") or "/"
         result = self.error_page.render(
-            {"message": message, "troubleshoot": troubleshoot}
+            {
+                "message": message,
+                "troubleshoot": troubleshoot,
+                "error_type": error_type,
+                "cancel_url": cancel_url,
+            }
         )
-        # the raw way :)
-        # msg = (
-        # f'<b>{message}</b><br>'
-        # f'{troubleshoot}'
-        # )
-        # result = text_type(msg).encode('utf-8')
         return Response(result, content="text/html; charset=utf8", status="403")
 
-    def handle_spid_anomaly(self, err_number, err):
+    def handle_spid_anomaly(self, err_number, err, context=None):
         logger.debug(
             f"Entering method: {inspect.getframeinfo(inspect.currentframe()).function}. "
             f"Params[ err_number: {err_number}, err: {err}]"
         )
-        return self.handle_error(**SPID_ANOMALIES[int(err_number)])
+        return self.handle_error(**{**SPID_ANOMALIES[int(err_number)], "context": context})
+
 
     def authn_response(self, context, binding):
         logger.debug(
@@ -512,7 +558,7 @@ class SpidSAMLBackend(SAMLBackend):
         except StatusAuthnFailed as err:
             erdict = re.search(r"ErrorCode nr(?P<err_code>\d+)", str(err))
             if erdict:
-                return self.handle_spid_anomaly(erdict.groupdict()["err_code"], err)
+                return self.handle_spid_anomaly(erdict.groupdict()["err_code"], err, context=context)
             else:
                 return self.handle_error(
                     **{
@@ -522,6 +568,7 @@ class SpidSAMLBackend(SAMLBackend):
                             "Anomalia riscontrata durante la fase di Autenticazione. "
                             f"{_TROUBLESHOOT_MSG}"
                         ),
+                        "context": context,
                     }
                 )
         except SignatureError as err:
@@ -533,6 +580,7 @@ class SpidSAMLBackend(SAMLBackend):
                         "La firma digitale della risposta ottenuta "
                         f"non risulta essere corretta. {_TROUBLESHOOT_MSG}"
                     ),
+                    "context": context,
                 }
             )
         except Exception as err:
@@ -541,6 +589,7 @@ class SpidSAMLBackend(SAMLBackend):
                     "err": err,
                     "message": "Anomalia riscontrata nel processo di Autenticazione",
                     "troubleshoot": _TROUBLESHOOT_MSG,
+                    "context": context,
                 }
             )
 
@@ -550,7 +599,7 @@ class SpidSAMLBackend(SAMLBackend):
                 errmsg = ("No request with id: {}".format(req_id),)
                 logger.debug(errmsg)
                 return self.handle_error(
-                    **{"message": errmsg, "troubleshoot": _TROUBLESHOOT_MSG}
+                    **{"message": errmsg, "troubleshoot": _TROUBLESHOOT_MSG, "context": context}
                 )
             del self.outstanding_queries[req_id]
 
@@ -561,13 +610,13 @@ class SpidSAMLBackend(SAMLBackend):
             )
             logger.error(_msg)
             return self.handle_error(
-                **{"message": _msg, "troubleshoot": _TROUBLESHOOT_MSG}
+                **{"message": _msg, "troubleshoot": _TROUBLESHOOT_MSG, "context": context}
             )
         # check if the relay_state matches the cookie state
         if context.state[self.name]["relay_state"] != context.request["RelayState"]:
             _msg = "State did not match relay state for state"
             return self.handle_error(
-                **{"message": _msg, "troubleshoot": _TROUBLESHOOT_MSG}
+                **{"message": _msg, "troubleshoot": _TROUBLESHOOT_MSG, "context": context}
             )
 
         # Spid and SAML2 additional tests
@@ -593,7 +642,8 @@ class SpidSAMLBackend(SAMLBackend):
                     "troubleshoot": (
                         "Please contact the administrators of the platform and tell them to "
                         "configure properly the acr_mapping in the SPID/CIE backend"
-                    )
+                    ),
+                    "context": context,
                 }
             )
         acr_default = acr_map.get("", "https://www.spid.gov.it/SpidL2")
@@ -603,7 +653,7 @@ class SpidSAMLBackend(SAMLBackend):
         if len(context.state.keys()) < 2:
             _msg = "Inconsistent context.state"
             return self.handle_error(
-                **{"message": _msg, "troubleshoot": _TROUBLESHOOT_MSG}
+                **{"message": _msg, "troubleshoot": _TROUBLESHOOT_MSG, "context": context}
             )
 
         list(context.state.keys())[1]
@@ -635,7 +685,7 @@ class SpidSAMLBackend(SAMLBackend):
             validator.run()
         except Exception as e:
             logger.error(e)
-            return self.handle_error(e)
+            return self.handle_error(e, context=context)
 
         context.decorate(Context.KEY_BACKEND_METADATA_STORE, self.sp.metadata)
         if self.config.get(SAMLBackend.KEY_MEMORIZE_IDP):
