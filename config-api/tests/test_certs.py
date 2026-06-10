@@ -35,14 +35,16 @@ async def auth_client(db_session, app_env):
 
 
 async def test_certs_status_no_cert(auth_client):
-    response = await auth_client.get("/admin/certs")
-    assert response.status_code == 200
-    assert "Nessun certificato" in response.text
+    response = await auth_client.get("/admin/certs", follow_redirects=False)
+    assert response.status_code == 302
+    assert "/admin/idps" in response.headers["location"]
 
 
 async def test_certs_generate_without_settings_returns_400(auth_client):
     response = await auth_client.post("/admin/certs/generate", follow_redirects=False)
-    assert response.status_code == 400
+    assert response.status_code == 303
+    assert "/admin/idps" in response.headers["location"]
+    assert "cert_error" in response.headers["location"]
 
 
 async def test_certs_generate_with_settings_creates_cert(auth_client, db_session):
@@ -65,5 +67,5 @@ async def test_certs_generate_with_settings_creates_cert(auth_client, db_session
     with patch("app.routes.certs.generate_spid_cert", return_value=mock_cert):
         response = await auth_client.post("/admin/certs/generate", follow_redirects=False)
 
-    assert response.status_code == 302
-    assert "/admin/certs" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/admin/idps" in response.headers["location"]
