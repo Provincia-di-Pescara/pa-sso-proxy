@@ -231,8 +231,9 @@ function ssoLoadIdps() {
           + '&return=' + encodeURIComponent(DISCO_EP);
 
         var a = document.createElement('a');
-        a.className = 'idp-tile';
+        a.className = 'idp-tile idp-tile--logo-only';
         a.href = href;
+        a.title = idp.organization_name;
 
         if (idp.logo_uri) {
           var img = document.createElement('img');
@@ -245,10 +246,6 @@ function ssoLoadIdps() {
           a.appendChild(ssoMakeDot());
         }
 
-        var nameEl = document.createElement('span');
-        nameEl.className = 'idp-name';
-        nameEl.textContent = idp.organization_name;
-        a.appendChild(nameEl);
         container.appendChild(a);
       });
     })
