@@ -12,11 +12,14 @@
   <!-- Sidebar 256px dark navy -->
   <nav class="a-sidebar">
     <div class="a-sidebar-header">
-      <!-- PA logo SVG (institutional shield shape, simple) -->
+      {% if s and s.logo_url %}
+      <img src="{{ s.logo_url }}" alt="Logo ente" style="height:36px;max-width:72px;object-fit:contain;">
+      {% else %}
       <svg width="30" height="36" viewBox="0 0 30 36" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M15 0L0 6V18C0 26.4 6.6 34.2 15 36C23.4 34.2 30 26.4 30 18V6L15 0Z" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
         <path d="M15 4L3 9V18C3 24.9 8.4 31.2 15 33C21.6 31.2 27 24.9 27 18V9L15 4Z" fill="rgba(255,255,255,0.06)"/>
       </svg>
+      {% endif %}
       <div>
         <div class="a-sidebar-title">PA SSO Proxy</div>
         <div class="a-sidebar-sub">

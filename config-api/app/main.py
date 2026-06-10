@@ -12,9 +12,10 @@ from fastapi.staticfiles import StaticFiles
 from app.jinja_templates import templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import AsyncSessionLocal, engine, get_db
+from app.models import EnteSettings
 from app.rate_limiter import is_ip_banned, record_failed_attempt, clear_attempts
 from app.metadata_watcher import run_metadata_watcher
 from app.routes import dashboard, clients, idps, settings, certs, cie, test_client, backup, access_log, internal, placeholders
@@ -174,6 +175,10 @@ async def health():
     return {"status": "ok"}
 
 
+async def _get_settings(db: AsyncSession) -> EnteSettings | None:
+    return (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
+
+
 @app.get("/admin/login", response_class=HTMLResponse)
 async def login_page(request: Request, db: AsyncSession = Depends(get_db)):
     ip_address = request.headers.get("x-real-ip") or (request.client.host if request.client else "unknown")
@@ -184,7 +189,7 @@ async def login_page(request: Request, db: AsyncSession = Depends(get_db)):
     return templates.TemplateResponse(
         request,
         "login.html.j2",
-        {"error": error, "banned": banned},
+        {"error": error, "banned": banned, "s": await _get_settings(db)},
     )
 
 
@@ -202,7 +207,7 @@ async def login_post(
         return templates.TemplateResponse(
             request,
             "login.html.j2",
-            {"error": error, "banned": banned},
+            {"error": error, "banned": banned, "s": await _get_settings(db)},
             status_code=429,
         )
 
@@ -221,7 +226,7 @@ async def login_post(
     return templates.TemplateResponse(
         request,
         "login.html.j2",
-        {"error": error, "banned": banned},
+        {"error": error, "banned": banned, "s": await _get_settings(db)},
         status_code=200 if not banned else 429,
     )
 
