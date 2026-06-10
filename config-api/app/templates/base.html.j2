@@ -36,7 +36,7 @@
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/access-log') %}active{% endif %}" href="/admin/access-log">Monitoraggio</a></li>
 
         <li><span class="nav-section-label">Provider di Identità</span></li>
-        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/idps') %}active{% endif %}" href="/admin/idps">Provider SPID</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/idps') or request.url.path.startswith('/admin/certs') %}active{% endif %}" href="/admin/idps">SPID</a></li>
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/cie') %}active{% endif %}" href="/admin/cie">CIE OIDC</a></li>
         <li class="nav-item">
           <a class="nav-link {% if request.url.path.startswith('/admin/eidas') %}active{% endif %} text-muted" href="/admin/eidas">
@@ -54,7 +54,6 @@
 
         <li><span class="nav-section-label">Configurazione</span></li>
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/settings') %}active{% endif %}" href="/admin/settings">Impostazioni</a></li>
-        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/certs') %}active{% endif %}" href="/admin/certs">Certificati SPID</a></li>
 
         <li><span class="nav-section-label">Strumenti</span></li>
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/admin/test-client') %}active{% endif %}" href="/admin/test-client">Test Auth</a></li>

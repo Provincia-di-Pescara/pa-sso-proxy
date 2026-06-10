@@ -10,24 +10,18 @@ from app.database import get_db
 from app.models import EnteSettings, SpidCert
 from app.spid_cert import generate_spid_cert
 
-router = APIRouter()
+from urllib.parse import quote
 
+router = APIRouter()
 
 
 def _auth_check(request: Request) -> bool:
     return request.session.get("user") is not None
 
 
-@router.get("/certs", response_class=HTMLResponse)
-async def certs_status(request: Request, db: AsyncSession = Depends(get_db)):
-    if not _auth_check(request):
-        return RedirectResponse("/admin/login", status_code=302)
-    result = await db.execute(select(SpidCert).order_by(SpidCert.created_at.desc()).limit(1))
-    cert = result.scalar_one_or_none()
-    return templates.TemplateResponse(
-        request, "certs/status.html.j2",
-        {"cert": cert, "error": None, "now": datetime.now(timezone.utc)},
-    )
+@router.get("/certs")
+async def certs_status(request: Request):
+    return RedirectResponse("/admin/idps", status_code=302)
 
 
 @router.post("/certs/generate")
@@ -38,23 +32,12 @@ async def certs_generate(request: Request, db: AsyncSession = Depends(get_db)):
     s = result.scalar_one_or_none()
     missing = not s or not all([s.proxy_hostname, s.org_name, s.ipa_code, s.org_city])
     if missing:
-        return templates.TemplateResponse(
-            request, "certs/status.html.j2",
-            {
-                "cert": None,
-                "error": "Configura prima le impostazioni ente (proxy_hostname, org_name, ipa_code, org_city).",
-                "now": datetime.now(timezone.utc),
-            },
-            status_code=400,
-        )
+        err_msg = "Configura prima le impostazioni ente (proxy_hostname, org_name, ipa_code, org_city)."
+        return RedirectResponse(f"/admin/idps?cert_error={quote(err_msg)}", status_code=303)
     try:
         cert_obj = generate_spid_cert(s)
     except ValueError as exc:
-        return templates.TemplateResponse(
-            request, "certs/status.html.j2",
-            {"cert": None, "error": str(exc), "now": datetime.now(timezone.utc)},
-            status_code=400,
-        )
+        return RedirectResponse(f"/admin/idps?cert_error={quote(str(exc))}", status_code=303)
     db.add(cert_obj)
     await db.commit()
     import asyncio
@@ -65,4 +48,4 @@ async def certs_generate(request: Request, db: AsyncSession = Depends(get_db)):
         await generate_and_write(db)
     except Exception:
         pass
-    return RedirectResponse("/admin/certs", status_code=302)
+    return RedirectResponse("/admin/idps", status_code=303)
