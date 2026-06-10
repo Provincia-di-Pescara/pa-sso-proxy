@@ -190,7 +190,7 @@
     {% if access.recent %}
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>Timestamp</th><th>Provider</th><th>Client</th><th>Esito</th><th>Errore</th></tr></thead>
+        <thead><tr><th>Timestamp</th><th>Provider</th><th>Client</th><th>Tipo</th><th>Esito</th><th>Errore</th></tr></thead>
         <tbody>
           {% for log in access.recent %}
           <tr>
@@ -202,6 +202,12 @@
               {% endif %}
             </td>
             <td><small>{{ client_name_map.get(log.client_id, log.client_id) or '—' }}</small></td>
+            <td>
+              {% if log.user_type == 'PF' %}<span class="badge bg-light text-dark border">Fisica</span>
+              {% elif log.user_type == 'PG' %}<span class="badge bg-light text-dark border">Giuridica</span>
+              {% else %}—
+              {% endif %}
+            </td>
             <td>
               {% if log.result == 'success' %}<span class="badge bg-success">OK</span>
               {% elif log.result == 'failure' %}<span class="badge bg-warning text-dark">KO</span>

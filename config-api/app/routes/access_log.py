@@ -103,12 +103,13 @@ async def access_log_export(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["timestamp", "provider_type", "client_id", "result", "error_code"])
+    writer.writerow(["timestamp", "provider_type", "client_id", "user_type", "result", "error_code"])
     for r in rows:
         writer.writerow([
             r.timestamp.isoformat() if r.timestamp else "",
             r.provider_type,
             r.client_id or "",
+            r.user_type or "",
             r.result,
             r.error_code or "",
         ])

@@ -18,3 +18,4 @@ class AccessLog(Base):
     client_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
     result: Mapped[str] = mapped_column(String(16), nullable=False)
     error_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    user_type: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)

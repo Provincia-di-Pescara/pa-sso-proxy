@@ -47,6 +47,7 @@
         <th>Timestamp</th>
         <th>Provider</th>
         <th>Client</th>
+        <th>Tipo</th>
         <th>Esito</th>
         <th>Codice errore</th>
       </tr>
@@ -64,6 +65,12 @@
           {% endif %}
         </td>
         <td><small>{{ client_name_map.get(log.client_id, log.client_id) or '—' }}</small></td>
+        <td>
+          {% if log.user_type == 'PF' %}<span class="badge bg-light text-dark border">Fisica</span>
+          {% elif log.user_type == 'PG' %}<span class="badge bg-light text-dark border">Giuridica</span>
+          {% else %}—
+          {% endif %}
+        </td>
         <td>
           {% if log.result == 'success' %}<span class="badge bg-success">Successo</span>
           {% elif log.result == 'failure' %}<span class="badge bg-warning text-dark">Fallito</span>

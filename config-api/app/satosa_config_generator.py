@@ -633,13 +633,14 @@ logger = logging.getLogger(__name__)
 _CONFIG_API_URL = os.environ.get("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
 
 
-def _post_access_log(report_url, provider_type, client_id, result, error_code=None):
+def _post_access_log(report_url, provider_type, client_id, result, error_code=None, user_type=None):
     try:
         payload = json.dumps({
             "provider_type": provider_type,
             "client_id": client_id,
             "result": result,
             "error_code": error_code,
+            "user_type": user_type,
         }).encode("utf-8")
         req = urllib.request.Request(
             report_url,
@@ -682,7 +683,30 @@ class AccessLogReporter(ResponseMicroService):
         except Exception:
             pass
 
-        _post_access_log(self._report_url, provider_type, client_id, "success")
+        user_type = None
+        try:
+            attrs = getattr(internal_data, "attributes", {}) or {}
+            fiscal_no = None
+            for key in ["fiscal_number", "fiscalNumber", "schacpersonaluniqueid", "fiscalnumber"]:
+                val = attrs.get(key)
+                if val:
+                    if isinstance(val, list):
+                        fiscal_no = val[0]
+                    else:
+                        fiscal_no = val
+                    break
+            if fiscal_no:
+                clean_fn = str(fiscal_no).upper()
+                if clean_fn.startswith("TINIT-"):
+                    clean_fn = clean_fn[6:]
+                if len(clean_fn) == 11 and clean_fn.isdigit():
+                    user_type = "PG"
+                else:
+                    user_type = "PF"
+        except Exception:
+            pass
+
+        _post_access_log(self._report_url, provider_type, client_id, "success", user_type=user_type)
         return super().process(context, internal_data)
 '''
 
