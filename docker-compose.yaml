@@ -71,6 +71,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 60s
 
   nginx:
     image: ${NGINX_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-nginx:latest}
