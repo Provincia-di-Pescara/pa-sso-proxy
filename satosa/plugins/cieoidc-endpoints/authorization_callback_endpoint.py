@@ -1,7 +1,10 @@
 import logging
 import json
 import inspect
+import os
 import time
+import urllib.parse
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from typing import Callable
 from satosa.attribute_mapping import AttributeMapper
 from satosa.context import Context
@@ -50,6 +53,26 @@ class AuthorizationCallBackHandler(BaseEndpoint):
             raise StorageUnreachable
         self.configuration_plugins = self.generate_configuration_plugin(self.config)
 
+        # Jinja2 template loader per le pagine di errore
+        _template_folder = config.get(
+            "template_folder",
+            os.environ.get("SATOSA_TEMPLATE_FOLDER", "/satosa_proxy/templates")
+        )
+        _static_url = config.get(
+            "static_storage_url",
+            os.environ.get("SATOSA_STATIC_URL", "/static/")
+        )
+        if _static_url and _static_url[-1] != "/":
+            _static_url += "/"
+        _jinja_env = Environment(
+            loader=FileSystemLoader(searchpath=_template_folder),
+            autoescape=select_autoescape(["html"]),
+        )
+        _jinja_env.globals.update({"static": _static_url})
+        self.error_page = _jinja_env.get_template(
+            config.get("error_template", "spid_login_error.html")
+        )
+
     def endpoint(self, context, *args):
         """
         Handle the authentication response from the OP.
@@ -64,31 +87,7 @@ class AuthorizationCallBackHandler(BaseEndpoint):
             f"Params [qs_params {context.qs_params}]"
         )
         if context.qs_params.get("error"):
-            error = context.qs_params.get("error")
-            description = context.qs_params.get("error_description", "Autenticazione fallita")
-            logger.warning(f"IdP returned error: {error} — {description}")
-
-            import os
-            _cancel_url = (
-                os.environ.get("SATOSA_CANCEL_REDIRECT_URL")
-                or os.environ.get("SATOSA_UNKNOW_ERROR_REDIRECT_PAGE")
-            )
-            if _cancel_url:
-                _js_url = json.dumps(_cancel_url)
-                html = (
-                    f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
-                    f"<script>window.location.replace({_js_url});</script>"
-                    f"</head><body></body></html>"
-                ).encode("utf-8")
-                return Response(message=html, status="200 OK", content="text/html; charset=utf-8")
-
-            html = (
-                f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
-                f"<title>Errore autenticazione</title></head>"
-                f"<body><h2>Errore autenticazione CIE</h2>"
-                f"<p>{description}</p></body></html>"
-            ).encode("utf-8")
-            return Response(message=html, status="400 Bad Request", content="text/html; charset=utf-8")
+            return self._handle_idp_error(context)
 
         state: str = context.qs_params.get("state")
         authorization = self.__get_authorization(state)
@@ -212,6 +211,87 @@ class AuthorizationCallBackHandler(BaseEndpoint):
 
         internal_data = self._translate_response(user.model_dump(mode="json"), iss, user.sub)
         return self._auth_callback(context, internal_data)
+
+    def _handle_idp_error(self, context) -> Response:
+        """
+        Gestisce gli errori restituiti dal CIE IdP al callback OIDC.
+
+        Tenta di estrarre la redirect_uri e lo state del client OIDC originante
+        dal context.state SATOSA (cookie di sessione). Se disponibili, esegue
+        un redirect OIDC-conforme verso il client con i parametri di errore.
+        In fallback, mostra una pagina di errore styled con i tasti Riprova e Annulla.
+        """
+        error = context.qs_params.get("error", "")
+        description = context.qs_params.get("error_description", "Autenticazione non riuscita")
+        logger.warning(f"CIE IdP returned error: {error} — {description}")
+
+        # ── 1. Recupera redirect_uri e state del client OIDC originante ──────────
+        # Il context.state SATOSA (da cookie) contiene la richiesta OIDC originale
+        # con redirect_uri e state del client, esattamente come avviene nel flusso
+        # di successo. Lo stesso pattern è usato in spidsaml2.py per oidc_request.
+        client_redirect_uri = None
+        client_state = None
+        try:
+            for v in context.state.values():
+                if isinstance(v, dict) and "oidc_request" in v:
+                    oidc_request = v.get("oidc_request") or ""
+                    if oidc_request:
+                        params = urllib.parse.parse_qs(oidc_request)
+                        redirect_uri_list = params.get("redirect_uri")
+                        state_list = params.get("state")
+                        if redirect_uri_list:
+                            client_redirect_uri = redirect_uri_list[0]
+                            client_state = state_list[0] if state_list else None
+                            break
+        except Exception as exc:
+            logger.warning(f"Could not extract redirect_uri from context.state: {exc}")
+
+        # ── 2. Redirect OIDC-conforme verso il client originante ─────────────────
+        if client_redirect_uri:
+            oidc_error = "access_denied"
+            error_params = {
+                "error": oidc_error,
+                "error_description": description,
+            }
+            if client_state:
+                error_params["state"] = client_state
+            cancel_url = client_redirect_uri + "?" + urllib.parse.urlencode(error_params)
+            logger.info(
+                f"Redirecting back to client after CIE error: "
+                f"{error} → {cancel_url[:80]}..."
+            )
+            _js_url = json.dumps(cancel_url)
+            html = (
+                f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                f"<script>window.location.replace({_js_url});</script>"
+                f"</head><body></body></html>"
+            ).encode("utf-8")
+            return Response(message=html, status="200 OK", content="text/html; charset=utf-8")
+
+        # ── 3. Fallback: pagina di errore branded con tasti Riprova e Annulla ────
+        logger.warning(
+            "Could not determine client redirect_uri from context.state — "
+            "showing branded error page"
+        )
+        if error in ("login_required", "access_denied"):
+            error_type = "cancelled"
+            message = "Hai annullato l'operazione di accesso con CIE."
+        elif error in ("request_timeout", "interaction_required"):
+            error_type = "timeout"
+            message = "Il tempo a disposizione per autenticarsi è scaduto. Riprova."
+        else:
+            error_type = "generic"
+            message = description
+
+        cancel_url = os.environ.get("SATOSA_CANCEL_REDIRECT_URL") or "/"
+        result = self.error_page.render({
+            "message": message,
+            "troubleshoot": f"{error}: {description}" if error_type == "generic" else "",
+            "error_type": error_type,
+            "cancel_url": cancel_url,
+        })
+        return Response(result.encode("utf-8"), content="text/html; charset=utf8", status="200 OK")
+
 
     def __get_authorization(self, state: str) -> dict:
         """
