@@ -653,8 +653,8 @@ def _post_access_log(report_url, provider_type, client_id, result, error_code=No
 
 
 class AccessLogReporter(ResponseMicroService):
-    def __init__(self, config, internal_attributes, base_url, name):
-        super().__init__(config, internal_attributes, base_url, name)
+    def __init__(self, config, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._report_url = config.get(
             "report_url", f"{_CONFIG_API_URL}/internal/access-log"
         )
