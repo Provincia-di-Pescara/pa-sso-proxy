@@ -6,14 +6,16 @@ logger = logging.getLogger(__name__)
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app.jinja_templates import templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from sqlalchemy import inspect, text
-from app.database import AsyncSessionLocal, engine
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.database import AsyncSessionLocal, engine, get_db
+from app.rate_limiter import is_ip_banned, record_failed_attempt, clear_attempts
 from app.metadata_watcher import run_metadata_watcher
 from app.routes import dashboard, clients, idps, settings, certs, cie, test_client, backup, access_log, internal, placeholders
 from app.satosa_generator import generate_and_write
@@ -173,20 +175,54 @@ async def health():
 
 
 @app.get("/admin/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    return templates.TemplateResponse(request, "login.html.j2", {"error": None})
-
-
-@app.post("/admin/login")
-async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
-    if username == ADMIN_USER and password == ADMIN_PASSWORD:
-        request.session["user"] = username
-        return RedirectResponse("/admin/", status_code=302)
+async def login_page(request: Request, db: AsyncSession = Depends(get_db)):
+    ip_address = request.headers.get("x-real-ip") or (request.client.host if request.client else "unknown")
+    banned, remaining = await is_ip_banned(db, ip_address)
+    error = None
+    if banned:
+        error = f"Troppi tentativi falliti. Riprova tra {remaining} minut{'o' if remaining == 1 else 'i'}."
     return templates.TemplateResponse(
         request,
         "login.html.j2",
-        {"error": "Credenziali non valide"},
-        status_code=200,
+        {"error": error, "banned": banned},
+    )
+
+
+@app.post("/admin/login")
+async def login_post(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    ip_address = request.headers.get("x-real-ip") or (request.client.host if request.client else "unknown")
+    banned, remaining = await is_ip_banned(db, ip_address)
+    if banned:
+        error = f"Troppi tentativi falliti. Riprova tra {remaining} minut{'o' if remaining == 1 else 'i'}."
+        return templates.TemplateResponse(
+            request,
+            "login.html.j2",
+            {"error": error, "banned": banned},
+            status_code=429,
+        )
+
+    if username == ADMIN_USER and password == ADMIN_PASSWORD:
+        await clear_attempts(db, ip_address)
+        request.session["user"] = username
+        return RedirectResponse("/admin/", status_code=302)
+
+    await record_failed_attempt(db, ip_address)
+    banned, remaining = await is_ip_banned(db, ip_address)
+    if banned:
+        error = f"Troppi tentativi falliti. Riprova tra {remaining} minut{'o' if remaining == 1 else 'i'}."
+    else:
+        error = "Credenziali non valide"
+
+    return templates.TemplateResponse(
+        request,
+        "login.html.j2",
+        {"error": error, "banned": banned},
+        status_code=200 if not banned else 429,
     )
 
 

@@ -19,13 +19,13 @@
           <form method="post" action="/admin/login">
             <div class="mb-3">
               <label class="form-label">Username</label>
-              <input type="text" name="username" class="form-control" autofocus required>
+              <input type="text" name="username" class="form-control" autofocus required {% if banned %}disabled{% endif %}>
             </div>
             <div class="mb-3">
               <label class="form-label">Password</label>
-              <input type="password" name="password" class="form-control" required>
+              <input type="password" name="password" class="form-control" required {% if banned %}disabled{% endif %}>
             </div>
-            <button type="submit" class="btn btn-primary w-100">Accedi</button>
+            <button type="submit" class="btn btn-primary w-100" {% if banned %}disabled{% endif %}>Accedi</button>
           </form>
         </div>
       </div>

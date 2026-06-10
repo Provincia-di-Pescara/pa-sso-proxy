@@ -1,6 +1,6 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
-
+from app.database import get_db
 
 @pytest.fixture
 def app_env(monkeypatch):
@@ -10,8 +10,24 @@ def app_env(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
 
+@pytest.fixture
+def override_db(db_session, app_env, monkeypatch):
+    from app.main import app
+    import sys
+    if "app.main" in sys.modules:
+        monkeypatch.setattr(sys.modules["app.main"], "ADMIN_USER", "admin")
+        monkeypatch.setattr(sys.modules["app.main"], "ADMIN_PASSWORD", "secret")
+        
+    async def override_get_db():
+        yield db_session
+        
+    app.dependency_overrides[get_db] = override_get_db
+    yield
+    app.dependency_overrides.clear()
+
+
 @pytest.mark.asyncio
-async def test_login_page_accessible(app_env):
+async def test_login_page_accessible(override_db):
     from app.main import app
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/admin/login")
@@ -20,7 +36,7 @@ async def test_login_page_accessible(app_env):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_redirects_unauthenticated(app_env):
+async def test_dashboard_redirects_unauthenticated(override_db):
     from app.main import app
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/admin/", follow_redirects=False)
@@ -29,7 +45,7 @@ async def test_dashboard_redirects_unauthenticated(app_env):
 
 
 @pytest.mark.asyncio
-async def test_login_success_and_redirect(app_env):
+async def test_login_success_and_redirect(override_db):
     from app.main import app
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -42,7 +58,7 @@ async def test_login_success_and_redirect(app_env):
 
 
 @pytest.mark.asyncio
-async def test_login_wrong_password(app_env):
+async def test_login_wrong_password(override_db):
     from app.main import app
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
