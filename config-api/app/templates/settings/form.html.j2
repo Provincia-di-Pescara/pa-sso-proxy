@@ -1,117 +1,114 @@
 {% extends "base.html.j2" %}
-
 {% block title %}Impostazioni Ente — PA SSO Proxy{% endblock %}
+{% block page_title %}Impostazioni Ente{% endblock %}
 
 {% block content %}
-<div style="max-width:640px">
-  <h2 class="mb-4">Impostazioni Ente</h2>
-
+<div style="max-width:640px;">
   {% if error %}
-  <div class="alert alert-danger" role="alert">{{ error }}</div>
+  <div class="a-alert a-alert-danger">{{ error }}</div>
   {% endif %}
-
   {% if saved %}
-  <div class="alert alert-success" role="alert">Impostazioni salvate.</div>
+  <div class="a-alert a-alert-success">Impostazioni salvate.</div>
   {% endif %}
 
   <form method="post" action="/admin/settings">
-    <div class="mb-3">
-      <label for="org_display_name" class="form-label">Nome visualizzato ente</label>
-      <input type="text" class="form-control" id="org_display_name" name="org_display_name"
-             value="{{ s.org_display_name if s else '' }}">
+    <div class="a-card" style="margin-bottom:14px;">
+      <div class="a-card-header">Dati ente</div>
+      <div class="a-card-body">
+        <div class="a-form-group">
+          <label for="org_display_name" class="a-label">Nome visualizzato ente</label>
+          <input type="text" class="a-input" id="org_display_name" name="org_display_name"
+                 value="{{ s.org_display_name if s else '' }}">
+        </div>
+        <div class="a-form-group">
+          <label for="org_name" class="a-label">Nome ente (slug IPA) <span style="color:var(--danger);">*</span></label>
+          <input type="text" class="a-input" id="org_name" name="org_name" required
+                 value="{{ s.org_name if s else '' }}">
+        </div>
+        <div class="a-form-group">
+          <label for="org_url" class="a-label">URL ente</label>
+          <input type="url" class="a-input" id="org_url" name="org_url"
+                 value="{{ s.org_url if s else '' }}">
+        </div>
+        <div class="a-form-group">
+          <label for="proxy_hostname" class="a-label">Hostname proxy SSO <span style="color:var(--danger);">*</span></label>
+          <input type="text" class="a-input" id="proxy_hostname" name="proxy_hostname" required
+                 value="{{ s.proxy_hostname if s else '' }}">
+        </div>
+        <div class="a-form-grid-2">
+          <div class="a-form-group">
+            <label for="ipa_code" class="a-label">Codice IPA <span style="color:var(--danger);">*</span></label>
+            <input type="text" class="a-input" id="ipa_code" name="ipa_code" required
+                   value="{{ s.ipa_code if s else '' }}">
+          </div>
+          <div class="a-form-group">
+            <label for="vat_number" class="a-label">Partita IVA ente <span style="color:var(--danger);">*</span></label>
+            <input type="text" class="a-input" id="vat_number" name="vat_number" required
+                   value="{{ s.vat_number if s else '' }}">
+            <div class="a-form-hint">Usata nel tag <code>spid:FiscalCode</code> del metadata SPID.</div>
+          </div>
+        </div>
+        <div class="a-form-grid-2">
+          <div class="a-form-group">
+            <label for="contact_email" class="a-label">Email contatto tecnico</label>
+            <input type="email" class="a-input" id="contact_email" name="contact_email"
+                   value="{{ s.contact_email if s else '' }}">
+          </div>
+          <div class="a-form-group">
+            <label for="contact_phone" class="a-label">Telefono contatto tecnico</label>
+            <input type="text" class="a-input" id="contact_phone" name="contact_phone"
+                   value="{{ s.contact_phone if s else '' }}">
+          </div>
+        </div>
+        <div class="a-form-group">
+          <label for="org_city" class="a-label">Città sede ente <span style="color:var(--danger);">*</span></label>
+          <input type="text" class="a-input" id="org_city" name="org_city" required
+                 value="{{ s.org_city if s else '' }}">
+        </div>
+      </div>
     </div>
 
-    <div class="mb-3">
-      <label for="org_name" class="form-label">Nome ente (slug IPA) <span class="text-danger">*</span></label>
-      <input type="text" class="form-control" id="org_name" name="org_name" required
-             value="{{ s.org_name if s else '' }}">
+    <div class="a-card" style="margin-bottom:14px;">
+      <div class="a-card-header">Pagina di accesso (Discovery)</div>
+      <div class="a-card-body">
+        <div class="a-form-group">
+          <label for="logo_url" class="a-label">URL logo ente</label>
+          <input type="url" class="a-input" id="logo_url" name="logo_url"
+                 value="{{ s.logo_url if s else '' }}">
+          <div class="a-form-hint">Mostrato in alto nella pagina di accesso al posto del crest SVG.</div>
+        </div>
+        <div class="a-form-group">
+          <label for="favicon_url" class="a-label">URL favicon</label>
+          <input type="url" class="a-input" id="favicon_url" name="favicon_url"
+                 value="{{ s.favicon_url if s else '' }}">
+          <div class="a-form-hint">Icona mostrata nella tab del browser. Formati: ICO, PNG, SVG.</div>
+        </div>
+        <div class="a-form-grid-2">
+          <div class="a-form-group">
+            <label for="privacy_url" class="a-label">URL Privacy</label>
+            <input type="url" class="a-input" id="privacy_url" name="privacy_url"
+                   value="{{ s.privacy_url if s else '' }}">
+          </div>
+          <div class="a-form-group">
+            <label for="legal_notes_url" class="a-label">URL Note legali</label>
+            <input type="url" class="a-input" id="legal_notes_url" name="legal_notes_url"
+                   value="{{ s.legal_notes_url if s else '' }}">
+          </div>
+          <div class="a-form-group">
+            <label for="accessibility_url" class="a-label">URL Accessibilità</label>
+            <input type="url" class="a-input" id="accessibility_url" name="accessibility_url"
+                   value="{{ s.accessibility_url if s else '' }}">
+          </div>
+          <div class="a-form-group">
+            <label for="support_url" class="a-label">URL Assistenza</label>
+            <input type="url" class="a-input" id="support_url" name="support_url"
+                   value="{{ s.support_url if s else '' }}">
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="mb-3">
-      <label for="org_url" class="form-label">URL ente</label>
-      <input type="url" class="form-control" id="org_url" name="org_url"
-             value="{{ s.org_url if s else '' }}">
-    </div>
-
-    <div class="mb-3">
-      <label for="proxy_hostname" class="form-label">Hostname proxy SSO <span class="text-danger">*</span></label>
-      <input type="text" class="form-control" id="proxy_hostname" name="proxy_hostname" required
-             value="{{ s.proxy_hostname if s else '' }}">
-    </div>
-
-    <div class="mb-3">
-      <label for="ipa_code" class="form-label">Codice IPA <span class="text-danger">*</span></label>
-      <input type="text" class="form-control" id="ipa_code" name="ipa_code" required
-             value="{{ s.ipa_code if s else '' }}">
-    </div>
-
-    <div class="mb-3">
-      <label for="vat_number" class="form-label">Partita IVA ente <span class="text-danger">*</span></label>
-      <input type="text" class="form-control" id="vat_number" name="vat_number" required
-             value="{{ s.vat_number if s else '' }}">
-      <div class="form-text">Usata nel tag <code>spid:FiscalCode</code> del metadata SPID.</div>
-    </div>
-
-    <div class="mb-3">
-      <label for="contact_email" class="form-label">Email contatto tecnico</label>
-      <input type="email" class="form-control" id="contact_email" name="contact_email"
-             value="{{ s.contact_email if s else '' }}">
-    </div>
-
-    <div class="mb-3">
-      <label for="contact_phone" class="form-label">Telefono contatto tecnico</label>
-      <input type="text" class="form-control" id="contact_phone" name="contact_phone"
-             value="{{ s.contact_phone if s else '' }}">
-    </div>
-
-    <div class="mb-3">
-      <label for="org_city" class="form-label">Città sede ente <span class="text-danger">*</span></label>
-      <input type="text" class="form-control" id="org_city" name="org_city" required
-             value="{{ s.org_city if s else '' }}">
-    </div>
-
-    <hr class="my-4">
-    <h5 class="mb-3">Pagina di accesso (Discovery)</h5>
-
-    <div class="mb-3">
-      <label for="logo_url" class="form-label">URL logo ente</label>
-      <input type="url" class="form-control" id="logo_url" name="logo_url"
-             placeholder="https://..." value="{{ s.logo_url if s else '' }}">
-      <div class="form-text">Mostrato in alto nella pagina di accesso al posto del crest SVG.</div>
-    </div>
-
-    <div class="mb-3">
-      <label for="favicon_url" class="form-label">URL favicon</label>
-      <input type="url" class="form-control" id="favicon_url" name="favicon_url"
-             placeholder="https://..." value="{{ s.favicon_url if s else '' }}">
-      <div class="form-text">Icona mostrata nella tab del browser. Formati supportati: ICO, PNG, SVG.</div>
-    </div>
-
-    <div class="mb-3">
-      <label for="privacy_url" class="form-label">URL Privacy</label>
-      <input type="url" class="form-control" id="privacy_url" name="privacy_url"
-             placeholder="https://..." value="{{ s.privacy_url if s else '' }}">
-    </div>
-
-    <div class="mb-3">
-      <label for="legal_notes_url" class="form-label">URL Note legali</label>
-      <input type="url" class="form-control" id="legal_notes_url" name="legal_notes_url"
-             placeholder="https://..." value="{{ s.legal_notes_url if s else '' }}">
-    </div>
-
-    <div class="mb-3">
-      <label for="accessibility_url" class="form-label">URL Accessibilità</label>
-      <input type="url" class="form-control" id="accessibility_url" name="accessibility_url"
-             placeholder="https://..." value="{{ s.accessibility_url if s else '' }}">
-    </div>
-
-    <div class="mb-3">
-      <label for="support_url" class="form-label">URL Assistenza</label>
-      <input type="url" class="form-control" id="support_url" name="support_url"
-             placeholder="https://..." value="{{ s.support_url if s else '' }}">
-    </div>
-
-    <button type="submit" class="btn btn-primary">Salva</button>
+    <button type="submit" class="a-btn a-btn-primary">Salva</button>
   </form>
 </div>
 {% endblock %}

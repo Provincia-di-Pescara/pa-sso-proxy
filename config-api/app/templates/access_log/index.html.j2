@@ -1,113 +1,92 @@
 {% extends "base.html.j2" %}
 {% block title %}Monitoraggio Accessi — PA SSO Proxy{% endblock %}
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2>Monitoraggio Accessi</h2>
-  <a href="/admin/access-log/export?provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}"
-     class="btn btn-sm btn-outline-secondary">
-    Esporta CSV
-  </a>
-</div>
+{% block page_title %}Monitoraggio Accessi{% endblock %}
 
-<form method="get" action="/admin/access-log" class="row g-2 mb-3">
-  <div class="col-md-2">
-    <select name="provider_type" class="form-select form-select-sm">
-      <option value="">Tutti i provider</option>
-      <option value="spid" {% if provider_type == 'spid' %}selected{% endif %}>SPID</option>
-      <option value="cie" {% if provider_type == 'cie' %}selected{% endif %}>CIE</option>
-      <option value="eidas" {% if provider_type == 'eidas' %}selected{% endif %}>eIDAS</option>
-      <option value="itwallet" {% if provider_type == 'itwallet' %}selected{% endif %}>IT Wallet</option>
-    </select>
-  </div>
-  <div class="col-md-2">
-    <select name="result" class="form-select form-select-sm">
-      <option value="">Tutti gli esiti</option>
-      <option value="success" {% if result_filter == 'success' %}selected{% endif %}>Successo</option>
-      <option value="failure" {% if result_filter == 'failure' %}selected{% endif %}>Fallito</option>
-      <option value="error" {% if result_filter == 'error' %}selected{% endif %}>Errore</option>
-    </select>
-  </div>
-  <div class="col-md-2">
-    <input type="date" name="from_date" value="{{ from_date }}" class="form-control form-control-sm" placeholder="Dal">
-  </div>
-  <div class="col-md-2">
-    <input type="date" name="to_date" value="{{ to_date }}" class="form-control form-control-sm" placeholder="Al">
-  </div>
-  <div class="col-md-3">
-    <button type="submit" class="btn btn-sm btn-primary">Filtra</button>
-    <a href="/admin/access-log" class="btn btn-sm btn-outline-secondary">Reset</a>
-  </div>
+{% block topbar_actions %}
+<a href="/admin/access-log/export?provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}"
+   class="a-btn a-btn-secondary a-btn-sm">Esporta CSV</a>
+{% endblock %}
+
+{% block content %}
+<form method="get" action="/admin/access-log" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;">
+  <select name="provider_type" class="a-select" style="width:auto;min-width:160px;">
+    <option value="">Tutti i provider</option>
+    <option value="spid" {% if provider_type == 'spid' %}selected{% endif %}>SPID</option>
+    <option value="cie" {% if provider_type == 'cie' %}selected{% endif %}>CIE</option>
+    <option value="eidas" {% if provider_type == 'eidas' %}selected{% endif %}>eIDAS</option>
+    <option value="itwallet" {% if provider_type == 'itwallet' %}selected{% endif %}>IT Wallet</option>
+  </select>
+  <select name="result" class="a-select" style="width:auto;min-width:160px;">
+    <option value="">Tutti gli esiti</option>
+    <option value="success" {% if result_filter == 'success' %}selected{% endif %}>Successo</option>
+    <option value="failure" {% if result_filter == 'failure' %}selected{% endif %}>Fallito</option>
+    <option value="error" {% if result_filter == 'error' %}selected{% endif %}>Errore</option>
+  </select>
+  <input type="date" name="from_date" value="{{ from_date }}" class="a-input" style="width:auto;">
+  <input type="date" name="to_date" value="{{ to_date }}" class="a-input" style="width:auto;">
+  <button type="submit" class="a-btn a-btn-primary a-btn-sm">Filtra</button>
+  <a href="/admin/access-log" class="a-btn a-btn-neutral a-btn-sm">Reset</a>
 </form>
 
 {% if logs %}
-<div class="table-responsive">
-  <table class="table table-sm table-hover">
-    <thead class="table-light">
-      <tr>
-        <th>Timestamp</th>
-        <th>Provider</th>
-        <th>Client</th>
-        <th>Tipo</th>
-        <th>Esito</th>
-        <th>Codice errore</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for log in logs %}
-      <tr>
-        <td><small class="text-muted font-monospace">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '—' }}</small></td>
-        <td>
-          {% if log.provider_type == 'spid' %}<span class="badge bg-primary">SPID</span>
-          {% elif log.provider_type == 'cie' %}<span class="badge bg-info text-dark">CIE</span>
-          {% elif log.provider_type == 'eidas' %}<span class="badge bg-secondary">eIDAS</span>
-          {% elif log.provider_type == 'itwallet' %}<span class="badge bg-dark">IT Wallet</span>
-          {% else %}<span class="badge bg-light text-dark">{{ log.provider_type }}</span>
-          {% endif %}
-        </td>
-        <td><small>{{ client_name_map.get(log.client_id, log.client_id) or '—' }}</small></td>
-        <td>
-          {% if log.user_type == 'PF' %}<span class="badge bg-light text-dark border">Fisica</span>
-          {% elif log.user_type == 'PG' %}<span class="badge bg-light text-dark border">Giuridica</span>
-          {% else %}—
-          {% endif %}
-        </td>
-        <td>
-          {% if log.result == 'success' %}<span class="badge bg-success">Successo</span>
-          {% elif log.result == 'failure' %}<span class="badge bg-warning text-dark">Fallito</span>
-          {% else %}<span class="badge bg-danger">Errore</span>
-          {% endif %}
-        </td>
-        <td><small class="text-muted">{{ log.error_code or '—' }}</small></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<nav>
-  <ul class="pagination pagination-sm">
+<div class="a-card">
+  <div class="a-table-wrap">
+    <table class="a-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th><th>Provider</th><th>Client</th><th>Tipo</th><th>Esito</th><th>Codice errore</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td class="a-mono a-muted">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '—' }}</td>
+          <td>
+            {% if log.provider_type == 'spid' %}<span class="a-badge-spid">SPID</span>
+            {% elif log.provider_type == 'cie' %}<span class="a-badge-cie">CIE</span>
+            {% elif log.provider_type == 'eidas' %}<span class="a-badge a-badge-neutral">eIDAS</span>
+            {% elif log.provider_type == 'itwallet' %}<span class="a-badge a-badge-neutral">IT Wallet</span>
+            {% else %}<span class="a-badge a-badge-neutral">{{ log.provider_type }}</span>
+            {% endif %}
+          </td>
+          <td class="a-mono">{{ client_name_map.get(log.client_id, log.client_id) or '—' }}</td>
+          <td>
+            {% if log.user_type == 'PF' %}<span class="a-badge a-badge-neutral">Fisica</span>
+            {% elif log.user_type == 'PG' %}<span class="a-badge a-badge-neutral">Giuridica</span>
+            {% else %}—
+            {% endif %}
+          </td>
+          <td>
+            {% if log.result == 'success' %}<span class="a-badge a-badge-success">Successo</span>
+            {% elif log.result == 'failure' %}<span class="a-badge a-badge-warning">Fallito</span>
+            {% else %}<span class="a-badge a-badge-danger">Errore</span>
+            {% endif %}
+          </td>
+          <td class="a-mono a-muted">{{ log.error_code or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="a-pagination">
     {% if page > 1 %}
-    <li class="page-item">
-      <a class="page-link" href="/admin/access-log?page={{ page - 1 }}&provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}">Precedente</a>
-    </li>
+    <a href="/admin/access-log?page={{ page - 1 }}&provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}" class="a-btn a-btn-neutral a-btn-sm">← Precedente</a>
     {% else %}
-    <li class="page-item disabled"><span class="page-link">Precedente</span></li>
+    <span class="a-btn a-btn-neutral a-btn-sm" style="opacity:.4;cursor:default;">← Precedente</span>
     {% endif %}
-    <li class="page-item active"><span class="page-link">{{ page }}</span></li>
+    <span class="a-muted" style="font-size:12px;">Pagina {{ page }}</span>
     {% if has_next %}
-    <li class="page-item">
-      <a class="page-link" href="/admin/access-log?page={{ page + 1 }}&provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}">Successiva</a>
-    </li>
+    <a href="/admin/access-log?page={{ page + 1 }}&provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}" class="a-btn a-btn-neutral a-btn-sm">Successiva →</a>
     {% else %}
-    <li class="page-item disabled"><span class="page-link">Successiva</span></li>
+    <span class="a-btn a-btn-neutral a-btn-sm" style="opacity:.4;cursor:default;">Successiva →</span>
     {% endif %}
-  </ul>
-</nav>
+  </div>
+</div>
 {% else %}
-<div class="text-center py-5 text-muted">
-  <p class="mb-1">Nessun accesso registrato per i filtri selezionati.</p>
+<div class="a-card" style="text-align:center;padding:40px 20px;">
+  <div class="a-muted" style="margin-bottom:8px;">Nessun accesso registrato per i filtri selezionati.</div>
   {% if not provider_type and not result_filter and not from_date and not to_date %}
-  <p class="small">Il plugin di monitoraggio SATOSA non è ancora attivo, oppure non ci sono ancora accessi registrati.</p>
+  <div class="a-muted" style="font-size:12px;">Il plugin di monitoraggio SATOSA non è ancora attivo, oppure non ci sono ancora accessi registrati.</div>
   {% endif %}
 </div>
 {% endif %}

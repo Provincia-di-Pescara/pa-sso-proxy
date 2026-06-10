@@ -1,49 +1,64 @@
 {% extends "base.html.j2" %}
 {% block title %}Risultato autenticazione — PA SSO Proxy{% endblock %}
+{% block page_title %}Risultato autenticazione{% endblock %}
+
 {% block content %}
-
-{% if success %}
-<div class="alert alert-success d-flex align-items-center mb-4">
-  <span class="fs-4 me-2">✓</span>
-  <strong>Autenticazione completata con successo</strong>
-</div>
-
-<h4>UserInfo <small class="text-muted fs-6">(risposta /userinfo)</small></h4>
-<pre class="bg-light p-3 rounded border" style="font-size:13px">{{ userinfo }}</pre>
-
-<h4 class="mt-4">ID Token Claims <small class="text-muted fs-6">(JWT decodificato)</small></h4>
-<pre class="bg-light p-3 rounded border" style="font-size:13px">{{ claims }}</pre>
-
-<h4 class="mt-4">Token Response <small class="text-muted fs-6">(senza id_token)</small></h4>
-<pre class="bg-light p-3 rounded border" style="font-size:13px">{{ token_response }}</pre>
-
-<details class="mt-3">
-  <summary class="text-muted small" style="cursor:pointer">ID Token JWT (raw)</summary>
-  <pre class="bg-light p-3 rounded border mt-2" style="font-size:11px; word-break:break-all; white-space:pre-wrap">{{ id_token }}</pre>
-</details>
-
-{% else %}
-<div class="alert alert-danger d-flex align-items-center mb-4">
-  <span class="fs-4 me-2">✗</span>
-  <div>
-    <strong>Errore: {{ error }}</strong>
-    {% if error_description %}<br><span class="small">{{ error_description }}</span>{% endif %}
-  </div>
-</div>
-
-{% if raw %}
-<h4>Risposta raw</h4>
-<pre class="bg-light p-3 rounded border" style="font-size:13px">{{ raw }}</pre>
-{% endif %}
-{% endif %}
-
-<div class="mt-4 d-flex flex-wrap gap-2">
-  <a href="/admin/test-client" class="btn btn-outline-secondary">← Torna al test client</a>
+<div style="max-width:860px;">
   {% if success %}
-  <a href="/admin/test-client/start" class="btn btn-success">▶ Nuova autenticazione</a>
-  {% if logout_url %}
-  <a href="{{ logout_url }}" class="btn btn-outline-danger">⏻ Logout (OIDC end_session)</a>
+  <div class="a-alert a-alert-success" style="margin-bottom:20px;">
+    ✓ <strong>Autenticazione completata con successo</strong>
+  </div>
+
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">UserInfo <span class="a-muted" style="font-weight:400;font-size:11px;">(risposta /userinfo)</span></div>
+    <div class="a-card-body" style="padding:0;">
+      <pre style="margin:0;padding:16px;font-size:12px;font-family:var(--font-mono);background:var(--bg-1);border-radius:0 0 8px 8px;overflow-x:auto;">{{ userinfo }}</pre>
+    </div>
+  </div>
+
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">ID Token Claims <span class="a-muted" style="font-weight:400;font-size:11px;">(JWT decodificato)</span></div>
+    <div class="a-card-body" style="padding:0;">
+      <pre style="margin:0;padding:16px;font-size:12px;font-family:var(--font-mono);background:var(--bg-1);border-radius:0 0 8px 8px;overflow-x:auto;">{{ claims }}</pre>
+    </div>
+  </div>
+
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">Token Response <span class="a-muted" style="font-weight:400;font-size:11px;">(senza id_token)</span></div>
+    <div class="a-card-body" style="padding:0;">
+      <pre style="margin:0;padding:16px;font-size:12px;font-family:var(--font-mono);background:var(--bg-1);border-radius:0 0 8px 8px;overflow-x:auto;">{{ token_response }}</pre>
+    </div>
+  </div>
+
+  <details style="margin-bottom:14px;">
+    <summary class="a-muted" style="cursor:pointer;font-size:13px;">ID Token JWT (raw)</summary>
+    <pre style="margin-top:8px;padding:16px;font-size:11px;font-family:var(--font-mono);background:var(--bg-1);border:1px solid var(--border-1);border-radius:4px;word-break:break-all;white-space:pre-wrap;">{{ id_token }}</pre>
+  </details>
+
+  {% else %}
+  <div class="a-alert a-alert-danger" style="margin-bottom:20px;">
+    ✗ <strong>Errore: {{ error }}</strong>
+    {% if error_description %}<br><span style="font-size:12px;">{{ error_description }}</span>{% endif %}
+  </div>
+
+  {% if raw %}
+  <div class="a-card">
+    <div class="a-card-header">Risposta raw</div>
+    <div class="a-card-body" style="padding:0;">
+      <pre style="margin:0;padding:16px;font-size:12px;font-family:var(--font-mono);background:var(--bg-1);border-radius:0 0 8px 8px;overflow-x:auto;">{{ raw }}</pre>
+    </div>
+  </div>
   {% endif %}
   {% endif %}
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;">
+    <a href="/admin/test-client" class="a-btn a-btn-secondary">← Torna al test client</a>
+    {% if success %}
+    <a href="/admin/test-client/start" class="a-btn a-btn-primary">▶ Nuova autenticazione</a>
+    {% if logout_url %}
+    <a href="{{ logout_url }}" class="a-btn a-btn-danger">⏻ Logout (OIDC end_session)</a>
+    {% endif %}
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
