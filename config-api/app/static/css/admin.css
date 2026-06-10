@@ -1,0 +1,231 @@
+@import url('https://fonts.bunny.net/css?family=titillium-web:400,600,700|jetbrains-mono:400,600&display=swap');
+
+/* ============================================================
+   CSS Custom Properties
+   ============================================================ */
+:root {
+  --font-sans: 'Titillium Web', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', Menlo, Consolas, monospace;
+  --ink:       #17324D;
+  --fg-1:      #17324D;
+  --fg-2:      #334155;
+  --fg-3:      #475569;
+  --fg-muted:  #64748B;
+  --border-1:  #E2E8F0;
+  --border-2:  #CBD5E1;
+  --bg-0:      #FFFFFF;
+  --bg-1:      #F8FAFC;
+  --bg-2:      #F1F5F9;
+  --brand:     #0066CC;
+  --brand-dk:  #004080;
+  --navy:      #17324D;
+  --success:   #008758; --success-bg: #E6F5EE;
+  --warning:   #A66300; --warning-bg: #FFF4D9;
+  --danger:    #D9364F; --danger-bg:  #FCE6E9;
+  --sidebar-w: 256px;
+  --topbar-h:  56px;
+}
+
+/* ============================================================
+   Reset + Base
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); background: var(--bg-1); color: var(--fg-1); font-size: 14px; line-height: 1.5; }
+a { color: var(--brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ============================================================
+   Shell Layout
+   ============================================================ */
+.a-shell { display: flex; height: 100vh; overflow: hidden; }
+.a-sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); background: var(--navy); height: 100vh; position: fixed; left: 0; top: 0; display: flex; flex-direction: column; z-index: 100; border-right: 1px solid rgba(255,255,255,0.06); overflow-y: auto; }
+.a-main { flex: 1; margin-left: var(--sidebar-w); display: flex; flex-direction: column; min-width: 0; }
+
+/* ============================================================
+   Sidebar Header
+   ============================================================ */
+.a-sidebar-header { padding: 18px 14px 16px; display: flex; align-items: center; gap: 11px; border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+.a-sidebar-title { font-size: 14px; font-weight: 700; color: #fff; line-height: 1.2; letter-spacing: -0.01em; }
+.a-sidebar-sub { font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 3px; line-height: 1.3; }
+
+/* ============================================================
+   Nav Groups and Items
+   ============================================================ */
+.a-nav-group { padding: 16px 16px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.32); }
+.a-nav-item { display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; padding: 0 12px 0 13px; border-left: 3px solid transparent; background: transparent; color: rgba(255,255,255,0.65); font-size: 13.5px; font-weight: 400; font-family: var(--font-sans); text-decoration: none; transition: background 0.12s, color 0.12s; cursor: pointer; }
+.a-nav-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); text-decoration: none; }
+.a-nav-item.active { border-left-color: var(--brand); background: rgba(0,102,204,0.18); color: #fff; font-weight: 600; }
+.a-nav-item.disabled { color: rgba(255,255,255,0.28); cursor: default; pointer-events: none; }
+.a-nav-badge { background: rgba(0,102,204,0.5); color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 10px; font-weight: 700; margin-left: auto; }
+.a-nav-soon { font-size: 9px; text-transform: uppercase; color: rgba(255,255,255,0.22); letter-spacing: 0.04em; margin-left: auto; }
+
+/* ============================================================
+   Topbar
+   ============================================================ */
+.a-topbar { height: var(--topbar-h); background: var(--bg-0); border-bottom: 1px solid var(--border-1); display: flex; align-items: center; padding: 0 28px; position: sticky; top: 0; z-index: 10; gap: 16px; flex-shrink: 0; }
+.a-topbar-title { font-size: 17px; font-weight: 700; color: var(--fg-1); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.a-topbar-sub { font-size: 11px; color: var(--fg-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.a-status-pill { display: flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 10px; border-radius: 99px; font-weight: 600; }
+.a-status-pill.ok { background: var(--success-bg); color: var(--success); }
+.a-status-pill.err { background: var(--danger-bg); color: var(--danger); }
+.a-status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+/* ============================================================
+   Content Area
+   ============================================================ */
+.a-content { flex: 1; overflow-y: auto; padding: 28px 32px; }
+.a-content-inner { max-width: 1180px; margin: 0 auto; }
+
+/* ============================================================
+   Cards
+   ============================================================ */
+.a-card { background: var(--bg-0); border: 1px solid var(--border-1); border-radius: 8px; box-shadow: 0 1px 2px rgba(23,50,77,0.05); }
+.a-card-header { padding: 13px 20px; border-bottom: 1px solid var(--border-1); display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--fg-1); letter-spacing: -0.01em; }
+.a-card-body { padding: 20px; }
+.a-card-footer { padding: 12px 20px; border-top: 1px solid var(--border-1); background: var(--bg-1); border-radius: 0 0 8px 8px; }
+
+/* ============================================================
+   Stat Cards
+   ============================================================ */
+.a-stat { background: var(--bg-0); border: 1px solid var(--border-1); border-radius: 8px; box-shadow: 0 1px 2px rgba(23,50,77,0.05); padding: 20px 22px; transition: box-shadow 0.15s, transform 0.15s; }
+.a-stat:hover { box-shadow: 0 3px 8px rgba(23,50,77,0.1); transform: translateY(-1px); }
+.a-stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin-bottom: 8px; }
+.a-stat-value { font-size: 30px; font-weight: 700; color: var(--fg-1); line-height: 1; letter-spacing: -0.02em; }
+.a-stat-icon { padding: 10px; background: var(--bg-2); border-radius: 8px; flex-shrink: 0; color: var(--fg-muted); }
+.a-stat-footer { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bg-2); display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--fg-muted); }
+.a-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.a-stat-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.a-stat-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.a-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 4px; font-size: 13.5px; font-weight: 600; font-family: var(--font-sans); cursor: pointer; border: none; text-decoration: none; line-height: 1; transition: background 0.12s, color 0.12s; white-space: nowrap; }
+.a-btn:hover { text-decoration: none; }
+.a-btn-sm { padding: 5px 12px; font-size: 12px; }
+.a-btn-primary { background: var(--brand); color: #fff; }
+.a-btn-primary:hover { background: var(--brand-dk); color: #fff; }
+.a-btn-primary:disabled { background: #94A3B8; cursor: default; }
+.a-btn-secondary { background: var(--bg-0); color: var(--brand); border: 1.5px solid var(--brand); }
+.a-btn-secondary:hover { background: #EBF3FF; color: var(--brand); }
+.a-btn-danger { background: var(--danger); color: #fff; }
+.a-btn-danger:hover { background: #B02039; color: #fff; }
+.a-btn-neutral { background: var(--bg-2); color: var(--fg-2); border: 1px solid var(--border-2); }
+.a-btn-neutral:hover { background: var(--border-1); }
+
+/* ============================================================
+   Badges
+   ============================================================ */
+.a-badge { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+.a-badge-success { background: var(--success-bg); color: var(--success); }
+.a-badge-warning { background: var(--warning-bg); color: var(--warning); }
+.a-badge-danger { background: var(--danger-bg); color: var(--danger); }
+.a-badge-neutral { background: var(--bg-2); color: var(--fg-muted); }
+.a-badge-spid { background: #E5F1FC; color: #0066CC; border-radius: 4px; font-family: var(--font-mono); letter-spacing: 0.02em; font-size: 11px; font-weight: 700; padding: 2px 8px; }
+.a-badge-cie { background: #EDE9F7; color: #4A2A6E; border-radius: 4px; font-family: var(--font-mono); letter-spacing: 0.02em; font-size: 11px; font-weight: 700; padding: 2px 8px; }
+.a-badge-secondary { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.6); border-radius: 4px; font-size: 9px; font-weight: 600; padding: 1px 5px; letter-spacing: 0.04em; }
+
+/* ============================================================
+   Tables
+   ============================================================ */
+.a-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.a-table thead th { padding: 9px 20px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-muted); background: var(--bg-1); white-space: nowrap; border-bottom: 1px solid var(--border-1); }
+.a-table tbody td { padding: 11px 20px; color: var(--fg-2); vertical-align: middle; border-bottom: 1px solid var(--bg-2); }
+.a-table tbody tr:hover td { background: #FAFBFC; }
+.a-table-wrap { overflow-x: auto; }
+.a-mono { font-family: var(--font-mono); font-size: 12px; }
+
+/* ============================================================
+   Forms
+   ============================================================ */
+.a-label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); margin-bottom: 5px; }
+.a-input { width: 100%; padding: 8px 12px; border: 1.5px solid var(--border-2); border-radius: 4px; font-size: 13px; font-family: var(--font-sans); color: var(--fg-1); outline: none; box-sizing: border-box; line-height: 1.4; background: var(--bg-0); }
+.a-input:focus { border-color: var(--brand); }
+.a-input-ro { background: var(--bg-1); color: var(--fg-muted); cursor: default; }
+.a-select { width: 100%; padding: 8px 12px; border: 1.5px solid var(--border-2); border-radius: 4px; font-size: 13px; font-family: var(--font-sans); color: var(--fg-1); background: var(--bg-0); cursor: pointer; outline: none; }
+.a-select:focus { border-color: var(--brand); }
+.a-textarea { width: 100%; padding: 8px 12px; border: 1.5px solid var(--border-2); border-radius: 4px; font-size: 13px; font-family: var(--font-sans); color: var(--fg-1); outline: none; box-sizing: border-box; resize: vertical; line-height: 1.5; background: var(--bg-0); }
+.a-textarea:focus { border-color: var(--brand); }
+.a-form-group { margin-bottom: 18px; }
+.a-form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+.a-form-hint { font-size: 12px; color: var(--fg-muted); margin-top: 4px; }
+.a-check-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.a-check-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; border: 1.5px solid var(--border-2); background: var(--bg-0); color: var(--fg-3); font-weight: 500; user-select: none; transition: all 0.12s; }
+.a-check-chip.selected { border-color: var(--brand); background: #E5F1FC; color: var(--brand); }
+.a-check-chip input[type=checkbox] { display: none; }
+
+/* ============================================================
+   Alerts
+   ============================================================ */
+.a-alert { padding: 12px 16px; border-radius: 6px; font-size: 13px; line-height: 1.5; margin-bottom: 16px; display: flex; gap: 10px; align-items: flex-start; }
+.a-alert-success { background: var(--success-bg); border: 1px solid var(--success); color: var(--success); }
+.a-alert-warning { background: var(--warning-bg); border: 1px solid #E4BD56; color: #6B4400; }
+.a-alert-danger { background: var(--danger-bg); border: 1px solid var(--danger); color: #8B1A2A; }
+.a-alert-info { background: #E5F1FC; border: 1px solid var(--brand); color: var(--brand-dk); }
+
+/* ============================================================
+   Progress
+   ============================================================ */
+.a-progress { height: 6px; background: var(--bg-2); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.a-progress-bar { height: 100%; border-radius: 3px; background: var(--brand); transition: width 0.6s cubic-bezier(.2,.7,.3,1); }
+.a-progress-thin { height: 3px; background: var(--bg-2); border-radius: 2px; overflow: hidden; }
+.a-progress-thin .a-progress-bar { height: 100%; }
+
+/* ============================================================
+   Tabs
+   ============================================================ */
+.a-tabs { display: flex; border-bottom: 1px solid var(--border-1); margin-bottom: 0; }
+.a-tab { padding: 10px 24px; border: none; background: none; cursor: pointer; font-size: 14px; font-weight: 400; font-family: var(--font-sans); color: var(--fg-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.12s; }
+.a-tab:hover { color: var(--fg-2); }
+.a-tab.active { font-weight: 600; color: var(--brand); border-bottom-color: var(--brand); }
+
+/* ============================================================
+   Toggle
+   ============================================================ */
+.a-toggle { position: relative; display: inline-block; width: 34px; height: 18px; }
+.a-toggle input { opacity: 0; width: 0; height: 0; }
+.a-toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--border-2); border-radius: 9px; transition: background 0.18s; }
+.a-toggle-slider:before { content: ''; position: absolute; height: 14px; width: 14px; left: 2px; bottom: 2px; background: white; border-radius: 50%; transition: transform 0.18s; box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+.a-toggle input:checked + .a-toggle-slider { background: var(--brand); }
+.a-toggle input:checked + .a-toggle-slider:before { transform: translateX(16px); }
+
+/* ============================================================
+   Dropzone
+   ============================================================ */
+.a-dropzone { border: 2px dashed var(--border-2); border-radius: 6px; padding: 22px; text-align: center; background: var(--bg-1); color: var(--fg-muted); font-size: 13px; }
+
+/* ============================================================
+   Pagination
+   ============================================================ */
+.a-pagination { display: flex; gap: 8px; align-items: center; padding: 12px 20px; border-top: 1px solid var(--border-1); font-size: 13px; color: var(--fg-muted); }
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+/* ============================================================
+   Login Page
+   ============================================================ */
+.a-login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg-1); padding: 24px; }
+.a-login-card { background: var(--bg-0); border: 1px solid var(--border-1); border-radius: 8px; box-shadow: 0 2px 6px rgba(23,50,77,0.08), 0 1px 2px rgba(23,50,77,0.04); padding: 40px; width: 100%; max-width: 400px; }
+.a-login-kicker { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--brand); margin-bottom: 8px; }
+.a-login-card h1 { font-size: 22px; font-weight: 700; color: var(--fg-1); margin-bottom: 24px; line-height: 1.2; }
+
+/* ============================================================
+   Utilities
+   ============================================================ */
+.a-muted { color: var(--fg-muted); }
+.a-separator { border: none; border-top: 1px solid var(--border-1); margin: 20px 0; }
+.a-text-sm { font-size: 12px; }
+.a-text-mono { font-family: var(--font-mono); font-size: 12px; }
+.a-fw-gap { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.a-fw-gap-start { display: flex; align-items: center; gap: 10px; }
+.a-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.a-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.a-mt-4 { margin-top: 16px; }
+.a-mb-4 { margin-bottom: 16px; }
+.a-mb-6 { margin-bottom: 24px; }
