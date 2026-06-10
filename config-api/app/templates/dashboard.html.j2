@@ -1,279 +1,248 @@
 {% extends "base.html.j2" %}
 {% block title %}Dashboard — PA SSO Proxy{% endblock %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% block page_subtitle %}
+{% if settings and settings.proxy_hostname %}
+<div class="a-topbar-sub">{{ settings.proxy_hostname }}</div>
+{% else %}
+<div class="a-topbar-sub" style="color: var(--warning);">⚠ Impostazioni ente non configurate</div>
+{% endif %}
+{% endblock %}
+
+{% block topbar_actions %}
+{% if satosa_status == 'running' %}
+<div class="a-status-pill ok"><span class="a-status-dot"></span> SATOSA running</div>
+{% elif satosa_status == 'unavailable' %}
+<div class="a-status-pill err"><span class="a-status-dot"></span> SATOSA unavailable</div>
+{% else %}
+<div class="a-status-pill err"><span class="a-status-dot"></span> SATOSA {{ satosa_status }}</div>
+{% endif %}
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="d-flex align-items-center">
-    Dashboard
-    <span class="badge bg-secondary ms-2 fs-6" style="font-weight: normal; opacity: 0.85;">{{ app_version }}</span>
-  </h2>
-  {% if settings and settings.proxy_hostname %}
-  <small class="text-muted">{{ settings.proxy_hostname }}</small>
-  {% else %}
-  <small class="text-warning">⚠ Impostazioni ente non configurate</small>
-  {% endif %}
-</div>
 
-{# ── Riga 1: Stato sistema ───────────────────────────────────────────────── #}
-<div class="row g-3">
+{# ── Sezione 1: Stato sistema ────────────────────────────────────────────── #}
+<div class="a-stat-grid" style="margin-bottom: 24px;">
 
-  <div class="col-md-3">
-    <div class="card h-100 {% if satosa_status == 'running' %}border-success{% elif satosa_status == 'unavailable' %}border-secondary{% else %}border-warning{% endif %}">
-      <div class="card-body">
-        <h6 class="card-subtitle mb-1 text-muted">SATOSA</h6>
-        <p class="card-text fs-5">
-          {% if satosa_status == 'running' %}
-            <span class="badge bg-success">running</span>
-          {% elif satosa_status == 'unavailable' %}
-            <span class="badge bg-secondary">unavailable</span>
-          {% else %}
-            <span class="badge bg-warning text-dark">{{ satosa_status }}</span>
-          {% endif %}
-        </p>
-      </div>
-    </div>
+  <div class="a-stat">
+    <div class="a-stat-label">SATOSA</div>
+    {% if satosa_status == 'running' %}
+    <div><span class="a-badge a-badge-success">running</span></div>
+    {% elif satosa_status == 'unavailable' %}
+    <div><span class="a-badge a-badge-neutral">unavailable</span></div>
+    {% else %}
+    <div><span class="a-badge a-badge-warning">{{ satosa_status }}</span></div>
+    {% endif %}
   </div>
 
-  <div class="col-md-3">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-subtitle mb-1 text-muted">Clienti OIDC</h6>
-        <p class="card-text fs-3 fw-bold">{{ clients_enabled }}<small class="fs-6 text-muted"> / {{ clients_total }}</small></p>
-        <p class="card-text"><small class="text-muted">abilitati / totali</small></p>
-        <a href="/admin/clients" class="btn btn-sm btn-outline-primary">Gestisci</a>
-      </div>
-    </div>
+  <div class="a-stat">
+    <div class="a-stat-label">Clienti OIDC</div>
+    <div class="a-stat-value">{{ clients_enabled }}<span style="font-size:16px;font-weight:400;color:var(--fg-muted);"> / {{ clients_total }}</span></div>
+    <div class="a-stat-footer">abilitati / totali · <a href="/admin/clients" style="color:var(--brand);font-size:12px;">Gestisci →</a></div>
   </div>
 
-  <div class="col-md-3">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-subtitle mb-1 text-muted">Provider SPID</h6>
-        <p class="card-text fs-3 fw-bold">{{ idps_enabled }}<small class="fs-6 text-muted"> / {{ idps_total }}</small></p>
-        <p class="card-text"><small class="text-muted">abilitati / totali</small></p>
-        <a href="/admin/idps" class="btn btn-sm btn-outline-primary">Gestisci</a>
-      </div>
-    </div>
+  <div class="a-stat">
+    <div class="a-stat-label">Provider SPID</div>
+    <div class="a-stat-value">{{ idps_enabled }}<span style="font-size:16px;font-weight:400;color:var(--fg-muted);"> / {{ idps_total }}</span></div>
+    <div class="a-stat-footer">abilitati / totali · <a href="/admin/idps" style="color:var(--brand);font-size:12px;">Gestisci →</a></div>
   </div>
 
-  <div class="col-md-3">
-    <div class="card h-100 {% if cert_days is not none and cert_days < 90 %}border-warning{% elif cert_days is not none %}border-success{% else %}border-secondary{% endif %}">
-      <div class="card-body">
-        <h6 class="card-subtitle mb-1 text-muted">Certificato SPID</h6>
-        {% if cert %}
-          {% if cert_days < 30 %}
-            <p class="card-text text-danger fw-bold">Scade in {{ cert_days }} giorni</p>
-          {% elif cert_days < 90 %}
-            <p class="card-text text-warning">Scade in {{ cert_days }} giorni</p>
-          {% else %}
-            <p class="card-text text-success">Valido ({{ cert_days }} giorni)</p>
-          {% endif %}
-          <p class="card-text"><small class="text-muted">{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</small></p>
-        {% else %}
-          <p class="card-text text-warning">Non configurato</p>
-        {% endif %}
-        <a href="/admin/certs" class="btn btn-sm btn-outline-primary">Dettagli</a>
-      </div>
-    </div>
+  <div class="a-stat">
+    <div class="a-stat-label">Certificato SPID</div>
+    {% if cert %}
+      {% if cert_days < 30 %}
+      <div style="color:var(--danger);font-weight:600;">Scade in {{ cert_days }} giorni</div>
+      {% elif cert_days < 90 %}
+      <div style="color:var(--warning);font-weight:600;">Scade in {{ cert_days }} giorni</div>
+      {% else %}
+      <div style="color:var(--success);font-weight:600;">Valido · {{ cert_days }}gg</div>
+      {% endif %}
+      <div class="a-stat-footer">{{ cert.not_valid_after.strftime('%Y-%m-%d') }} · <a href="/admin/certs" style="color:var(--brand);font-size:12px;">Dettagli →</a></div>
+    {% else %}
+    <div><span class="a-badge a-badge-warning">Non configurato</span></div>
+    <div class="a-stat-footer"><a href="/admin/certs" style="color:var(--brand);font-size:12px;">Configura →</a></div>
+    {% endif %}
   </div>
 
 </div>
 
-{# ── Riga 2: Statistiche accessi ─────────────────────────────────────────── #}
-<h5 class="mt-4 mb-2 text-muted" style="font-size:.85rem; text-transform:uppercase; letter-spacing:.05em;">Monitoraggio Accessi</h5>
+{# ── Sezione 2: Monitoraggio accessi ─────────────────────────────────────── #}
+<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--fg-muted);margin-bottom:12px;">Monitoraggio Accessi</div>
 
 {% if access and access.has_data %}
 
-<div class="row g-3 mb-3">
-  <div class="col-md-4">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-subtitle mb-1 text-muted">Oggi</h6>
-        <p class="card-text fs-3 fw-bold">{{ access.today.total }}</p>
-        <p class="card-text">
-          <span class="badge bg-success">{{ access.today.success }} ok</span>
-          {% if access.today.failure > 0 %}<span class="badge bg-warning text-dark ms-1">{{ access.today.failure }} falliti</span>{% endif %}
-        </p>
-      </div>
+<div class="a-stat-grid-3" style="margin-bottom:14px;">
+  <div class="a-stat">
+    <div class="a-stat-label">Oggi</div>
+    <div class="a-stat-value">{{ access.today.total }}</div>
+    <div class="a-stat-footer">
+      <span class="a-badge a-badge-success">{{ access.today.success }} ok</span>
+      {% if access.today.failure > 0 %}<span class="a-badge a-badge-warning" style="margin-left:4px;">{{ access.today.failure }} falliti</span>{% endif %}
     </div>
   </div>
-  <div class="col-md-4">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-subtitle mb-1 text-muted">Ultimi 7 giorni</h6>
-        <p class="card-text fs-3 fw-bold">{{ access.week.total }}</p>
-        <p class="card-text">
-          <span class="badge bg-success">{{ access.week.success }} ok</span>
-          {% if access.week.failure > 0 %}<span class="badge bg-warning text-dark ms-1">{{ access.week.failure }} falliti</span>{% endif %}
-        </p>
-      </div>
+  <div class="a-stat">
+    <div class="a-stat-label">Ultimi 7 giorni</div>
+    <div class="a-stat-value">{{ access.week.total }}</div>
+    <div class="a-stat-footer">
+      <span class="a-badge a-badge-success">{{ access.week.success }} ok</span>
+      {% if access.week.failure > 0 %}<span class="a-badge a-badge-warning" style="margin-left:4px;">{{ access.week.failure }} falliti</span>{% endif %}
     </div>
   </div>
-  <div class="col-md-4">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-subtitle mb-1 text-muted">Ultimi 30 giorni</h6>
-        <p class="card-text fs-3 fw-bold">{{ access.month.total }}</p>
-        <p class="card-text">
-          <span class="badge bg-success">{{ access.month.success }} ok</span>
-          {% if access.month.failure > 0 %}<span class="badge bg-warning text-dark ms-1">{{ access.month.failure }} falliti</span>{% endif %}
-        </p>
-      </div>
+  <div class="a-stat">
+    <div class="a-stat-label">Ultimi 30 giorni</div>
+    <div class="a-stat-value">{{ access.month.total }}</div>
+    <div class="a-stat-footer">
+      <span class="a-badge a-badge-success">{{ access.month.success }} ok</span>
+      {% if access.month.failure > 0 %}<span class="a-badge a-badge-warning" style="margin-left:4px;">{{ access.month.failure }} falliti</span>{% endif %}
     </div>
   </div>
 </div>
 
-<div class="row g-3 mb-3">
-  <div class="col-md-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-subtitle mb-2 text-muted">Per provider (30 giorni)</h6>
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Provider</th><th class="text-end">OK</th><th class="text-end">KO</th><th class="text-end">Tot.</th></tr></thead>
-          <tbody>
-            {% for pt, s in access.by_provider.items() %}
-            <tr>
-              <td>
-                {% if pt == 'spid' %}<span class="badge bg-primary">SPID</span>
-                {% elif pt == 'cie' %}<span class="badge bg-info text-dark">CIE</span>
-                {% elif pt == 'eidas' %}<span class="badge bg-secondary">eIDAS</span>
-                {% elif pt == 'itwallet' %}<span class="badge bg-dark">IT Wallet</span>
-                {% else %}<span class="badge bg-light text-dark">{{ pt }}</span>
-                {% endif %}
-              </td>
-              <td class="text-end text-success">{{ s.success }}</td>
-              <td class="text-end text-warning">{{ s.failure }}</td>
-              <td class="text-end">{{ s.success + s.failure }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-6">
-    <div class="card h-100">
-      <div class="card-body">
-        <h6 class="card-subtitle mb-2 text-muted">Per client OIDC (30 giorni)</h6>
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Client</th><th class="text-end">Totale</th><th>Tasso OK</th></tr></thead>
-          <tbody>
-            {% for cid, s in access.by_client.items() %}
-            {% set pct = ((s.success / s.total) * 100) | round | int if s.total > 0 else 0 %}
-            <tr>
-              <td><small>{{ client_name_map.get(cid, cid) }}</small></td>
-              <td class="text-end">{{ s.total }}</td>
-              <td style="width:120px;">
-                <div class="d-flex align-items-center gap-2">
-                  <div class="progress flex-grow-1" style="height:5px;">
-                    <div class="progress-bar {% if pct >= 90 %}bg-success{% elif pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}"
-                         style="width:{{ pct }}%"></div>
-                  </div>
-                  <small class="text-muted">{{ pct }}%</small>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
-
-{# ── Riga 3: Attività recente ─────────────────────────────────────────────── #}
-<div class="card mb-3">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h6 class="card-subtitle text-muted">Attività recente</h6>
-      <a href="/admin/access-log" class="btn btn-sm btn-outline-secondary">Tutti i log</a>
-    </div>
-    {% if access.recent %}
-    <div class="table-responsive">
-      <table class="table table-sm mb-0">
-        <thead><tr><th>Timestamp</th><th>Provider</th><th>Client</th><th>Tipo</th><th>Esito</th><th>Errore</th></tr></thead>
+<div class="a-grid-2" style="margin-bottom:14px;">
+  <div class="a-card">
+    <div class="a-card-header">Per provider (30 giorni)</div>
+    <div class="a-table-wrap">
+      <table class="a-table">
+        <thead><tr><th>Provider</th><th style="text-align:right">OK</th><th style="text-align:right">KO</th><th style="text-align:right">Tot.</th></tr></thead>
         <tbody>
-          {% for log in access.recent %}
+          {% for pt, s in access.by_provider.items() %}
           <tr>
-            <td><small class="text-muted font-monospace">{{ log.timestamp.strftime('%m-%d %H:%M:%S') if log.timestamp else '—' }}</small></td>
             <td>
-              {% if log.provider_type == 'spid' %}<span class="badge bg-primary">SPID</span>
-              {% elif log.provider_type == 'cie' %}<span class="badge bg-info text-dark">CIE</span>
-              {% else %}<span class="badge bg-secondary">{{ log.provider_type }}</span>
+              {% if pt == 'spid' %}<span class="a-badge-spid">SPID</span>
+              {% elif pt == 'cie' %}<span class="a-badge-cie">CIE</span>
+              {% else %}<span class="a-badge a-badge-neutral">{{ pt }}</span>
               {% endif %}
             </td>
-            <td><small>{{ client_name_map.get(log.client_id, log.client_id) or '—' }}</small></td>
-            <td>
-              {% if log.user_type == 'PF' %}<span class="badge bg-light text-dark border">Fisica</span>
-              {% elif log.user_type == 'PG' %}<span class="badge bg-light text-dark border">Giuridica</span>
-              {% else %}—
-              {% endif %}
-            </td>
-            <td>
-              {% if log.result == 'success' %}<span class="badge bg-success">OK</span>
-              {% elif log.result == 'failure' %}<span class="badge bg-warning text-dark">KO</span>
-              {% else %}<span class="badge bg-danger">Err</span>
-              {% endif %}
-            </td>
-            <td><small class="text-muted">{{ log.error_code or '—' }}</small></td>
+            <td style="text-align:right;color:var(--success);">{{ s.success }}</td>
+            <td style="text-align:right;color:var(--warning);">{{ s.failure }}</td>
+            <td style="text-align:right;">{{ s.success + s.failure }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    {% else %}
-    <p class="text-muted mb-0 small">Nessun accesso recente.</p>
-    {% endif %}
   </div>
-</div>
 
-{% else %}
-<div class="card mb-3 border-secondary">
-  <div class="card-body text-center py-4">
-    <p class="text-muted mb-1">Nessun dato di accesso disponibile.</p>
-    <p class="text-muted small mb-0">Il plugin di monitoraggio SATOSA non è ancora attivo oppure non ci sono ancora accessi registrati.
-      <a href="/admin/access-log">Vai al Monitoraggio</a></p>
-  </div>
-</div>
-{% endif %}
-
-{# ── Riga 4: CIE Federation ──────────────────────────────────────────────── #}
-{% if cie_config and cie_config.oidc_federation_enabled %}
-<div class="row g-3 mt-1">
-  <div class="col-md-12">
-    <div class="card {% if cie_config.trust_mark %}border-success{% else %}border-warning{% endif %}">
-      <div class="card-body">
-        <h6 class="card-subtitle mb-2 text-muted">CIE OIDC Federation</h6>
-        <div class="d-flex gap-4 flex-wrap align-items-start">
-          <div>
-            <small class="text-muted d-block">Trust Mark</small>
-            {% if cie_config.trust_mark %}
-              <span class="badge bg-success">presente</span>
-            {% else %}
-              <span class="badge bg-warning text-dark">assente</span>
-              <small class="text-muted d-block">verrà recuperato al prossimo riavvio config-api</small>
-            {% endif %}
-          </div>
-          <div>
-            <small class="text-muted d-block">Ambiente</small>
-            <span class="badge bg-secondary">{{ cie_config.oidc_environment or '—' }}</span>
-          </div>
-          {% if cie_oidc_client_id %}
-          <div>
-            <small class="text-muted d-block">Client ID (Entity ID)</small>
-            <code class="small">{{ cie_oidc_client_id }}</code>
-          </div>
-          {% endif %}
-          <div>
-            <small class="text-muted d-block">Entity Configuration</small>
-            <a href="{{ cie_oidc_client_id | replace('/CieOidcRp', '') }}/.well-known/openid-federation" target="_blank" class="small">
-              /.well-known/openid-federation ↗
-            </a>
-          </div>
-        </div>
-        <a href="/admin/cie" class="btn btn-sm btn-outline-primary mt-2">Configura</a>
-      </div>
+  <div class="a-card">
+    <div class="a-card-header">Per client OIDC (30 giorni)</div>
+    <div class="a-table-wrap">
+      <table class="a-table">
+        <thead><tr><th>Client</th><th style="text-align:right">Totale</th><th>Tasso OK</th></tr></thead>
+        <tbody>
+          {% for cid, s in access.by_client.items() %}
+          {% set pct = ((s.success / s.total) * 100) | round | int if s.total > 0 else 0 %}
+          <tr>
+            <td class="a-mono">{{ client_name_map.get(cid, cid) }}</td>
+            <td style="text-align:right;">{{ s.total }}</td>
+            <td style="width:120px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div class="a-progress" style="flex:1;height:4px;">
+                  <div class="a-progress-bar" style="width:{{ pct }}%;background:{% if pct >= 90 %}var(--success){% elif pct >= 70 %}var(--warning){% else %}var(--danger){% endif %};"></div>
+                </div>
+                <span class="a-muted" style="font-size:11px;">{{ pct }}%</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 </div>
+
+<div class="a-card" style="margin-bottom:14px;">
+  <div class="a-card-header">
+    Attività recente
+    <a href="/admin/access-log" class="a-btn a-btn-secondary a-btn-sm">Tutti i log</a>
+  </div>
+  {% if access.recent %}
+  <div class="a-table-wrap">
+    <table class="a-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th><th>Provider</th><th>Client</th><th>Tipo</th><th>Esito</th><th>Errore</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in access.recent %}
+        <tr>
+          <td class="a-mono a-muted">{{ log.timestamp.strftime('%m-%d %H:%M:%S') if log.timestamp else '—' }}</td>
+          <td>
+            {% if log.provider_type == 'spid' %}<span class="a-badge-spid">SPID</span>
+            {% elif log.provider_type == 'cie' %}<span class="a-badge-cie">CIE</span>
+            {% else %}<span class="a-badge a-badge-neutral">{{ log.provider_type }}</span>
+            {% endif %}
+          </td>
+          <td class="a-mono">{{ client_name_map.get(log.client_id, log.client_id) or '—' }}</td>
+          <td>
+            {% if log.user_type == 'PF' %}<span class="a-badge a-badge-neutral">Fisica</span>
+            {% elif log.user_type == 'PG' %}<span class="a-badge a-badge-neutral">Giuridica</span>
+            {% else %}—
+            {% endif %}
+          </td>
+          <td>
+            {% if log.result == 'success' %}<span class="a-badge a-badge-success">OK</span>
+            {% elif log.result == 'failure' %}<span class="a-badge a-badge-warning">KO</span>
+            {% else %}<span class="a-badge a-badge-danger">Err</span>
+            {% endif %}
+          </td>
+          <td class="a-mono a-muted">{{ log.error_code or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="a-card-body a-muted" style="font-size:13px;">Nessun accesso recente.</div>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="a-card" style="text-align:center;padding:32px 20px;">
+  <div class="a-muted" style="margin-bottom:4px;">Nessun dato di accesso disponibile.</div>
+  <div class="a-muted" style="font-size:12px;">Il plugin di monitoraggio SATOSA non è ancora attivo oppure non ci sono ancora accessi registrati.
+    <a href="/admin/access-log">Vai al Monitoraggio</a></div>
+</div>
 {% endif %}
+
+{# ── Sezione 3: CIE Federation ───────────────────────────────────────────── #}
+{% if cie_config and cie_config.oidc_federation_enabled %}
+<div class="a-card" style="margin-top:14px;">
+  <div class="a-card-header">
+    CIE OIDC Federation
+    {% if cie_config.trust_mark %}
+    <span class="a-badge a-badge-success">trust mark presente</span>
+    {% else %}
+    <span class="a-badge a-badge-warning">trust mark assente</span>
+    {% endif %}
+  </div>
+  <div class="a-card-body" style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;">
+    <div>
+      <div style="font-size:11px;color:var(--fg-muted);margin-bottom:3px;">Ambiente</div>
+      <span class="a-badge a-badge-neutral">{{ cie_config.oidc_environment or '—' }}</span>
+    </div>
+    {% if cie_oidc_client_id %}
+    <div>
+      <div style="font-size:11px;color:var(--fg-muted);margin-bottom:3px;">Client ID (Entity ID)</div>
+      <code class="a-mono">{{ cie_oidc_client_id }}</code>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--fg-muted);margin-bottom:3px;">Entity Configuration</div>
+      <a href="{{ cie_oidc_client_id | replace('/CieOidcRp', '') }}/.well-known/openid-federation" target="_blank" style="font-size:13px;">
+        /.well-known/openid-federation ↗
+      </a>
+    </div>
+    {% endif %}
+    {% if not cie_config.trust_mark %}
+    <div style="font-size:12px;color:var(--fg-muted);">verrà recuperato al prossimo riavvio config-api</div>
+    {% endif %}
+  </div>
+  <div style="padding:12px 20px;border-top:1px solid var(--border-1);">
+    <a href="/admin/cie" class="a-btn a-btn-secondary a-btn-sm">Configura CIE</a>
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
