@@ -178,6 +178,9 @@ a:hover { text-decoration: underline; }
    ============================================================ */
 .a-progress { height: 6px; background: var(--bg-2); border-radius: 3px; overflow: hidden; margin-top: 6px; }
 .a-progress-bar { height: 100%; border-radius: 3px; background: var(--brand); transition: width 0.6s cubic-bezier(.2,.7,.3,1); }
+.a-progress-bar-ok  { background: var(--success); }
+.a-progress-bar-warn { background: var(--warning); }
+.a-progress-bar-err  { background: var(--danger); }
 .a-progress-thin { height: 3px; background: var(--bg-2); border-radius: 2px; overflow: hidden; }
 .a-progress-thin .a-progress-bar { height: 100%; }
 
@@ -244,3 +247,4 @@ a:hover { text-decoration: underline; }
 .a-mt-4 { margin-top: 16px; }
 .a-mb-4 { margin-bottom: 16px; }
 .a-mb-6 { margin-bottom: 24px; }
+.a-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-muted); margin-bottom: 12px; }

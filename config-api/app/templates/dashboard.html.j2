@@ -53,11 +53,11 @@
     <div class="a-stat-label">Certificato SPID</div>
     {% if cert %}
       {% if cert_days < 30 %}
-      <div style="color:var(--danger);font-weight:600;">Scade in {{ cert_days }} giorni</div>
+      <span class="a-badge a-badge-danger">Scade in {{ cert_days }} giorni</span>
       {% elif cert_days < 90 %}
-      <div style="color:var(--warning);font-weight:600;">Scade in {{ cert_days }} giorni</div>
+      <span class="a-badge a-badge-warning">Scade in {{ cert_days }} giorni</span>
       {% else %}
-      <div style="color:var(--success);font-weight:600;">Valido · {{ cert_days }}gg</div>
+      <span class="a-badge a-badge-success">Valido · {{ cert_days }}gg</span>
       {% endif %}
       <div class="a-stat-footer">{{ cert.not_valid_after.strftime('%Y-%m-%d') }} · <a href="/admin/certs" style="color:var(--brand);font-size:12px;">Dettagli →</a></div>
     {% else %}
@@ -69,7 +69,7 @@
 </div>
 
 {# ── Sezione 2: Monitoraggio accessi ─────────────────────────────────────── #}
-<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--fg-muted);margin-bottom:12px;">Monitoraggio Accessi</div>
+<div class="a-section-label">Monitoraggio Accessi</div>
 
 {% if access and access.has_data %}
 
@@ -139,7 +139,7 @@
             <td style="width:120px;">
               <div style="display:flex;align-items:center;gap:8px;">
                 <div class="a-progress" style="flex:1;height:4px;">
-                  <div class="a-progress-bar" style="width:{{ pct }}%;background:{% if pct >= 90 %}var(--success){% elif pct >= 70 %}var(--warning){% else %}var(--danger){% endif %};"></div>
+                  <div class="a-progress-bar {% if pct >= 90 %}a-progress-bar-ok{% elif pct >= 70 %}a-progress-bar-warn{% else %}a-progress-bar-err{% endif %}" style="width:{{ pct }}%;"></div>
                 </div>
                 <span class="a-muted" style="font-size:11px;">{{ pct }}%</span>
               </div>
