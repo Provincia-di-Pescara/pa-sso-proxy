@@ -25,10 +25,10 @@ def _rfc7638_kid(e_b64: str, n_b64: str) -> str:
 
 
 def generate_jwk(name: str, use: str) -> JwkKey:
-    """Generate RSA 2048 keypair as JWK. KID = RFC 7638 thumbprint."""
+    """Generate RSA 4096 keypair as JWK. KID = RFC 7638 thumbprint."""
     private_key = rsa.generate_private_key(
         public_exponent=65537,
-        key_size=2048,
+        key_size=4096,
         backend=default_backend(),
     )
     pub = private_key.public_key().public_numbers()
