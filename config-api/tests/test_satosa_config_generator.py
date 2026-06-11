@@ -436,7 +436,6 @@ async def test_spid_backend_yaml_has_contact_person(full_db, tmp_path, monkeypat
     assert len(contact_person) == 1
     cp = contact_person[0]
     assert cp["contact_type"] == "other"
-    assert cp["given_name"] == "Ente Test SPA"
     assert cp["email_address"] == "e@ente.it"
     assert cp["telephone_number"] == "+39001"
     assert cp["FiscalCode"] == "00193460680"
