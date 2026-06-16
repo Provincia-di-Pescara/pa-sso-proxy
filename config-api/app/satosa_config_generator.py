@@ -938,17 +938,16 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         }
         for c in clients
     }
-    # Inject public verifica client when a test IdP (demo/validator) is active
-    if any(idp.alias in _TEST_ALIASES for idp in enabled_idps):
-        import hmac as _hmac
-        import hashlib as _hashlib
-        _salt = os.environ.get("SATOSA_HASH_SALT", "changeme").encode()
-        client_db["__spid_verifica__"] = {
-            "client_secret": _hmac.new(_salt, b"__spid_verifica__", _hashlib.sha256).hexdigest(),
-            "redirect_uris": [f"{_base_url(hostname)}/verifica/callback"],
-            "allowed_scopes": ["openid", "profile", "email"],
-            "response_types": ["code"],
-        }
+    # Inject public verifica client (always active)
+    import hmac as _hmac
+    import hashlib as _hashlib
+    _salt = os.environ.get("SATOSA_HASH_SALT", "changeme").encode()
+    client_db["__spid_verifica__"] = {
+        "client_secret": _hmac.new(_salt, b"__spid_verifica__", _hashlib.sha256).hexdigest(),
+        "redirect_uris": [f"{_base_url(hostname)}/verifica/callback"],
+        "allowed_scopes": ["openid", "profile", "email"],
+        "response_types": ["code"],
+    }
     _write_json(conf_dir, "oidc_clients.json", client_db)
 
     # Generate and write dynamic spid-idps-default.json based on active providers

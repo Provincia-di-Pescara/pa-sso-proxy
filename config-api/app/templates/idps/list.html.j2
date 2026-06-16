@@ -48,11 +48,9 @@
               {% if demo_idp.enabled %}Disattiva Demo{% else %}Attiva Demo{% endif %}
             </button>
           </form>
-          {% if demo_idp.enabled %}
           <div style="margin-top: 12px; text-align: center;">
             <a href="/verifica" target="_blank" style="font-size: 12px; font-weight: 600; color: #0056b3; text-decoration: underline;">Apri Pagina di Verifica &rarr;</a>
           </div>
-          {% endif %}
           {% else %}
           <button class="a-btn a-btn-neutral a-btn-sm" style="width:100%;" disabled>In caricamento...</button>
           {% endif %}
@@ -78,11 +76,9 @@
               {% if validator_idp.enabled %}Disattiva Validatore{% else %}Attiva Validatore{% endif %}
             </button>
           </form>
-          {% if validator_idp.enabled %}
           <div style="margin-top: 12px; text-align: center;">
             <a href="/verifica" target="_blank" style="font-size: 12px; font-weight: 600; color: #0056b3; text-decoration: underline;">Apri Pagina di Verifica &rarr;</a>
           </div>
-          {% endif %}
           {% else %}
           <button class="a-btn a-btn-neutral a-btn-sm" style="width:100%;" disabled>In caricamento...</button>
           {% endif %}

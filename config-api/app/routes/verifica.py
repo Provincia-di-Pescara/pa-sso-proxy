@@ -63,19 +63,14 @@ async def _get_settings(db: AsyncSession):
 @router.get("/verifica", response_class=HTMLResponse)
 async def verifica_page(request: Request, db: AsyncSession = Depends(get_db)):
     test_idp = await _get_test_idp(db)
-    if not test_idp:
-        raise HTTPException(status_code=404)
     return templates.TemplateResponse(request, "verifica/index.html.j2", {
         "settings": await _get_settings(db),
-        "test_idp_name": test_idp.display_name,
+        "test_idp_name": test_idp.display_name if test_idp else None,
     })
 
 
 @router.get("/verifica/start")
 async def verifica_start(request: Request, db: AsyncSession = Depends(get_db)):
-    test_idp = await _get_test_idp(db)
-    if not test_idp:
-        raise HTTPException(status_code=404)
 
     code_verifier = secrets.token_urlsafe(64)
     code_challenge = (

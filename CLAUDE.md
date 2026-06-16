@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Questo file fornisce contesto a Claude Code quando lavora su questo repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Comandi rapidi
 
@@ -9,6 +9,11 @@ docker compose up -d --build   # build + avvia stack
 docker compose logs -f config-api
 docker compose logs -f satosa
 docker compose restart satosa  # dopo modifica manuale a satosa-conf
+
+# Test (da eseguire nella directory config-api/)
+cd config-api && pytest                              # tutti i test
+cd config-api && pytest tests/test_satosa_config_generator.py -v  # singolo file
+cd config-api && pytest tests/test_eidas.py::test_name -v         # singolo test
 ```
 
 ## Cos'è
@@ -35,7 +40,7 @@ IdP → satosa (callback) → JWT con attributi → App
 
 ### SATOSA — backend supportati
 
-- `spid_backend` — SPID SAML (tutti gli IdP ufficiali AgID)
+- `spid_backend` — SPID SAML (tutti gli IdP ufficiali AgID + nodo eIDAS italiano)
 - `cie_oidc_backend` — CIE OIDC Federation 1.0 (codice in `satosa/plugins/`, mantenuto in questo repo)
 
 ### Config API (`config-api/`)
@@ -52,19 +57,17 @@ SATOSA OIDC frontend (`oidcop`) accetta lista `clients` nel config YAML. Il conf
 
 ### Metadata IdP
 
-Cron notturno nel config-api:
-1. Fetcha URL metadata SPID/CIE
-2. Confronta hash con versione in DB
-3. Se diverso → aggiorna DB → rigenera config → reload SATOSA
+- **SPID aggregate**: scaricato programmaticamente a startup da `https://registry.spid.gov.it/metadata/idp/spid-entities-idps.xml`, cached in `/satosa-conf/spid-entities-idps.xml` (con hash-check). Fallback al file bundled nell'immagine solo se il volume file manca.
+- **Altri IdP** (CIE, eIDAS, test): URL metadata per singolo IdP; cron notturno aggiorna DB → rigenera config → reload SATOSA.
 
-Reload graceful uWSGI: zero downtime (worker swap in-flight). Schedulato di notte per i metadata IdP.
+Reload graceful uWSGI: zero downtime (worker swap in-flight).
 
 ## Struttura directory
 
 ```
 satosa/
   plugins/                Plugin Python custom (SPID backend, CIE OIDC backend, endpoints)
-    spidsaml2.py          Backend SPID SAML2
+    spidsaml2.py          Backend SPID SAML2 (flag ficep_enable per ACS eIDAS 99/100)
     cieoidc-backend/      Backend CIE OIDC Federation
     cieoidc-endpoints/    Endpoint CIE OIDC (callback, entity config, …)
   public/                 Asset statici discovery page
@@ -76,24 +79,26 @@ config-api/
       clients.py          Gestione client OIDC
       idps.py             Gestione IdP SPID/CIE
       cie.py              Configurazione CIE OIDC Federation
+      eidas.py            Toggle eIDAS + verifica metadata ACS
       settings.py         Impostazioni ente
       certs.py            Certificato SPID
       access_log.py       Monitoraggio accessi (filtri, paginazione, CSV)
       internal.py         POST /internal/access-log (chiamato da SATOSA, no auth)
-      placeholders.py     eIDAS e IT Wallet coming-soon
+      verifica.py         Pagina pubblica test SPID (no auth — attiva solo con test IdP)
       test_client.py      Test flow OIDC
       backup.py           Backup/ripristino configurazione JSON
     templates/            Jinja2 HTML templates
     models/               SQLAlchemy models
       client.py, idp.py, cie.py, settings.py, key.py, cert.py
-      access_log.py       Log accessi anonimi
+      access_log.py       Log accessi (idp_entity_id, fiscal_number_hash, user_type)
+      access_stats_monthly.py  Aggregati mensili (forever, no PII)
     satosa_config_generator.py   Genera YAML SATOSA + plugin Python da DB
     satosa_generator.py   Wrapper: chiama generator + scrive cert/key
-    metadata_watcher.py   Cron aggiornamento metadata IdP
-  alembic/versions/       Migrazioni DB (001–006)
+    metadata_watcher.py   Cron aggiornamento metadata IdP + retention access_log
+  alembic/versions/       Migrazioni DB (001–012)
 nginx/
   conf.d/
-    proxy.conf            Route: / → satosa, /admin → config-api
+    proxy.conf            Route: /verifica → config-api, /admin → config-api, / → satosa
 docs/
   architecture.md, deployment.md, spid-registration.md, cie-oidc-registration.md
 ```
@@ -110,6 +115,8 @@ Tutte in `.env` (vedi `.env.example`). Le variabili sono passate dal compose a s
 | `ORG_*` / `IPA_CODE` | config-api (impostazioni ente default) |
 | `SATOSA_INTERNAL_URL` | config-api → health check SATOSA (dashboard) |
 | `CONFIG_API_INTERNAL_URL` | SATOSA plugins → POST /internal/access-log |
+| `SATOSA_HASH_SALT` | CF pseudonymization (HMAC key); deriva anche secret del client `__spid_verifica__` |
+| `CF_HASH_KEY` | Alias di SATOSA_HASH_SALT usato in `access_log_reporter.py` generato; generare con `openssl rand -hex 32`, mai committare |
 
 ## Relazione con altri repository
 
@@ -149,14 +156,28 @@ Il backend CIE OIDC usa 3 JWK separati: `jwk-federation` (firma entity configura
 
 **Istanza di riferimento funzionante:** `https://pagopa-prx.comune.montesilvano.pe.it/` (govpay-interaction-layer Comune di Montesilvano). Per debug confrontare `/.well-known/openid-federation` con quella istanza.
 
+### eIDAS
+Il nodo eIDAS italiano usa lo **stesso backend SAML2** di SPID (`spid_backend`). La differenza è nel metadata SP: quando `eidas_enabled=True` in `ente_settings`, `satosa_config_generator.py` imposta `ficep_enable: true` in `spidsaml2.py`, che aggiunge ACS index 99 ("eIDAS Natural Person Minimum") e 100 ("eIDAS Natural Person Full") al metadata SP.
+
+**Abilitare eIDAS modifica il metadata SPID** → richiede ri-validazione AgID. La WebUI mostra warning con `window.confirm()` prima di procedere.
+
+URL metadata IdP eIDAS: QA `https://sp-proxy.pre.eid.gov.it/spproxy/idpitmetadata`, Prod `https://sp-proxy.eid.gov.it/spproxy/idpitmetadata`.
+
 ### Reload SATOSA
 Il config-api segnala il reload toccando `/satosa-conf/.reload` (volume condiviso). uWSGI nel container satosa è configurato con `--touch-reload /satosa-conf/.reload` e ricarica i worker gracefully senza caduta delle connessioni. Non è necessario il Docker socket.
 
 ### SATOSA OIDC multi-client
 La sezione `clients` nel config OIDC di SATOSA è generata da `satosa_generator.py`. Ogni client ha: `client_id`, `client_secret` (hash), `redirect_uris`, `allowed_scopes`. Il generator scrive il file e triggera reload.
 
+Client speciale `__spid_verifica__`: nessun record DB — secret derivato deterministicamente da `SATOSA_HASH_SALT` via HMAC-SHA256. Iniettato nel config SATOSA solo quando almeno un IdP con alias `spid-demo` o `spid-validator` è abilitato.
+
 ### Plugin SATOSA generati a runtime
 `satosa_config_generator.py` scrive moduli Python in `/satosa-conf/` a ogni rigenerazione config (es. `default_backend_router.py`, `oidc_frontend_ext.py`, `access_log_reporter.py`). Questi file sono caricati da SATOSA via `CUSTOM_PLUGIN_MODULE_PATHS: ["/satosa-conf"]`. Non modificarli direttamente in satosa-conf — vengono sovrascritti al prossimo reload.
 
 ### Access log pipeline
-Ogni auth SATOSA completata (successo o errore) → `POST http://config-api:8000/internal/access-log` (rete Docker interna, nginx non lo espone, nessuna autenticazione necessaria). Endpoint fire-and-forget: risponde sempre 200, errori DB non bloccano SATOSA. Tabella `access_log` (migration 006): nessun PII — solo `provider_type` / `client_id` / `result` / `error_code`.
+Ogni auth SATOSA completata (successo o errore) → `POST http://config-api:8000/internal/access-log` (rete Docker interna, nginx non lo espone, nessuna autenticazione necessaria). Endpoint fire-and-forget: risponde sempre 200, errori DB non bloccano SATOSA.
+
+Colonne tabella `access_log`: `provider_type`, `client_id`, `result`, `error_code`, `idp_entity_id`, `user_type` (PF/PG), `fiscal_number_hash` (HMAC-SHA256 del CF — pseudonimizzazione GDPR). Retention 24 mesi: cron 1° del mese aggrega in `access_stats_monthly` (UNIQUE su year/month/idp/provider/user_type/client), poi cancella righe vecchie. `access_stats_monthly` è forever, no PII.
+
+### Pagina /verifica
+Pagina pubblica (no login admin) per validazione AgID. Gate: 404 se nessun IdP con alias `spid-demo` o `spid-validator` è abilitato. Flusso PKCE completo via `__spid_verifica__` client. URL: `https://<hostname>/verifica`. Mandare questo link ad AgID per la sessione di validazione.
