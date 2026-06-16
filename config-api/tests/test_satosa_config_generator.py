@@ -300,7 +300,7 @@ async def test_satosa_config_generator_spid_testing_providers(db_session, tmp_pa
     # Verify spid_backend.yaml has only local metadata config
     spid_yaml = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
     assert "local" in spid_yaml["metadata"]
-    assert "/satosa_proxy/metadata/idp/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
+    assert "/satosa-conf/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
     assert "remote" not in spid_yaml["metadata"]
     
     # 2. Test demo mode enabled
@@ -324,7 +324,7 @@ async def test_satosa_config_generator_spid_testing_providers(db_session, tmp_pa
     # Verify spid_backend.yaml has both local catalog and remote demo metadata URL
     spid_yaml = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
     assert "local" in spid_yaml["metadata"]
-    assert "/satosa_proxy/metadata/idp/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
+    assert "/satosa-conf/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
     assert "remote" in spid_yaml["metadata"]
     assert spid_yaml["metadata"]["remote"] == [{"url": "https://demo.spid.gov.it/metadata.xml"}]
     
@@ -350,7 +350,7 @@ async def test_satosa_config_generator_spid_testing_providers(db_session, tmp_pa
     # Verify spid_backend.yaml has both local catalog and remote validator metadata URL
     spid_yaml = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
     assert "local" in spid_yaml["metadata"]
-    assert "/satosa_proxy/metadata/idp/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
+    assert "/satosa-conf/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
     assert "remote" in spid_yaml["metadata"]
     assert spid_yaml["metadata"]["remote"] == [{"url": "https://validator.spid.gov.it/metadata.xml"}]
 
