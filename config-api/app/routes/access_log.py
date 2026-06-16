@@ -21,12 +21,14 @@ def _auth_check(request: Request):
     return request.session.get("user")
 
 
-def _build_filters(provider_type, result, from_date, to_date):
+def _build_filters(provider_type, result, from_date, to_date, idp_entity_id=None):
     filters = []
     if provider_type:
         filters.append(AccessLog.provider_type == provider_type)
     if result:
         filters.append(AccessLog.result == result)
+    if idp_entity_id:
+        filters.append(AccessLog.idp_entity_id == idp_entity_id)
     if from_date:
         try:
             filters.append(
@@ -53,11 +55,12 @@ async def access_log_list(
     result: Optional[str] = Query(None),
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
+    idp_entity_id: Optional[str] = Query(None),
 ):
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
 
-    filters = _build_filters(provider_type, result, from_date, to_date)
+    filters = _build_filters(provider_type, result, from_date, to_date, idp_entity_id)
     offset = (page - 1) * _PAGE_SIZE
     q = select(AccessLog)
     if filters:
@@ -70,6 +73,11 @@ async def access_log_list(
     clients_res = await db.execute(select(OIDCClient.client_id, OIDCClient.name))
     client_name_map = {row.client_id: row.name for row in clients_res.all()}
 
+    # Distinct IdP list for filter dropdown
+    idp_rows = (await db.execute(
+        select(AccessLog.idp_entity_id).where(AccessLog.idp_entity_id.isnot(None)).distinct()
+    )).scalars().all()
+
     return templates.TemplateResponse(request, "access_log/index.html.j2", {
         "logs": rows,
         "page": page,
@@ -78,6 +86,8 @@ async def access_log_list(
         "result_filter": result or "",
         "from_date": from_date or "",
         "to_date": to_date or "",
+        "idp_entity_id": idp_entity_id or "",
+        "idp_list": sorted(idp_rows),
         "client_name_map": client_name_map,
     })
 
@@ -90,11 +100,12 @@ async def access_log_export(
     result: Optional[str] = Query(None),
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
+    idp_entity_id: Optional[str] = Query(None),
 ):
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
 
-    filters = _build_filters(provider_type, result, from_date, to_date)
+    filters = _build_filters(provider_type, result, from_date, to_date, idp_entity_id)
     q = select(AccessLog)
     if filters:
         q = q.where(and_(*filters))
@@ -103,13 +114,15 @@ async def access_log_export(
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["timestamp", "provider_type", "client_id", "user_type", "result", "error_code"])
+    writer.writerow(["timestamp", "provider_type", "idp_entity_id", "client_id", "user_type", "fiscal_number_hash", "result", "error_code"])
     for r in rows:
         writer.writerow([
             r.timestamp.isoformat() if r.timestamp else "",
             r.provider_type,
+            r.idp_entity_id or "",
             r.client_id or "",
             r.user_type or "",
+            r.fiscal_number_hash or "",
             r.result,
             r.error_code or "",
         ])

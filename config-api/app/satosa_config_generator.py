@@ -632,7 +632,7 @@ logger = logging.getLogger(__name__)
 _CONFIG_API_URL = os.environ.get("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
 
 
-def _post_access_log(report_url, provider_type, client_id, result, error_code=None, user_type=None):
+def _post_access_log(report_url, provider_type, client_id, result, error_code=None, user_type=None, idp_entity_id=None, fiscal_number_hash=None):
     try:
         payload = json.dumps({
             "provider_type": provider_type,
@@ -640,6 +640,8 @@ def _post_access_log(report_url, provider_type, client_id, result, error_code=No
             "result": result,
             "error_code": error_code,
             "user_type": user_type,
+            "idp_entity_id": idp_entity_id,
+            "fiscal_number_hash": fiscal_number_hash,
         }).encode("utf-8")
         req = urllib.request.Request(
             report_url,
@@ -705,7 +707,28 @@ class AccessLogReporter(ResponseMicroService):
         except Exception:
             pass
 
-        _post_access_log(self._report_url, provider_type, client_id, "success", user_type=user_type)
+        idp_entity_id = None
+        try:
+            auth_info = getattr(internal_data, "auth_info", None)
+            if auth_info:
+                idp_entity_id = getattr(auth_info, "issuer", None) or None
+        except Exception:
+            pass
+
+        fiscal_number_hash = None
+        try:
+            import hmac as _hmac
+            import hashlib as _hashlib
+            cf_key = os.environ.get("CF_HASH_KEY", "").encode()
+            if cf_key and fiscal_no:
+                normalized = str(fiscal_no).strip().upper()
+                if normalized.startswith("TINIT-"):
+                    normalized = normalized[6:]
+                fiscal_number_hash = _hmac.new(cf_key, normalized.encode("utf-8"), _hashlib.sha256).hexdigest()
+        except Exception:
+            pass
+
+        _post_access_log(self._report_url, provider_type, client_id, "success", user_type=user_type, idp_entity_id=idp_entity_id, fiscal_number_hash=fiscal_number_hash)
         return super().process(context, internal_data)
 '''
 

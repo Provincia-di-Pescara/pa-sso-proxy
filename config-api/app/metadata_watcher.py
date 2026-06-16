@@ -2,14 +2,15 @@ import asyncio
 import hashlib
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import delete, func, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import SpidIdP
+from app.models import AccessLog, AccessStatsMonthly, SpidIdP
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_seeder import sync_spid_idps_from_registry
@@ -69,6 +70,71 @@ async def fetch_all_enabled(db: AsyncSession) -> int:
         await generate_and_write(db)
         await asyncio.to_thread(reload_satosa)
     return updated
+
+
+async def run_retention() -> None:
+    """Aggregate old access_log records into access_stats_monthly, then purge them.
+
+    Runs on the 1st of each month. Records older than ACCESS_LOG_RETENTION_MONTHS
+    (default 24) are aggregated by (year, month, idp_entity_id, provider_type,
+    user_type, client_id) then deleted from access_log. The stats table has no PII
+    and is retained indefinitely.
+    """
+    from app.database import AsyncSessionLocal
+
+    months = int(os.environ.get("ACCESS_LOG_RETENTION_MONTHS", "24"))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
+
+    async with AsyncSessionLocal() as db:
+        try:
+            # Aggregate rows older than cutoff
+            agg_rows = (await db.execute(
+                select(
+                    func.extract("year", AccessLog.timestamp).label("year"),
+                    func.extract("month", AccessLog.timestamp).label("month"),
+                    AccessLog.idp_entity_id,
+                    AccessLog.provider_type,
+                    AccessLog.user_type,
+                    AccessLog.client_id,
+                    func.count().label("cnt"),
+                )
+                .where(AccessLog.timestamp < cutoff)
+                .group_by(
+                    func.extract("year", AccessLog.timestamp),
+                    func.extract("month", AccessLog.timestamp),
+                    AccessLog.idp_entity_id,
+                    AccessLog.provider_type,
+                    AccessLog.user_type,
+                    AccessLog.client_id,
+                )
+            )).all()
+
+            if agg_rows:
+                for row in agg_rows:
+                    stmt = pg_insert(AccessStatsMonthly).values(
+                        year=int(row.year),
+                        month=int(row.month),
+                        idp_entity_id=row.idp_entity_id,
+                        provider_type=row.provider_type,
+                        user_type=row.user_type,
+                        client_id=row.client_id,
+                        count=row.cnt,
+                    ).on_conflict_do_update(
+                        constraint="uq_access_stats_monthly",
+                        set_={"count": AccessStatsMonthly.count + row.cnt},
+                    )
+                    await db.execute(stmt)
+
+                await db.execute(delete(AccessLog).where(AccessLog.timestamp < cutoff))
+                await db.commit()
+                logger.info(
+                    "Retention: aggregated %d groups, purged records older than %s",
+                    len(agg_rows), cutoff.date()
+                )
+            else:
+                logger.info("Retention: no records to purge (cutoff %s)", cutoff.date())
+        except Exception:
+            logger.error("Retention job failed", exc_info=True)
 
 
 async def run_metadata_watcher() -> None:

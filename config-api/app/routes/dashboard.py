@@ -78,6 +78,19 @@ async def _access_stats(db: AsyncSession) -> dict:
             if row.result == "success":
                 by_client[cid]["success"] += row.cnt
 
+        # Per-IdP breakdown (last 30 days)
+        idp_rows = (await db.execute(
+            select(AccessLog.idp_entity_id, func.count().label("cnt"))
+            .where(AccessLog.timestamp >= month_start, AccessLog.idp_entity_id.isnot(None))
+            .group_by(AccessLog.idp_entity_id)
+            .order_by(func.count().desc())
+            .limit(15)
+        )).all()
+        by_idp = {
+            row.idp_entity_id: row.cnt
+            for row in idp_rows
+        }
+
         # Recent activity (last 20)
         recent = list((await db.execute(
             select(AccessLog).order_by(AccessLog.timestamp.desc()).limit(20)
@@ -89,6 +102,7 @@ async def _access_stats(db: AsyncSession) -> dict:
             "month": {"total": month_total, "success": month_ok, "failure": month_total - month_ok},
             "by_provider": by_provider,
             "by_client": by_client,
+            "by_idp": by_idp,
             "recent": recent,
             "has_data": month_total > 0,
         }

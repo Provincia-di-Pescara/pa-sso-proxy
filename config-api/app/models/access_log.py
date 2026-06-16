@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy import DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -19,3 +19,5 @@ class AccessLog(Base):
     result: Mapped[str] = mapped_column(String(16), nullable=False)
     error_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     user_type: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    idp_entity_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True, index=True)
+    fiscal_number_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)

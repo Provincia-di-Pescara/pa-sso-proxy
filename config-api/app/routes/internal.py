@@ -18,6 +18,8 @@ class AccessLogEntry(BaseModel):
     result: str
     error_code: Optional[str] = None
     user_type: Optional[str] = None
+    idp_entity_id: Optional[str] = None
+    fiscal_number_hash: Optional[str] = None
 
 
 @router.post("/internal/access-log")
@@ -29,6 +31,8 @@ async def log_access(entry: AccessLogEntry, db: AsyncSession = Depends(get_db)):
             result=entry.result[:16],
             error_code=entry.error_code,
             user_type=entry.user_type,
+            idp_entity_id=entry.idp_entity_id,
+            fiscal_number_hash=entry.fiscal_number_hash,
         )
         db.add(record)
         await db.commit()

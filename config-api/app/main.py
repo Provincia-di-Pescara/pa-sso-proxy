@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import AsyncSessionLocal, engine, get_db
 from app.models import EnteSettings
 from app.rate_limiter import is_ip_banned, record_failed_attempt, clear_attempts
-from app.metadata_watcher import run_metadata_watcher, fetch_spid_aggregate
+from app.metadata_watcher import run_metadata_watcher, run_retention, fetch_spid_aggregate
 from app.routes import dashboard, clients, idps, settings, certs, cie, test_client, backup, access_log, internal, placeholders
 from app.satosa_generator import generate_and_write
 from app.spid_seeder import seed_spid_idps
@@ -154,6 +154,7 @@ async def lifespan(app: FastAPI):
             logger.warning("Startup config generation failed (ok on first boot)", exc_info=True)
     scheduler = AsyncIOScheduler()
     scheduler.add_job(run_metadata_watcher, CronTrigger(hour=2, minute=0))
+    scheduler.add_job(run_retention, CronTrigger(day=1, hour=3, minute=0))
     scheduler.start()
     yield
     scheduler.shutdown()

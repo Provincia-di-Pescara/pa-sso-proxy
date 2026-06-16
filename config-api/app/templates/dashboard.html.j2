@@ -152,6 +152,27 @@
   </div>
 </div>
 
+{% if access.by_idp %}
+<div class="a-card" style="margin-bottom:14px;">
+  <div class="a-card-header">Per IdP (30 giorni)</div>
+  <div class="a-table-wrap">
+    <table class="a-table">
+      <thead><tr><th>Identity Provider</th><th style="text-align:right">Accessi</th></tr></thead>
+      <tbody>
+        {% for idp, cnt in access.by_idp.items() %}
+        <tr>
+          <td class="a-mono" style="font-size:12px;">
+            <a href="/admin/access-log?idp_entity_id={{ idp }}" style="color:inherit;">{{ idp | replace('https://', '') }}</a>
+          </td>
+          <td style="text-align:right;">{{ cnt }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <div class="a-card" style="margin-bottom:14px;">
   <div class="a-card-header">
     Attività recente
@@ -162,7 +183,7 @@
     <table class="a-table">
       <thead>
         <tr>
-          <th>Timestamp</th><th>Provider</th><th>Client</th><th>Tipo</th><th>Esito</th><th>Errore</th>
+          <th>Timestamp</th><th>Provider</th><th>IdP</th><th>Client</th><th>Tipo</th><th>Esito</th><th>Errore</th>
         </tr>
       </thead>
       <tbody>
@@ -174,6 +195,9 @@
             {% elif log.provider_type == 'cie' %}<span class="a-badge-cie">CIE</span>
             {% else %}<span class="a-badge a-badge-neutral">{{ log.provider_type }}</span>
             {% endif %}
+          </td>
+          <td class="a-mono a-muted" style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ log.idp_entity_id or '' }}">
+            {{ (log.idp_entity_id or '—') | replace('https://', '') }}
           </td>
           <td class="a-mono">{{ client_name_map.get(log.client_id, log.client_id) or '—' }}</td>
           <td>
