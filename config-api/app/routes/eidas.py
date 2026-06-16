@@ -65,7 +65,9 @@ async def eidas_config_page(request: Request, db: AsyncSession = Depends(get_db)
     cert_result = await db.execute(select(SpidCert).order_by(SpidCert.created_at.desc()).limit(1))
     cert = cert_result.scalar_one_or_none()
     
-    metadata_status = await check_sp_metadata()
+    saved = request.query_params.get("saved") == "1"
+    # Skip metadata check immediately after save: SATOSA may still be reloading.
+    metadata_status = None if saved else await check_sp_metadata()
 
     return templates.TemplateResponse(
         request,
@@ -76,6 +78,7 @@ async def eidas_config_page(request: Request, db: AsyncSession = Depends(get_db)
             "metadata_status": metadata_status,
             "cert": cert,
             "cert_error": request.query_params.get("cert_error"),
+            "saved": saved,
             "now": datetime.now(timezone.utc),
         },
     )
