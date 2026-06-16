@@ -88,7 +88,7 @@ async def verifica_start(request: Request, db: AsyncSession = Depends(get_db)):
     request.session["verifica_pkce_state"] = state
 
     satosa_base = await _satosa_base(db)
-    callback_uri = f"{_public_base(request)}/verifica/callback"
+    callback_uri = f"{satosa_base}/verifica/callback"
 
     level = request.query_params.get("level", "2")
     acr = _SPID_ACR.get(level, _SPID_ACR["2"])
@@ -141,7 +141,8 @@ async def verifica_callback(request: Request, db: AsyncSession = Depends(get_db)
             "settings": settings,
         })
 
-    callback_uri = f"{_public_base(request)}/verifica/callback"
+    satosa_base = await _satosa_base(db)
+    callback_uri = f"{satosa_base}/verifica/callback"
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as http:

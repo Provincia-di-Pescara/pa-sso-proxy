@@ -909,7 +909,7 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         _salt = os.environ.get("SATOSA_HASH_SALT", "changeme").encode()
         client_db["__spid_verifica__"] = {
             "client_secret": _hmac.new(_salt, b"__spid_verifica__", _hashlib.sha256).hexdigest(),
-            "redirect_uris": [f"https://{hostname}/verifica/callback"],
+            "redirect_uris": [f"{_base_url(hostname)}/verifica/callback"],
             "allowed_scopes": ["openid", "profile", "email"],
             "response_types": ["code"],
         }

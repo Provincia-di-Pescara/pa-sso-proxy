@@ -4,71 +4,253 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Risultato verifica SPID{% if settings and settings.org_display_name %} — {{ settings.org_display_name }}{% endif %}</title>
+  <!-- Import Google Font Outfit -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Titillium Web', Arial, sans-serif; background: #f5f5f5; color: #17324d; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
-    .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.12); padding: 40px 48px; max-width: 560px; width: 100%; }
-    .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
-    .logo-text { font-size: 20px; font-weight: 700; color: #0066cc; }
-    h1 { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
-    .ok { color: #008055; }
-    .err { color: #c02927; }
-    .claim-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    .claim-table td { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 14px; }
-    .claim-table td:first-child { font-weight: 600; width: 44%; color: #5c6f82; }
-    .claim-table td code { font-family: monospace; font-size: 13px; word-break: break-all; }
-    .error-box { background: #fdf0ef; border: 1.5px solid #c02927; border-radius: 6px; padding: 16px 20px; margin-bottom: 20px; }
-    .error-box strong { color: #c02927; }
-    .error-box p { font-size: 13px; margin-top: 6px; color: #5c6f82; }
-    .btn { display: inline-block; background: #0066cc; color: #fff; border-radius: 6px; padding: 10px 22px; font-size: 14px; font-weight: 700; text-decoration: none; transition: background .15s; }
-    .btn:hover { background: #004c99; }
-    .section-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #5c6f82; margin-bottom: 8px; margin-top: 20px; }
-    .badge-ok { display: inline-block; background: #d5f0e6; color: #008055; border-radius: 4px; padding: 2px 10px; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
-    .badge-err { display: inline-block; background: #fdf0ef; color: #c02927; border-radius: 4px; padding: 2px 10px; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+      color: #102a43;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(16, 42, 67, 0.08), 0 2px 4px rgba(16, 42, 67, 0.04);
+      padding: 40px;
+      position: relative;
+      overflow: hidden;
+    }
+    .container::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 6px;
+      {% if success %}
+      background: linear-gradient(90deg, #2b8a3e, #40c057);
+      {% else %}
+      background: linear-gradient(90deg, #e03131, #fa5252);
+      {% endif %}
+    }
+    .header {
+      margin-bottom: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .logo-img {
+      max-height: 50px;
+      max-width: 150px;
+      object-fit: contain;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.05));
+    }
+    .org-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #627d98;
+    }
+    .badge-status {
+      display: inline-block;
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .status-success {
+      background: #ebfbee;
+      color: #2b8a3e;
+    }
+    .status-error {
+      background: #fff5f5;
+      color: #c92a2a;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #102a43;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .claim-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      background: #f8fafc;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+    .claim-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 14px;
+      color: #334e68;
+    }
+    .claim-table tr:last-child td {
+      border-bottom: none;
+    }
+    .claim-table td.label-col {
+      font-weight: 700;
+      width: 38%;
+      color: #486581;
+      background: #f1f5f9;
+    }
+    .claim-table td code {
+      font-family: monospace;
+      font-size: 13px;
+      word-break: break-all;
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #102a43;
+    }
+    .error-box {
+      background: #fff5f5;
+      border: 1px solid #ffc9c9;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .error-box h3 {
+      color: #c92a2a;
+      font-size: 16px;
+      margin-bottom: 6px;
+    }
+    .error-box p {
+      font-size: 14px;
+      color: #868e96;
+      line-height: 1.5;
+    }
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #486581;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-back:hover {
+      background: #334e68;
+    }
+    .btn-back:active {
+      transform: translateY(1px);
+    }
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #627d98;
+      margin-bottom: 8px;
+      margin-top: 24px;
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo">
-      <span class="logo-text">PA SSO Proxy</span>
+  <div class="container">
+    <div class="header">
+      {% if settings and settings.logo_url %}
+        <img src="{{ settings.logo_url }}" alt="Logo {{ settings.org_display_name }}" class="logo-img">
+      {% endif %}
+      <div class="org-title">{{ settings.org_display_name or 'Servizi Digitali Ente' }}</div>
     </div>
 
     {% if success %}
-    <span class="badge-ok">Autenticazione riuscita</span>
-    <h1 class="ok">Verifica completata</h1>
+      <div style="text-align: center;">
+        <span class="badge-status status-success">Autenticazione riuscita</span>
+        <h1>Verifica Completata</h1>
+      </div>
 
-    {% set cf = userinfo.get('fiscal_number') or userinfo.get('https://attributes.eid.gov.it/fiscal_number') or claims.get('fiscal_number') %}
-    {% set nome = userinfo.get('given_name') or claims.get('given_name') %}
-    {% set cognome = userinfo.get('family_name') or claims.get('family_name') %}
+      {% set cf = userinfo.get('fiscal_number') or userinfo.get('https://attributes.eid.gov.it/fiscal_number') or claims.get('fiscal_number') %}
+      {% set nome = userinfo.get('given_name') or claims.get('given_name') %}
+      {% set cognome = userinfo.get('family_name') or claims.get('family_name') %}
 
-    <p class="section-label">Dati utente</p>
-    <table class="claim-table">
-      {% if nome %}<tr><td>Nome</td><td>{{ nome }}</td></tr>{% endif %}
-      {% if cognome %}<tr><td>Cognome</td><td>{{ cognome }}</td></tr>{% endif %}
-      {% if cf %}<tr><td>Codice fiscale</td><td><code>{{ cf }}</code></td></tr>{% endif %}
-      {% set sub = userinfo.get('sub') or claims.get('sub') %}
-      {% if sub %}<tr><td>Sub (SATOSA)</td><td><code>{{ sub }}</code></td></tr>{% endif %}
-    </table>
+      <div class="section-title">Attributi Utente Ricevuti</div>
+      <table class="claim-table">
+        {% if nome %}
+          <tr>
+            <td class="label-col">Nome</td>
+            <td>{{ nome }}</td>
+          </tr>
+        {% endif %}
+        {% if cognome %}
+          <tr>
+            <td class="label-col">Cognome</td>
+            <td>{{ cognome }}</td>
+          </tr>
+        {% endif %}
+        {% if cf %}
+          <tr>
+            <td class="label-col">Codice Fiscale</td>
+            <td><code>{{ cf }}</code></td>
+          </tr>
+        {% endif %}
+        {% set sub = userinfo.get('sub') or claims.get('sub') %}
+        {% if sub %}
+          <tr>
+            <td class="label-col">Identificativo Unico (Sub)</td>
+            <td><code>{{ sub }}</code></td>
+          </tr>
+        {% endif %}
+      </table>
 
-    {% if userinfo %}
-    <p class="section-label">Tutti i claims (userinfo)</p>
-    <table class="claim-table">
-      {% for k, v in userinfo.items() %}
-      <tr><td>{{ k }}</td><td><code>{{ v }}</code></td></tr>
-      {% endfor %}
-    </table>
-    {% endif %}
+      {% if userinfo %}
+        <div class="section-title">Dettaglio Claims Completo (Userinfo)</div>
+        <table class="claim-table">
+          {% for k, v in userinfo.items() %}
+            <tr>
+              <td class="label-col" style="font-size:12px;">{{ k }}</td>
+              <td><code>{{ v }}</code></td>
+            </tr>
+          {% endfor %}
+        </table>
+      {% endif %}
 
     {% else %}
-    <span class="badge-err">Autenticazione fallita</span>
-    <h1 class="err">Errore</h1>
-    <div class="error-box">
-      <strong>{{ error }}</strong>
-      {% if error_description %}<p>{{ error_description }}</p>{% endif %}
-    </div>
+      <div style="text-align: center;">
+        <span class="badge-status status-error">Autenticazione fallita</span>
+        <h1>Errore di Autenticazione</h1>
+      </div>
+
+      <div class="error-box">
+        <h3>{{ error }}</h3>
+        {% if error_description %}
+          <p>{{ error_description }}</p>
+        {% endif %}
+      </div>
     {% endif %}
 
-    <a href="/verifica" class="btn">← Torna alla verifica</a>
+    <a href="/verifica" class="btn-back">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;">
+        <line x1="19" y1="12" x2="5" y2="12"></line>
+        <polyline points="12 19 5 12 12 5"></polyline>
+      </svg>
+      Torna alla pagina di verifica
+    </a>
   </div>
 </body>
 </html>
