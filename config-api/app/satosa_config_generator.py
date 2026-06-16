@@ -463,7 +463,39 @@ def _cie_oidc_backend_yaml(
 
 
 def _eid_locale_strings(cie_oidc_login_url: str | None, settings: "EnteSettings | None" = None) -> dict:
-    """Return eid locale dicts for 'it' and 'en' with correct CIE URLs substituted."""
+    """Return eid locale dicts for 'it' and 'en' with correct CIE and eIDAS URLs substituted."""
+    eidas_login_url = None
+    if settings and getattr(settings, "eidas_enabled", False):
+        env = getattr(settings, "eidas_environment", "prod")
+        eidas_entity_id = "https://sp-proxy.pre.eid.gov.it/spproxy/idpit" if env == "qa" else "https://sp-proxy.eid.gov.it/spproxy/idpit"
+        eidas_login_url = f"/spidSaml2/disco?entityID={eidas_entity_id}&return=/spidSaml2/disco"
+
+    eidas_it = {
+        "name": "eIDAS",
+        "logo_text": "Entra con eIDAS",
+        "logo": "eidas/eidas_logo.svg",
+        "login_url": eidas_login_url or "",
+        "learn_more_descr": (
+            "I cittadini dell'Unione Europea possono accedere ai servizi online con la propria "
+            "identità digitale nazionale tramite il nodo eIDAS italiano."
+        ),
+        "learn_more_link": "https://www.agid.gov.it/it/piattaforme/eidas",
+        "learn_more_label": "Scopri di più su eIDAS",
+    } if eidas_login_url else None
+
+    eidas_en = {
+        "name": "eIDAS",
+        "logo_text": "Login with eIDAS",
+        "logo": "eidas/eidas_logo.svg",
+        "login_url": eidas_login_url or "",
+        "learn_more_descr": (
+            "European Union citizens can access online services using their national digital "
+            "identity via the Italian eIDAS node."
+        ),
+        "learn_more_link": "https://www.agid.gov.it/it/piattaforme/eidas",
+        "learn_more_label": "Find out more about eIDAS",
+    } if eidas_login_url else None
+
     it_wallet_it = {
         "name": "IT-Wallet",
         "logo_text": "Entra con IT-Wallet",
@@ -519,7 +551,7 @@ def _eid_locale_strings(cie_oidc_login_url: str | None, settings: "EnteSettings 
         "login_url": "#spid-idp-button-xlarge-post",
         "learn_more_descr": (
             "SPID (Sistema Pubblico di Identità Digitale) è il sistema pubblico di identità digitale italiano. "
-            "Scegli il tuo gestore di identità per accedere con le tue credenziali SPID."
+            "Scegli il tuo gestore di identità per accedere con le deine credenziali SPID."
         ),
         "learn_more_link": "https://www.spid.gov.it/",
         "learn_more_label": "Scopri come ottenerla",
@@ -537,8 +569,10 @@ def _eid_locale_strings(cie_oidc_login_url: str | None, settings: "EnteSettings 
         "learn_more_label": "Find out how to get it",
     }
 
-    def _digital_id(cie, spid, it_wallet, cie_oidc_login, lang):
+    def _digital_id(cie, spid, it_wallet, eidas, cie_oidc_login, lang):
         d = {"it_wallet": it_wallet, "cie": cie, "spid": spid}
+        if eidas:
+            d["eidas"] = eidas
         if cie_oidc_login:
             cie_oidc_name = "CIE OpenID Connect"
             cie_oidc_descr_it = (
@@ -612,13 +646,13 @@ def _eid_locale_strings(cie_oidc_login_url: str | None, settings: "EnteSettings 
     it_locale = {
         "header": {"region_name": _org_name_it, "logo_url": _logo_url, "favicon_url": _favicon_url},
         "titles": common_titles_it,
-        "digital_id": _digital_id(cie_it, spid_it, it_wallet_it, cie_oidc_login_url, "it"),
+        "digital_id": _digital_id(cie_it, spid_it, it_wallet_it, eidas_it, cie_oidc_login_url, "it"),
         "footer": footer_it,
     }
     en_locale = {
         "header": {"region_name": _org_name_en, "logo_url": _logo_url, "favicon_url": _favicon_url},
         "titles": common_titles_en,
-        "digital_id": _digital_id(cie_en, spid_en, it_wallet_en, cie_oidc_login_url, "en"),
+        "digital_id": _digital_id(cie_en, spid_en, it_wallet_en, eidas_en, cie_oidc_login_url, "en"),
         "footer": footer_en,
     }
     return {"it": it_locale, "en": en_locale}

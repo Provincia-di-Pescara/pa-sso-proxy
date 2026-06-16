@@ -87,6 +87,28 @@
           Entra con CIE
         </button>
 
+        <button class="sso-tab" id="tab-eidas" role="tab"
+                aria-selected="false" aria-controls="panel-eidas"
+                type="button" onclick="ssoTab('eidas')" style="display:none">
+          <span class="sso-tab-ico-wrapper" style="background:#003399;display:inline-flex;align-items:center;justify-content:center;">
+            <svg class="sso-tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;color:#FFCC00;">
+              <circle cx="12" cy="5" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="15.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="18.1" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="19" cy="12" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="18.1" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="15.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="12" cy="19" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="8.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="5.9" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="5" cy="12" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="5.9" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="8.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />
+            </svg>
+          </span>
+          Entra con eIDAS
+        </button>
+
       </div><!-- /sso-tabs -->
 
       <!-- SPID PANEL -->
@@ -146,6 +168,56 @@
 
         <div class="panel-foot-logo">
           <img class="ministero-logo" src="/static/cie/ministero@2x.png" alt="Ministero dell'Interno">
+        </div>
+      </div>
+
+      <!-- eIDAS PANEL -->
+      <div class="sso-tab-panel" id="panel-eidas" role="tabpanel" aria-labelledby="tab-eidas" hidden>
+        <p class="sso-desc" id="eidas-desc">
+          I cittadini dell'Unione Europea possono accedere ai servizi online con la propria identità digitale nazionale tramite il nodo eIDAS italiano.
+        </p>
+        <div class="sso-helpers">
+          <a href="https://www.agid.gov.it/it/piattaforme/eidas" target="_blank" rel="noopener" id="eidas-learn-more">Maggiori informazioni su eIDAS</a>
+        </div>
+
+        <div class="cie-panel">
+          <a class="cie-login-btn" id="eidas-login-btn" href="#" style="background:#003399;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px;height:20px;margin-right:10px;color:#FFCC00;flex:0 0 auto;vertical-align:middle;">
+              <circle cx="12" cy="5" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="15.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="18.1" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="19" cy="12" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="18.1" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="15.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="12" cy="19" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="8.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="5.9" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="5" cy="12" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="5.9" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />
+              <circle cx="8.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />
+            </svg>
+            Entra con eIDAS
+          </a>
+        </div>
+
+        <div class="panel-foot-logo">
+          <span style="font-size:12px;color:var(--fg-muted);display:flex;align-items:center;gap:6px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;color:#003399;vertical-align:middle;">
+              <circle cx="12" cy="5" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="15.5" cy="5.9" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="18.1" cy="8.5" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="19" cy="12" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="18.1" cy="15.5" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="15.5" cy="18.1" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="12" cy="19" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="8.5" cy="18.1" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="5.9" cy="15.5" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="5" cy="12" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="5.9" cy="8.5" r="1.2" fill="#003399" stroke="none" />
+              <circle cx="8.5" cy="5.9" r="1.2" fill="#003399" stroke="none" />
+            </svg>
+            Unione Europea
+          </span>
         </div>
       </div>
 
@@ -301,6 +373,57 @@ function ssoMakeDot() {
         var btnCie = document.getElementById('cie-login-btn');
         if (tabCie) tabCie.style.display = '';
         if (btnCie) btnCie.href = cie.login_url;
+      }
+
+      /* eIDAS tab — show only if login_url is configured */
+      var eidas = data && data.digital_id && data.digital_id.eidas;
+      if (eidas && eidas.login_url && eidas.login_url !== '') {
+        var tabEidas = document.getElementById('tab-eidas');
+        var btnEidas = document.getElementById('eidas-login-btn');
+        var descEidas = document.getElementById('eidas-desc');
+        var lmEidas = document.getElementById('eidas-learn-more');
+        if (tabEidas) {
+          tabEidas.style.display = '';
+          tabEidas.innerHTML = '<span class="sso-tab-ico-wrapper" style="background:#003399;display:inline-flex;align-items:center;justify-content:center;">'
+            + '<svg class="sso-tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;color:#FFCC00;">'
+            + '<circle cx="12" cy="5" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="15.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="18.1" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="19" cy="12" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="18.1" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="15.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="12" cy="19" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="8.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="5.9" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="5" cy="12" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="5.9" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="8.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '</svg></span> ' + (eidas.logo_text || 'Entra con eIDAS');
+        }
+        if (btnEidas) {
+          btnEidas.href = eidas.login_url;
+          btnEidas.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px;height:20px;margin-right:10px;color:#FFCC00;flex:0 0 auto;vertical-align:middle;">'
+            + '<circle cx="12" cy="5" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="15.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="18.1" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="19" cy="12" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="18.1" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="15.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="12" cy="19" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="8.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="5.9" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="5" cy="12" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="5.9" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '<circle cx="8.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />'
+            + '</svg> ' + (eidas.logo_text || 'Entra con eIDAS');
+        }
+        if (descEidas && eidas.learn_more_descr) {
+          descEidas.innerHTML = eidas.learn_more_descr;
+        }
+        if (lmEidas && eidas.learn_more_link) {
+          lmEidas.href = eidas.learn_more_link;
+          if (eidas.learn_more_label) lmEidas.textContent = eidas.learn_more_label;
+        }
       }
 
       /* Footer links */

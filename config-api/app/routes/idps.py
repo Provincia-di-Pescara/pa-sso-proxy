@@ -16,6 +16,7 @@ from app.models import SpidIdP, EnteSettings, SpidCert
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_seeder import sync_spid_idps_from_registry
+from app.routes.eidas import check_sp_metadata
 
 router = APIRouter()
 
@@ -151,6 +152,8 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     cert = cert_result.scalar_one_or_none()
     cert_error = request.query_params.get("cert_error")
 
+    metadata_status = await check_sp_metadata()
+
     return templates.TemplateResponse(
         request,
         "idps/list.html.j2",
@@ -166,6 +169,7 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
             "cert": cert,
             "cert_error": cert_error,
             "now": datetime.now(timezone.utc),
+            "metadata_status": metadata_status,
         },
     )
 

@@ -1,0 +1,137 @@
+{% extends "base.html.j2" %}
+{% block title %}Configurazione eIDAS — PA SSO Proxy{% endblock %}
+{% block page_title %}eIDAS{% endblock %}
+
+{% block content %}
+<div style="max-width:720px;">
+  {% if request.query_params.get('saved') %}
+  <div class="a-alert a-alert-success" style="margin-bottom:16px;">Configurazione eIDAS aggiornata. SATOSA ricaricato.</div>
+  {% endif %}
+
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">
+      Integrazione eIDAS
+      {% if s and s.eidas_enabled %}
+      <span class="a-badge a-badge-success">abilitato</span>
+      {% else %}
+      <span class="a-badge a-badge-neutral">disabilitato</span>
+      {% endif %}
+    </div>
+    <div class="a-card-body">
+      <p style="font-size:13px;margin-bottom:16px;color:var(--fg-muted);">
+        Permette l'autenticazione di cittadini europei tramite il Nodo eIDAS Italiano (FICEP / AgID).
+      </p>
+
+      <form method="post" action="/admin/eidas/toggle" id="eidas-form">
+        <input type="hidden" name="action" id="eidas-action" value="{% if s and s.eidas_enabled %}disable{% else %}enable{% endif %}">
+        <input type="hidden" name="confirmed" id="eidas-confirmed" value="{% if s and s.eidas_enabled %}yes{% endif %}">
+
+        <div class="a-form-group">
+          <label class="a-label" for="eidas-env">Ambiente di esercizio</label>
+          <select name="environment" id="eidas-env" class="a-select" style="max-width:300px;">
+            <option value="prod" {% if s and s.eidas_environment == 'prod' %}selected{% endif %}>Produzione (PROD)</option>
+            <option value="qa" {% if s and s.eidas_environment == 'qa' %}selected{% endif %}>Pre-produzione (QA)</option>
+          </select>
+          <div class="a-form-hint">Seleziona l'ambiente del gateway eIDAS italiano gestito da AgID.</div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          {% if s and s.eidas_enabled %}
+            <button type="submit" class="a-btn a-btn-primary">Aggiorna Ambiente</button>
+            <button type="button" class="a-btn a-btn-danger" onclick="toggleEidas('disable')">Disabilita eIDAS</button>
+          {% else %}
+            <button type="button" class="a-btn a-btn-primary" onclick="toggleEidas('enable')">Abilita eIDAS</button>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# SAML SP Metadata Status Card #}
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">
+      Stato Metadata SAML (Service Provider)
+      <span class="a-badge a-badge-neutral">SAML SP</span>
+    </div>
+    <div class="a-card-body">
+      <p style="font-size:13px;margin-bottom:12px;color:var(--fg-muted);">
+        Il proxy pubblica il proprio metadata SAML a questo URL pubblico, necessario per registrare il servizio presso AgID/IdP:
+      </p>
+      <div class="a-form-group" style="margin-bottom:12px;">
+        <input class="a-input a-input-ro a-mono" type="text" value="https://{{ proxy_hostname }}/spidSaml2/metadata" readonly style="font-size:12px;">
+      </div>
+      
+      {% if metadata_status %}
+        {% if metadata_status.valid %}
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto SPID:</span>
+              {% if metadata_status.has_spid %}
+                <span class="a-badge a-badge-success">Attivo</span>
+              {% else %}
+                <span class="a-badge a-badge-danger">Non configurato</span>
+              {% endif %}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto eIDAS (FICEP):</span>
+              {% if metadata_status.has_eidas %}
+                <span class="a-badge a-badge-success">Attivo (indici 99/100 presenti)</span>
+              {% else %}
+                <span class="a-badge a-badge-neutral">Non attivo</span>
+              {% endif %}
+            </div>
+          </div>
+          {% if s and s.eidas_enabled and not metadata_status.has_eidas %}
+            <div class="a-alert a-alert-warning" style="margin-top:14px;">
+              <strong>Attenzione:</strong> eIDAS è abilitato in configurazione, ma il metadata pubblicato non contiene gli indici FICEP (99/100). 
+              Verifica che SATOSA sia stato ricaricato correttamente.
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="a-alert a-alert-danger" style="margin-top:8px;">
+            <strong>Impossibile verificare lo stato del metadata locale:</strong> {{ metadata_status.error }}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="a-muted" style="font-size:12px;">Verifica in corso...</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleEidas(action) {
+  var form = document.getElementById("eidas-form");
+  var actionInput = document.getElementById("eidas-action");
+  var confirmedInput = document.getElementById("eidas-confirmed");
+  
+  if (action === "enable") {
+    var env = document.getElementById("eidas-env").value;
+    var envLabel = env === "qa" ? "Pre-produzione (QA)" : "Produzione (PROD)";
+    var ok = window.confirm(
+      "Attenzione: abilitare eIDAS modifica il metadata SAML del Service Provider.\n\n" +
+      "Ambiente selezionato: " + envLabel + "\n\n" +
+      "Sarà necessario:\n" +
+      "  • Scaricare e re-inviare il metadata SP ad AgID/FICEP\n" +
+      "  • Ripetere la validazione SPID se richiesto\n\n" +
+      "Continuare?"
+    );
+    if (ok) {
+      actionInput.value = "enable";
+      confirmedInput.value = "yes";
+      form.submit();
+    }
+  } else {
+    var ok = window.confirm(
+      "Disabilitare eIDAS rimuoverà gli indici FICEP (99/100) dal metadata SP e nasconderà il login eIDAS.\n\n" +
+      "Continuare?"
+    );
+    if (ok) {
+      actionInput.value = "disable";
+      confirmedInput.value = "yes";
+      form.submit();
+    }
+  }
+}
+</script>
+{% endblock %}

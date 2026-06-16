@@ -126,6 +126,51 @@
   </div>
 </div>
 
+{# SAML SP Metadata Status Card #}
+<div class="a-card" style="margin-bottom:14px;">
+  <div class="a-card-header">
+    Stato Metadata SAML (Service Provider)
+    <span class="a-badge a-badge-neutral">SAML SP</span>
+  </div>
+  <div class="a-card-body">
+    <p style="font-size:13px;margin-bottom:12px;color:var(--fg-muted);">
+      Il proxy pubblica il proprio metadata SAML a questo URL pubblico, necessario per registrare il servizio presso AgID/IdP:
+    </p>
+    <div class="a-form-group" style="margin-bottom:12px;">
+      <input class="a-input a-input-ro a-mono" type="text" value="https://{{ proxy_hostname }}/spidSaml2/metadata" readonly style="font-size:12px;">
+    </div>
+    
+    {% if metadata_status %}
+      {% if metadata_status.valid %}
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto SPID:</span>
+            {% if metadata_status.has_spid %}
+              <span class="a-badge a-badge-success">Attivo</span>
+            {% else %}
+              <span class="a-badge a-badge-danger">Non configurato</span>
+            {% endif %}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto eIDAS (FICEP):</span>
+            {% if metadata_status.has_eidas %}
+              <span class="a-badge a-badge-success">Attivo (indici 99/100 presenti)</span>
+            {% else %}
+              <span class="a-badge a-badge-neutral">Non attivo</span>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div class="a-alert a-alert-danger" style="margin-top:8px;">
+          <strong>Impossibile verificare lo stato del metadata locale:</strong> {{ metadata_status.error }}
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="a-muted" style="font-size:12px;">Verifica in corso...</div>
+    {% endif %}
+  </div>
+</div>
+
 {# Registry sync + IdP table #}
 <div class="a-card">
   <div class="a-card-header">
