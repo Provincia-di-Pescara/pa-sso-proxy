@@ -1,0 +1,250 @@
+{% extends "base.html.j2" %}
+{% block title %}Log Dettagliati — PA SSO Proxy{% endblock %}
+{% block page_title %}Log Dettagliati{% endblock %}
+{% block page_subtitle %}<span class="a-muted">Esplora nel dettaglio gli accessi, consulta i codici fiscali criptati (hash) e analizza la frequenza di accesso per singolo utente.</span>{% endblock %}
+
+{% block content %}
+<!-- Search and Filter Form -->
+<div class="a-card" style="margin-bottom: 24px; padding: 20px;">
+  <form method="get" action="/admin/access-log/advanced" style="display:flex; flex-direction:column; gap:16px;">
+    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+      
+      <!-- Fiscal Code or Hash Search Field -->
+      <div style="flex: 1; min-width: 250px;">
+        <label for="search_cf" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:var(--text-muted, #5f6368);">
+          Cerca Codice Fiscale (in chiaro) o Hash (64 caratteri)
+        </label>
+        <input type="text" id="search_cf" name="search_cf" value="{{ search_cf }}" 
+               placeholder="Es: RSSMRA80A01F205X o hash..." 
+               class="a-input" style="width:100%; box-sizing:border-box;">
+      </div>
+      
+      <!-- Provider Type Filter -->
+      <div style="width: auto; min-width: 140px;">
+        <label for="provider_type" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:var(--text-muted, #5f6368);">
+          Provider
+        </label>
+        <select id="provider_type" name="provider_type" class="a-select" style="width:100%;">
+          <option value="">Tutti</option>
+          <option value="spid" {% if provider_type == 'spid' %}selected{% endif %}>SPID</option>
+          <option value="cie" {% if provider_type == 'cie' %}selected{% endif %}>CIE</option>
+          <option value="eidas" {% if provider_type == 'eidas' %}selected{% endif %}>eIDAS</option>
+          <option value="itwallet" {% if provider_type == 'itwallet' %}selected{% endif %}>IT Wallet</option>
+        </select>
+      </div>
+
+      <!-- Result Filter -->
+      <div style="width: auto; min-width: 140px;">
+        <label for="result" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:var(--text-muted, #5f6368);">
+          Esito
+        </label>
+        <select id="result" name="result" class="a-select" style="width:100%;">
+          <option value="">Tutti</option>
+          <option value="success" {% if result_filter == 'success' %}selected{% endif %}>Successo</option>
+          <option value="failure" {% if result_filter == 'failure' %}selected{% endif %}>Fallito</option>
+          <option value="error" {% if result_filter == 'error' %}selected{% endif %}>Errore</option>
+        </select>
+      </div>
+
+      <!-- Date filters -->
+      <div style="width: auto; min-width: 130px;">
+        <label for="from_date" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:var(--text-muted, #5f6368);">
+          Da data
+        </label>
+        <input type="date" id="from_date" name="from_date" value="{{ from_date }}" class="a-input" style="width:100%;">
+      </div>
+
+      <div style="width: auto; min-width: 130px;">
+        <label for="to_date" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:var(--text-muted, #5f6368);">
+          A data
+        </label>
+        <input type="date" id="to_date" name="to_date" value="{{ to_date }}" class="a-input" style="width:100%;">
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex; gap:8px;">
+        <button type="submit" class="a-btn a-btn-primary" style="height:36px;">Cerca e Filtra</button>
+        <a href="/admin/access-log/advanced" class="a-btn a-btn-neutral" style="height:36px; display:inline-flex; align-items:center; justify-content:center;">Reset</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Search Results Meta Card (when searching by CF/Hash) -->
+{% if search_cf %}
+<div class="a-card" style="margin-bottom: 24px; padding: 20px; border-left: 4px solid #0056b3; background-color: #f8f9fa;">
+  <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #1a1a1a;">Risultati della ricerca per Codice Fiscale</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+    <div>
+      <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; color: #666; margin-bottom: 4px;">Valore cercato</div>
+      <div class="a-mono" style="font-size: 15px; font-weight: 600; color: #333;">{{ search_cf }}</div>
+    </div>
+    <div>
+      <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; color: #666; margin-bottom: 4px;">Hash Pseudonimo (SHA256)</div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="a-mono" style="font-size: 13px; color: #555; background: #eef1f6; padding: 2px 6px; border-radius: 4px; word-break: break-all;">
+          {{ computed_hash }}
+        </span>
+        <button onclick="copyToClipboard('{{ computed_hash }}', this)" 
+                class="a-btn a-btn-neutral a-btn-sm" 
+                style="padding: 2px 6px; font-size: 11px; min-width: 60px;" 
+                title="Copia hash negli appunti">
+          Copia
+        </button>
+      </div>
+    </div>
+    <div>
+      <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; color: #666; margin-bottom: 4px;">Accessi totali utente</div>
+      <div style="display: flex; align-items: baseline; gap: 6px;">
+        <span style="font-size: 24px; font-weight: bold; color: #2e7d32;">{{ total_cf_accesses }}</span>
+        <span class="a-muted" style="font-size: 13px;">sessioni registrate</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Access Logs List -->
+{% if logs %}
+<div class="a-card">
+  <div class="a-table-wrap">
+    <table class="a-table">
+      <thead>
+        <tr>
+          <th style="min-width: 140px;">Timestamp</th>
+          <th>Provider</th>
+          <th>IdP Entity ID</th>
+          <th>Applicazione (Client)</th>
+          <th>Tipo</th>
+          <th>Codice Fiscale Criptato (Hash)</th>
+          <th>Esito</th>
+          <th>Codice errore</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td class="a-mono a-muted" style="font-size: 12px;">
+            {{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '—' }}
+          </td>
+          <td>
+            {% if log.provider_type == 'spid' %}<span class="a-badge-spid">SPID</span>
+            {% elif log.provider_type == 'cie' %}<span class="a-badge-cie">CIE</span>
+            {% elif log.provider_type == 'eidas' %}<span class="a-badge a-badge-neutral">eIDAS</span>
+            {% elif log.provider_type == 'itwallet' %}<span class="a-badge a-badge-neutral">IT Wallet</span>
+            {% else %}<span class="a-badge a-badge-neutral">{{ log.provider_type }}</span>
+            {% endif %}
+          </td>
+          <td class="a-mono" style="font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ log.idp_entity_id or '' }}">
+            {{ (log.idp_entity_id or '—') | replace('https://', '') }}
+          </td>
+          <td class="a-mono" style="font-size: 12px;">
+            {{ client_name_map.get(log.client_id, log.client_id) or '—' }}
+          </td>
+          <td>
+            {% if log.user_type == 'PF' %}<span class="a-badge a-badge-neutral" title="Persona Fisica">Fisica</span>
+            {% elif log.user_type == 'PG' %}<span class="a-badge a-badge-neutral" title="Persona Giuridica">Giuridica</span>
+            {% else %}—
+            {% endif %}
+          </td>
+          <td>
+            {% if log.fiscal_number_hash %}
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="a-mono" style="font-size: 11px; color: #666; background: #fafafa; border: 1px solid #eaeaea; padding: 2px 6px; border-radius: 4px;" 
+                    title="{{ log.fiscal_number_hash }}">
+                {{ log.fiscal_number_hash[:10] }}...{{ log.fiscal_number_hash[-8:] }}
+              </span>
+              <button onclick="copyToClipboard('{{ log.fiscal_number_hash }}', this)" 
+                      class="a-btn a-btn-neutral a-btn-sm" 
+                      style="padding: 1px 4px; font-size: 10px; line-height: 1.2; height: auto;" 
+                      title="Copia hash completo">
+                Copia
+              </button>
+            </div>
+            {% else %}
+            <span class="a-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if log.result == 'success' %}<span class="a-badge a-badge-success">Successo</span>
+            {% elif log.result == 'failure' %}<span class="a-badge a-badge-warning">Fallito</span>
+            {% else %}<span class="a-badge a-badge-danger">Errore</span>
+            {% endif %}
+          </td>
+          <td class="a-mono a-muted" style="font-size: 11px;">{{ log.error_code or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  
+  <!-- Pagination -->
+  <div class="a-pagination" style="padding: 16px; border-top: 1px solid #eaeaea;">
+    {% if page > 1 %}
+    <a href="/admin/access-log/advanced?page={{ page - 1 }}&search_cf={{ search_cf }}&provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}" 
+       class="a-btn a-btn-neutral a-btn-sm">← Precedente</a>
+    {% else %}
+    <span class="a-btn a-btn-neutral a-btn-sm" style="opacity:.4; cursor:default;">← Precedente</span>
+    {% endif %}
+    
+    <span class="a-muted" style="font-size: 12px; font-weight: 500;">Pagina {{ page }}</span>
+    
+    {% if has_next %}
+    <a href="/admin/access-log/advanced?page={{ page + 1 }}&search_cf={{ search_cf }}&provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}" 
+       class="a-btn a-btn-neutral a-btn-sm">Successiva →</a>
+    {% else %}
+    <span class="a-btn a-btn-neutral a-btn-sm" style="opacity:.4; cursor:default;">Successiva →</span>
+    {% endif %}
+  </div>
+</div>
+
+{% else %}
+<div class="a-card" style="text-align:center; padding:50px 20px;">
+  <div class="a-muted" style="margin-bottom:8px; font-size:15px;">Nessun accesso registrato corrispondente ai criteri selezionati.</div>
+  <div class="a-muted" style="font-size:12px; max-width: 400px; margin: 0 auto;">
+    Se hai effettuato una ricerca per codice fiscale, verifica la correttezza del codice inserito. Gli accessi vengono registrati in forma pseudonimizzata tramite l'HMAC-SHA256 della chiave di sistema.
+  </div>
+</div>
+{% endif %}
+
+<!-- Javascript copy-to-clipboard logic -->
+<script>
+function copyToClipboard(text, btn) {
+  if (!navigator.clipboard) {
+    // Fallback if not HTTPS
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      const originalText = btn.innerText;
+      btn.innerText = 'Copiato!';
+      btn.style.color = '#2e7d32';
+      setTimeout(() => {
+        btn.innerText = originalText;
+        btn.style.color = '';
+      }, 1500);
+    } catch (err) {
+      console.error('Fallback copy failed', err);
+    }
+    document.body.removeChild(textArea);
+    return;
+  }
+  
+  navigator.clipboard.writeText(text).then(() => {
+    const originalText = btn.innerText;
+    btn.innerText = 'Copiato!';
+    btn.style.color = '#2e7d32';
+    setTimeout(() => {
+      btn.innerText = originalText;
+      btn.style.color = '';
+    }, 1500);
+  }).catch(err => {
+    console.error('Failed to copy: ', err);
+  });
+}
+</script>
+{% endblock %}

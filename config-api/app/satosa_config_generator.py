@@ -15,6 +15,8 @@ from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidIdP
 SATOSA_CONF_DIR = os.environ.get("SATOSA_CONF_DIR", "/satosa-conf")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
+_TEST_ALIASES = {"spid-demo", "spid-validator"}
+
 
 def _base_url(hostname: str) -> str:
     """Return the public base URL for SATOSA. PROXY_BASE_URL overrides hostname."""
@@ -135,7 +137,6 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
     # Production IdPs are already in the local aggregate XML; their metadata_url
     # endpoints redirect (307) which pysaml2 does not follow → SourceNotFound crash.
     # Only demo/test IdPs need remote metadata (their URLs return 200 directly).
-    _TEST_ALIASES = {"spid-demo", "spid-validator"}
     remote_metadata = [
         {"url": idp.metadata_url}
         for idp in enabled_idps

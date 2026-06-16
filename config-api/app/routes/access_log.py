@@ -1,11 +1,15 @@
 import csv
+import hashlib as _hashlib
+import hmac as _hmac
 import io
+import os
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -132,3 +136,74 @@ async def access_log_export(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=access_log.csv"},
     )
+
+
+def _compute_cf_hash(fiscal_no: str) -> str:
+    cf_key = os.environ.get("CF_HASH_KEY", "").encode()
+    if not cf_key or not fiscal_no:
+        return ""
+    normalized = str(fiscal_no).strip().upper()
+    if normalized.startswith("TINIT-"):
+        normalized = normalized[6:]
+    return _hmac.new(cf_key, normalized.encode("utf-8"), _hashlib.sha256).hexdigest()
+
+
+@router.get("/access-log/advanced", response_class=HTMLResponse)
+async def access_log_advanced(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    search_cf: Optional[str] = Query(None),
+    provider_type: Optional[str] = Query(None),
+    result: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+):
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+
+    filters = _build_filters(provider_type, result, from_date, to_date)
+
+    computed_hash = None
+    total_cf_accesses = None
+
+    if search_cf:
+        search_cf_clean = search_cf.strip()
+        # Check if it looks like a SHA256 HMAC (64 characters, hexadecimal)
+        if len(search_cf_clean) == 64 and re.match(r"^[0-9a-fA-F]{64}$", search_cf_clean):
+            computed_hash = search_cf_clean.lower()
+        else:
+            computed_hash = _compute_cf_hash(search_cf_clean)
+
+        if computed_hash:
+            filters.append(AccessLog.fiscal_number_hash == computed_hash)
+
+            # Count overall accesses for this CF hash
+            count_q = select(func.count(AccessLog.id)).where(AccessLog.fiscal_number_hash == computed_hash)
+            total_cf_accesses = (await db.execute(count_q)).scalar_one()
+
+    offset = (page - 1) * _PAGE_SIZE
+    q = select(AccessLog)
+    if filters:
+        q = q.where(and_(*filters))
+    q = q.order_by(AccessLog.timestamp.desc()).offset(offset).limit(_PAGE_SIZE + 1)
+    rows = list((await db.execute(q)).scalars().all())
+    has_next = len(rows) > _PAGE_SIZE
+    rows = rows[:_PAGE_SIZE]
+
+    clients_res = await db.execute(select(OIDCClient.client_id, OIDCClient.name))
+    client_name_map = {row.client_id: row.name for row in clients_res.all()}
+
+    return templates.TemplateResponse(request, "access_log/advanced.html.j2", {
+        "logs": rows,
+        "page": page,
+        "has_next": has_next,
+        "search_cf": search_cf or "",
+        "computed_hash": computed_hash or "",
+        "total_cf_accesses": total_cf_accesses,
+        "provider_type": provider_type or "",
+        "result_filter": result or "",
+        "from_date": from_date or "",
+        "to_date": to_date or "",
+        "client_name_map": client_name_map,
+    })
