@@ -34,6 +34,7 @@ services:
       - SATOSA_CONFIG=/satosa-conf/proxy.yaml
       - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
       - REDIS_URL=redis://redis:6379/0
+      - CF_HASH_KEY=${CF_HASH_KEY:-}
     volumes:
       - proxy_satosa_conf:/satosa-conf
     networks:
@@ -62,6 +63,7 @@ services:
       - SATOSA_STATE_ENCRYPTION_KEY=${SATOSA_STATE_ENCRYPTION_KEY:-changeme-generate-random-state-key-32chars}
       - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
       - PROXY_BASE_URL=${PROXY_BASE_URL:-}
+      - CF_HASH_KEY=${CF_HASH_KEY:-}
     volumes:
       - proxy_satosa_conf:/satosa-conf
     networks:
