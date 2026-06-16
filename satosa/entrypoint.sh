@@ -9,6 +9,12 @@ if [ ! -f /satosa-conf/spid-idps-default.json ]; then
     cp /satosa_proxy/static/js/spid-idps-default.json /satosa-conf/spid-idps-default.json
 fi
 
+# Use aggregate XML from shared volume (kept fresh by config-api metadata_watcher).
+# Fall back to bundled file only if config-api hasn't downloaded it yet.
+if [ ! -f /satosa-conf/spid-entities-idps.xml ]; then
+    cp /satosa_proxy/metadata/idp/spid-entities-idps.xml /satosa-conf/spid-entities-idps.xml
+fi
+
 mkdir -p /satosa-conf/locales
 
 exec uwsgi \

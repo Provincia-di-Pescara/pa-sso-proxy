@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import AsyncSessionLocal, engine, get_db
 from app.models import EnteSettings
 from app.rate_limiter import is_ip_banned, record_failed_attempt, clear_attempts
-from app.metadata_watcher import run_metadata_watcher
+from app.metadata_watcher import run_metadata_watcher, fetch_spid_aggregate
 from app.routes import dashboard, clients, idps, settings, certs, cie, test_client, backup, access_log, internal, placeholders
 from app.satosa_generator import generate_and_write
 from app.spid_seeder import seed_spid_idps
@@ -139,11 +139,17 @@ async def lifespan(app: FastAPI):
     await _migrate_cie_oidc_columns()
     await _migrate_spid_registry_columns()
     await _migrate_client_secret_plain()
+    try:
+        await fetch_spid_aggregate()
+    except Exception:
+        logger.warning("SPID aggregate download failed at startup", exc_info=True)
     async with AsyncSessionLocal() as session:
         await seed_spid_idps(session)
         await _try_fetch_trust_mark(session)
         try:
             await generate_and_write(session)
+            from app.satosa_reload import reload_satosa
+            reload_satosa()
         except Exception:
             logger.warning("Startup config generation failed (ok on first boot)", exc_info=True)
     scheduler = AsyncIOScheduler()

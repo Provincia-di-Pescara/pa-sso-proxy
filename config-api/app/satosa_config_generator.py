@@ -131,7 +131,7 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
 
 
 def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_path: str, settings: "EnteSettings") -> dict:
-    local_metadata = ["/satosa_proxy/metadata/idp/spid-entities-idps.xml"]
+    local_metadata = ["/satosa-conf/spid-entities-idps.xml"]
     # Production IdPs are already in the local aggregate XML; their metadata_url
     # endpoints redirect (307) which pysaml2 does not follow → SourceNotFound crash.
     # Only demo/test IdPs need remote metadata (their URLs return 200 directly).

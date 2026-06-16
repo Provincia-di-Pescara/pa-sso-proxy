@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.metadata_watcher import fetch_idp_metadata
+from app.metadata_watcher import fetch_idp_metadata, fetch_spid_aggregate
 from app.models import SpidIdP, EnteSettings, SpidCert
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
@@ -257,4 +257,18 @@ async def idps_refresh(request: Request, idp_id: int, db: AsyncSession = Depends
                 await asyncio.to_thread(reload_satosa)
         except Exception:
             pass
+    return RedirectResponse("/admin/idps", status_code=302)
+
+
+@router.post("/idps/refresh-aggregate")
+async def idps_refresh_aggregate(request: Request, db: AsyncSession = Depends(get_db)):
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+    try:
+        updated = await fetch_spid_aggregate()
+        if updated:
+            await generate_and_write(db)
+            await asyncio.to_thread(reload_satosa)
+    except Exception:
+        pass
     return RedirectResponse("/admin/idps", status_code=302)
