@@ -75,7 +75,7 @@
                 aria-selected="true" aria-controls="panel-spid"
                 type="button" onclick="ssoTab('spid')">
           <img class="sso-tab-ico" src="/static/spid/spid-ico-circle-bb.svg" alt="SPID">
-          Entra con SPID
+          SPID
         </button>
 
         <button class="sso-tab" id="tab-cie" role="tab"
@@ -84,29 +84,16 @@
           <span class="sso-tab-ico-wrapper">
             <img class="sso-tab-ico sso-tab-ico--cie" src="/static/cie/cie_white.svg" alt="CIE">
           </span>
-          Entra con CIE
+          CIE
         </button>
 
         <button class="sso-tab" id="tab-eidas" role="tab"
                 aria-selected="false" aria-controls="panel-eidas"
                 type="button" onclick="ssoTab('eidas')" style="display:none">
-          <span class="sso-tab-ico-wrapper" style="background:#003399;display:inline-flex;align-items:center;justify-content:center;">
-            <svg class="sso-tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;color:#FFCC00;">
-              <circle cx="12" cy="5" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="15.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="18.1" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="19" cy="12" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="18.1" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="15.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="12" cy="19" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="8.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="5.9" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="5" cy="12" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="5.9" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="8.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />
-            </svg>
+          <span class="sso-tab-ico-wrapper" style="background:#003399;display:inline-flex;align-items:center;justify-content:center;padding:0;">
+            <img class="sso-tab-ico" src="/static/eidas/ficep-it-eidas-ybw.svg" alt="eIDAS" style="width:100%;height:100%;">
           </span>
-          Entra con eIDAS
+          eIDAS
         </button>
 
       </div><!-- /sso-tabs -->
@@ -181,22 +168,11 @@
         </div>
 
         <div class="cie-panel">
-          <a class="cie-login-btn" id="eidas-login-btn" href="#" style="background:#003399;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px;height:20px;margin-right:10px;color:#FFCC00;flex:0 0 auto;vertical-align:middle;">
-              <circle cx="12" cy="5" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="15.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="18.1" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="19" cy="12" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="18.1" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="15.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="12" cy="19" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="8.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="5.9" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="5" cy="12" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="5.9" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />
-              <circle cx="8.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />
-            </svg>
-            Entra con eIDAS
+          <a class="eidas-btn" id="eidas-login-btn" href="#">
+            <span class="eidas-btn-icon">
+              <img src="/static/eidas/ficep-it-eidas-ybw.svg" alt="">
+            </span>
+            <span class="eidas-btn-text">Entra con eIDAS</span>
           </a>
         </div>
 
@@ -384,38 +360,16 @@ function ssoMakeDot() {
         var lmEidas = document.getElementById('eidas-learn-more');
         if (tabEidas) {
           tabEidas.style.display = '';
-          tabEidas.innerHTML = '<span class="sso-tab-ico-wrapper" style="background:#003399;display:inline-flex;align-items:center;justify-content:center;">'
-            + '<svg class="sso-tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;color:#FFCC00;">'
-            + '<circle cx="12" cy="5" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="15.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="18.1" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="19" cy="12" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="18.1" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="15.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="12" cy="19" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="8.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="5.9" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="5" cy="12" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="5.9" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="8.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '</svg></span> ' + (eidas.logo_text || 'Entra con eIDAS');
+          tabEidas.innerHTML = '<span class="sso-tab-ico-wrapper" style="background:#003399;display:inline-flex;align-items:center;justify-content:center;padding:0;">'
+            + '<img class="sso-tab-ico" src="/static/eidas/ficep-it-eidas-ybw.svg" alt="eIDAS" style="width:100%;height:100%;">'
+            + '</span> ' + (eidas.logo_text || 'eIDAS');
         }
         if (btnEidas) {
           btnEidas.href = eidas.login_url;
-          btnEidas.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px;height:20px;margin-right:10px;color:#FFCC00;flex:0 0 auto;vertical-align:middle;">'
-            + '<circle cx="12" cy="5" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="15.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="18.1" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="19" cy="12" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="18.1" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="15.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="12" cy="19" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="8.5" cy="18.1" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="5.9" cy="15.5" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="5" cy="12" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="5.9" cy="8.5" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '<circle cx="8.5" cy="5.9" r="1.2" fill="#FFCC00" stroke="none" />'
-            + '</svg> ' + (eidas.logo_text || 'Entra con eIDAS');
+          btnEidas.innerHTML = '<span class="eidas-btn-icon">'
+            + '<img src="/static/eidas/ficep-it-eidas-ybw.svg" alt="">'
+            + '</span>'
+            + '<span class="eidas-btn-text">' + (eidas.logo_text_button || 'Entra con eIDAS') + '</span>';
         }
         if (descEidas && eidas.learn_more_descr) {
           descEidas.innerHTML = eidas.learn_more_descr;

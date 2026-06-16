@@ -240,6 +240,7 @@ a:hover { color: var(--fg-link-hover); }
 /* ---------- IDENTITY TABS ---------- */
 .sso-tabs {
   display: flex;
+  flex-wrap: wrap;
   border-bottom: 2px solid var(--border-1);
   margin: 0 0 var(--sp-1);
 }
@@ -385,4 +386,67 @@ a:hover { color: var(--fg-link-hover); }
 @media (max-width: 480px) {
   .sso-card { padding: var(--sp-5); border-radius: 0; border-left: 0; border-right: 0; max-width: 100%; }
   .sso-main { padding: 0 0 var(--sp-6); }
+}
+
+@media (max-width: 400px) {
+  .sso-tab {
+    padding: 10px 4px;
+    font-size: var(--fs-13);
+    gap: 4px;
+  }
+  .sso-tab-ico-wrapper, .sso-tab-ico {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* ---------- EIDAS BUTTON ---------- */
+.eidas-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 48px;
+  background-color: #06C;
+  color: #FFF;
+  border: none;
+  border-radius: var(--r-sm);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: var(--fs-16);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+  text-decoration: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+.eidas-btn:hover {
+  background-color: #036;
+  color: #FFF;
+}
+
+.eidas-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-right: rgba(255, 255, 255, 0.1) 1px solid;
+  flex: 0 0 auto;
+}
+
+.eidas-btn-icon img {
+  width: 24px;
+  height: 24px;
+  border: 0;
+}
+
+.eidas-btn-text {
+  flex: 1;
+  text-align: center;
+  padding-right: 48px; /* to balance the left icon's width and keep text centered */
+  color: #FFF;
+  font-weight: 700;
+  letter-spacing: .01em;
 }

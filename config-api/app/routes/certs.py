@@ -30,14 +30,17 @@ async def certs_generate(request: Request, db: AsyncSession = Depends(get_db)):
         return RedirectResponse("/admin/login", status_code=302)
     result = await db.execute(select(EnteSettings).where(EnteSettings.id == 1))
     s = result.scalar_one_or_none()
+    
+    redirect_to = request.query_params.get("redirect_to", "/admin/idps")
+    
     missing = not s or not all([s.proxy_hostname, s.org_name, s.ipa_code, s.org_city])
     if missing:
         err_msg = "Configura prima le impostazioni ente (proxy_hostname, org_name, ipa_code, org_city)."
-        return RedirectResponse(f"/admin/idps?cert_error={quote(err_msg)}", status_code=303)
+        return RedirectResponse(f"{redirect_to}?cert_error={quote(err_msg)}", status_code=303)
     try:
         cert_obj = generate_spid_cert(s)
     except ValueError as exc:
-        return RedirectResponse(f"/admin/idps?cert_error={quote(str(exc))}", status_code=303)
+        return RedirectResponse(f"{redirect_to}?cert_error={quote(str(exc))}", status_code=303)
     db.add(cert_obj)
     await db.commit()
     import asyncio
@@ -48,4 +51,4 @@ async def certs_generate(request: Request, db: AsyncSession = Depends(get_db)):
         await generate_and_write(db)
     except Exception:
         pass
-    return RedirectResponse("/admin/idps", status_code=303)
+    return RedirectResponse(redirect_to, status_code=303)

@@ -472,8 +472,9 @@ def _eid_locale_strings(cie_oidc_login_url: str | None, settings: "EnteSettings 
 
     eidas_it = {
         "name": "eIDAS",
-        "logo_text": "Entra con eIDAS",
-        "logo": "eidas/eidas_logo.svg",
+        "logo_text": "eIDAS",
+        "logo_text_button": "Entra con eIDAS",
+        "logo": "eidas/ficep-it-eidas-ybw.svg",
         "login_url": eidas_login_url or "",
         "learn_more_descr": (
             "I cittadini dell'Unione Europea possono accedere ai servizi online con la propria "
@@ -485,8 +486,9 @@ def _eid_locale_strings(cie_oidc_login_url: str | None, settings: "EnteSettings 
 
     eidas_en = {
         "name": "eIDAS",
-        "logo_text": "Login with eIDAS",
-        "logo": "eidas/eidas_logo.svg",
+        "logo_text": "eIDAS",
+        "logo_text_button": "Login with eIDAS",
+        "logo": "eidas/ficep-it-eidas-ybw.svg",
         "login_url": eidas_login_url or "",
         "learn_more_descr": (
             "European Union citizens can access online services using their national digital "

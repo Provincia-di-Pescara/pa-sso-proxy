@@ -26,6 +26,7 @@ COPY plugins/spidsaml2.py       /satosa_proxy/backends/spidsaml2.py
 COPY public/static/sso/         /satosa_proxy/static/sso/
 COPY public/static/spid/        /satosa_proxy/static/spid/
 COPY public/static/cie/         /satosa_proxy/static/cie/
+COPY public/static/eidas/       /satosa_proxy/static/eidas/
 COPY public/static/disco.html   /satosa_proxy/static/disco.html
 COPY public/templates/           /satosa_proxy/templates/
 

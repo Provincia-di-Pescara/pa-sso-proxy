@@ -2,6 +2,7 @@ import asyncio
 import os
 import xml.etree.ElementTree as ET
 import httpx
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -10,9 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.jinja_templates import templates
-from app.models import EnteSettings, SpidIdP
-from app.satosa_generator import generate_and_write
-from app.satosa_reload import reload_satosa
+from app.models import EnteSettings, SpidIdP, SpidCert
 
 router = APIRouter()
 
@@ -61,6 +60,9 @@ async def eidas_config_page(request: Request, db: AsyncSession = Depends(get_db)
     s = (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
     proxy_hostname = s.proxy_hostname if s else "localhost"
     
+    cert_result = await db.execute(select(SpidCert).order_by(SpidCert.created_at.desc()).limit(1))
+    cert = cert_result.scalar_one_or_none()
+    
     metadata_status = await check_sp_metadata()
 
     return templates.TemplateResponse(
@@ -70,6 +72,9 @@ async def eidas_config_page(request: Request, db: AsyncSession = Depends(get_db)
             "s": s,
             "proxy_hostname": proxy_hostname,
             "metadata_status": metadata_status,
+            "cert": cert,
+            "cert_error": request.query_params.get("cert_error"),
+            "now": datetime.now(timezone.utc),
         },
     )
 
@@ -77,9 +82,10 @@ async def eidas_config_page(request: Request, db: AsyncSession = Depends(get_db)
 @router.post("/eidas/toggle")
 async def eidas_toggle(
     request: Request,
-    action: str = Form(...),
+    action: str | None = Form(default=None),
     confirmed: str = Form(default=""),
     environment: str = Form(default="prod"),
+    eidas_enabled: str | None = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     if not _auth_check(request):
@@ -89,7 +95,12 @@ async def eidas_toggle(
     if s is None:
         return RedirectResponse("/admin/eidas", status_code=302)
 
-    enable = action == "enable"
+    if action is None:
+        # New switch form: eidas_enabled checkbox present => enable, absent => disable
+        enable = eidas_enabled in ("yes", "on", "true", "1")
+    else:
+        # Old action-based form (or tests)
+        enable = action == "enable"
 
     if enable and confirmed != "yes":
         return RedirectResponse("/admin/eidas?eidas_warning=1", status_code=302)
@@ -107,7 +118,5 @@ async def eidas_toggle(
             )
 
     await db.commit()
-    await generate_and_write(db)
-    await asyncio.to_thread(reload_satosa)
 
     return RedirectResponse("/admin/eidas?saved=1", status_code=302)

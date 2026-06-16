@@ -100,6 +100,12 @@
   </div>
   <div class="a-card-body">
     {% if cert_error %}<div class="a-alert a-alert-danger">{{ cert_error }}</div>{% endif %}
+    {% if s and s.eidas_enabled and metadata_status and not metadata_status.has_eidas %}
+      <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
+        <strong>Attenzione:</strong> eIDAS è abilitato in configurazione, ma il metadata pubblicato non supporta ancora eIDAS (indici FICEP 99/100 mancanti).
+        Rigenera il certificato di firma per pubblicare il metadata conforme a eIDAS.
+      </div>
+    {% endif %}
     {% if cert %}
       {% set days_left = (cert.not_valid_after - now).days %}
       {% if days_left < 30 %}
@@ -114,7 +120,7 @@
         <input class="a-input a-input-ro" type="text" value="{{ cert.subject_dn }}" readonly>
       </div>
       <div class="a-muted" style="font-size:12px;margin-bottom:16px;">Generato il: <span class="a-mono">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
-      <form method="post" action="/admin/certs/generate">
+      <form method="post" action="/admin/certs/generate" onsubmit="return confirmRegenCert()">
         <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Rigenera certificato</button>
       </form>
     {% else %}
@@ -241,4 +247,14 @@
   <div class="a-card-body a-muted" style="font-size:13px;">Nessun IdP sincronizzato dal registry.</div>
   {% endif %}
 </div>
+
+<script>
+function confirmRegenCert() {
+  return window.confirm(
+    "ATTENZIONE: La rigenerazione del certificato genererà una nuova chiave privata e un nuovo certificato di firma.\n\n" +
+    "Questo invaliderà immediatamente il metadata SAML precedentemente registrato su AgID/FICEP e renderà impossibile l'autenticazione fino all'aggiornamento dei portali governativi.\n\n" +
+    "Vuoi procedere?"
+  );
+}
+</script>
 {% endblock %}

@@ -114,3 +114,33 @@ async def test_eidas_disable_flow(auth_client, db_session):
     idp_prod = (await db_session.execute(select(SpidIdP).where(SpidIdP.alias == "eidas-prod"))).scalar_one()
     assert idp_qa.enabled is False
     assert idp_prod.enabled is False
+
+
+async def test_eidas_new_switch_toggle_flow(auth_client, db_session):
+    # Setup EnteSettings and mock SpidIdP entries
+    db_session.add(EnteSettings(
+        id=1, org_display_name="Test Ente", org_name="Test Ente",
+        org_url="https://test.it", proxy_hostname="sso.test.it",
+        ipa_code="TEST", contact_email="test@test.it", contact_phone="+39",
+        org_city="Pescara",
+        eidas_enabled=False,
+    ))
+    db_session.add(SpidIdP(alias="eidas-qa", display_name="eIDAS QA", enabled=False, metadata_url="http://test-qa"))
+    db_session.add(SpidIdP(alias="eidas-prod", display_name="eIDAS Prod", enabled=False, metadata_url="http://test-prod"))
+    await db_session.commit()
+
+    # Enable eIDAS using the new toggle switch parameter (eidas_enabled="yes")
+    response = await auth_client.post(
+        "/admin/eidas/toggle",
+        data={"eidas_enabled": "yes", "confirmed": "yes", "environment": "prod"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert "/admin/eidas?saved=1" in response.headers["location"]
+
+    s = (await db_session.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one()
+    assert s.eidas_enabled is True
+    assert s.eidas_environment == "prod"
+
+    idp_prod = (await db_session.execute(select(SpidIdP).where(SpidIdP.alias == "eidas-prod"))).scalar_one()
+    assert idp_prod.enabled is True

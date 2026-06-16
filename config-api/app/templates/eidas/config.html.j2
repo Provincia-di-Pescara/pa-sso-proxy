@@ -18,13 +18,20 @@
       {% endif %}
     </div>
     <div class="a-card-body">
-      <p style="font-size:13px;margin-bottom:16px;color:var(--fg-muted);">
+      <p style="font-size:13px;margin-bottom:20px;color:var(--fg-muted);">
         Permette l'autenticazione di cittadini europei tramite il Nodo eIDAS Italiano (FICEP / AgID).
       </p>
 
-      <form method="post" action="/admin/eidas/toggle" id="eidas-form">
-        <input type="hidden" name="action" id="eidas-action" value="{% if s and s.eidas_enabled %}disable{% else %}enable{% endif %}">
-        <input type="hidden" name="confirmed" id="eidas-confirmed" value="{% if s and s.eidas_enabled %}yes{% endif %}">
+      <form method="post" action="/admin/eidas/toggle" id="eidas-form" onsubmit="return handleSubmit(event)">
+        <input type="hidden" name="confirmed" id="eidas-confirmed" value="no">
+
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+          <label class="a-toggle">
+            <input type="checkbox" name="eidas_enabled" id="eidas-enabled" value="yes" {% if s and s.eidas_enabled %}checked{% endif %}>
+            <span class="a-toggle-slider"></span>
+          </label>
+          <span style="font-weight:600;font-size:14px;color:var(--fg-1);user-select:none;">Abilita Integrazione eIDAS</span>
+        </div>
 
         <div class="a-form-group">
           <label class="a-label" for="eidas-env">Ambiente di esercizio</label>
@@ -35,15 +42,50 @@
           <div class="a-form-hint">Seleziona l'ambiente del gateway eIDAS italiano gestito da AgID.</div>
         </div>
 
-        <div style="display:flex;gap:8px;margin-top:16px;">
-          {% if s and s.eidas_enabled %}
-            <button type="submit" class="a-btn a-btn-primary">Aggiorna Ambiente</button>
-            <button type="button" class="a-btn a-btn-danger" onclick="toggleEidas('disable')">Disabilita eIDAS</button>
-          {% else %}
-            <button type="button" class="a-btn a-btn-primary" onclick="toggleEidas('enable')">Abilita eIDAS</button>
-          {% endif %}
+        <div style="margin-top:24px;">
+          <button type="submit" class="a-btn a-btn-primary">Salva configurazione</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  {# Certificate section #}
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">
+      Certificato di Firma SPID / eIDAS (SAML SP)
+      <span class="a-badge a-badge-neutral">Certificato</span>
+    </div>
+    <div class="a-card-body">
+      {% if cert_error %}<div class="a-alert a-alert-danger">{{ cert_error }}</div>{% endif %}
+      {% if s and s.eidas_enabled and metadata_status and not metadata_status.has_eidas %}
+        <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
+          <strong>Attenzione:</strong> eIDAS è abilitato in configurazione, ma il metadata pubblicato non supporta ancora eIDAS (indici FICEP 99/100 mancanti).
+          Rigenera il certificato di firma per pubblicare il metadata conforme a eIDAS.
+        </div>
+      {% endif %}
+      {% if cert %}
+        {% set days_left = (cert.not_valid_after - now).days %}
+        {% if days_left < 30 %}
+          <div class="a-alert a-alert-danger">Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}).</div>
+        {% elif days_left < 90 %}
+          <div class="a-alert a-alert-warning">Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}).</div>
+        {% else %}
+          <div class="a-alert a-alert-success">Certificato valido fino al <strong>{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</strong> ({{ days_left }} giorni).</div>
+        {% endif %}
+        <div class="a-form-group">
+          <label class="a-label">Subject DN</label>
+          <input class="a-input a-input-ro" type="text" value="{{ cert.subject_dn }}" readonly>
+        </div>
+        <div class="a-muted" style="font-size:12px;margin-bottom:16px;">Generato il: <span class="a-mono">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
+        <form method="post" action="/admin/certs/generate?redirect_to=/admin/eidas" onsubmit="return confirmRegenCert()">
+          <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Rigenera certificato</button>
+        </form>
+      {% else %}
+        <div class="a-alert a-alert-warning" style="margin-bottom:16px;">Nessun certificato SPID / eIDAS configurato. Genera il certificato per abilitare l'autenticazione.</div>
+        <form method="post" action="/admin/certs/generate?redirect_to=/admin/eidas">
+          <button type="submit" class="a-btn a-btn-primary">Genera certificato</button>
+        </form>
+      {% endif %}
     </div>
   </div>
 
@@ -100,38 +142,46 @@
 </div>
 
 <script>
-function toggleEidas(action) {
-  var form = document.getElementById("eidas-form");
-  var actionInput = document.getElementById("eidas-action");
+const initialEnabled = {% if s and s.eidas_enabled %}true{% else %}false{% endif %};
+
+function handleSubmit(event) {
+  var isEnabled = document.getElementById("eidas-enabled").checked;
+  var envSelect = document.getElementById("eidas-env");
+  var envLabel = envSelect.options[envSelect.selectedIndex].text;
   var confirmedInput = document.getElementById("eidas-confirmed");
   
-  if (action === "enable") {
-    var env = document.getElementById("eidas-env").value;
-    var envLabel = env === "qa" ? "Pre-produzione (QA)" : "Produzione (PROD)";
+  if (isEnabled && !initialEnabled) {
     var ok = window.confirm(
-      "Attenzione: abilitare eIDAS modifica il metadata SAML del Service Provider.\n\n" +
-      "Ambiente selezionato: " + envLabel + "\n\n" +
-      "Sarà necessario:\n" +
-      "  • Scaricare e re-inviare il metadata SP ad AgID/FICEP\n" +
-      "  • Ripetere la validazione SPID se richiesto\n\n" +
-      "Continuare?"
+      "Abilitare l'integrazione eIDAS in ambiente " + envLabel + "?\n\n" +
+      "Questo renderà visibile il pulsante di login eIDAS sulla pagina di scelta provider."
     );
-    if (ok) {
-      actionInput.value = "enable";
-      confirmedInput.value = "yes";
-      form.submit();
+    if (!ok) {
+      event.preventDefault();
+      return false;
     }
+    confirmedInput.value = "yes";
+  } else if (!isEnabled && initialEnabled) {
+    var ok = window.confirm(
+      "Disabilitare l'integrazione eIDAS?\n\n" +
+      "Questo nasconderà il pulsante di login eIDAS dalla pagina di scelta provider."
+    );
+    if (!ok) {
+      event.preventDefault();
+      return false;
+    }
+    confirmedInput.value = "yes";
   } else {
-    var ok = window.confirm(
-      "Disabilitare eIDAS rimuoverà gli indici FICEP (99/100) dal metadata SP e nasconderà il login eIDAS.\n\n" +
-      "Continuare?"
-    );
-    if (ok) {
-      actionInput.value = "disable";
-      confirmedInput.value = "yes";
-      form.submit();
-    }
+    confirmedInput.value = "yes";
   }
+  return true;
+}
+
+function confirmRegenCert() {
+  return window.confirm(
+    "ATTENZIONE: La rigenerazione del certificato genererà una nuova chiave privata e un nuovo certificato di firma.\n\n" +
+    "Questo invaliderà immediatamente il metadata SAML precedentemente registrato su AgID/FICEP e renderà impossibile l'autenticazione fino all'aggiornamento dei portali governativi.\n\n" +
+    "Vuoi procedere?"
+  );
 }
 </script>
 {% endblock %}
