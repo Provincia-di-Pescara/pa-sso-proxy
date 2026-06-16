@@ -46,7 +46,7 @@
       <tbody>
         {% for log in logs %}
         <tr>
-          <td class="a-mono a-muted">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '—' }}</td>
+          <td class="a-mono a-muted">{{ (log.timestamp | to_italian_time).strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '—' }}</td>
           <td>
             {% if log.provider_type == 'spid' %}<span class="a-badge-spid">SPID</span>
             {% elif log.provider_type == 'cie' %}<span class="a-badge-cie">CIE</span>

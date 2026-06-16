@@ -5,6 +5,7 @@ import io
 import os
 import re
 from datetime import datetime, timezone
+import zoneinfo
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -36,14 +37,14 @@ def _build_filters(provider_type, result, from_date, to_date, idp_entity_id=None
     if from_date:
         try:
             filters.append(
-                AccessLog.timestamp >= datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc)
+                AccessLog.timestamp >= datetime.fromisoformat(from_date).replace(tzinfo=zoneinfo.ZoneInfo("Europe/Rome"))
             )
         except ValueError:
             pass
     if to_date:
         try:
             filters.append(
-                AccessLog.timestamp <= datetime.fromisoformat(to_date + "T23:59:59").replace(tzinfo=timezone.utc)
+                AccessLog.timestamp <= datetime.fromisoformat(to_date + "T23:59:59").replace(tzinfo=zoneinfo.ZoneInfo("Europe/Rome"))
             )
         except ValueError:
             pass
@@ -120,8 +121,9 @@ async def access_log_export(
     writer = csv.writer(output)
     writer.writerow(["timestamp", "provider_type", "idp_entity_id", "client_id", "user_type", "fiscal_number_hash", "result", "error_code"])
     for r in rows:
+        local_ts = r.timestamp.astimezone(zoneinfo.ZoneInfo("Europe/Rome")) if r.timestamp else None
         writer.writerow([
-            r.timestamp.isoformat() if r.timestamp else "",
+            local_ts.isoformat() if local_ts else "",
             r.provider_type,
             r.idp_entity_id or "",
             r.client_id or "",

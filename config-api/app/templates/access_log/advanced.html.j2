@@ -110,7 +110,7 @@
         {% for log in logs %}
         <tr>
           <td class="a-mono a-muted" style="font-size: 12px;">
-            {{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '—' }}
+            {{ (log.timestamp | to_italian_time).strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '—' }}
           </td>
           <td>
             {% if log.provider_type == 'spid' %}<span class="a-badge-spid">SPID</span>

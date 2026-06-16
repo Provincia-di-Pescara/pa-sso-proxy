@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verifica SPID{% if settings and settings.org_display_name %} — {{ settings.org_display_name }}{% endif %}</title>
+  <title>Verifica Integrazione{% if settings and settings.org_display_name %} — {{ settings.org_display_name }}{% endif %}</title>
   <!-- Import Google Font Outfit -->
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -169,7 +169,7 @@
     </div>
 
     <div class="content-body">
-      <span class="badge">Collaudo SPID</span>
+      <span class="badge">Collaudo</span>
       <h1>Benvenuto nel Portale di Autenticazione</h1>
       <p class="description">
         Questa pagina simula un applicativo istituzionale collegato al proxy per validare e collaudare il corretto funzionamento dell'accesso dei cittadini tramite l'Identity Provider di test.
@@ -181,14 +181,13 @@
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2a5 5 0 1 1 0 10A5 5 0 0 1 12 2zm0 12c5.33 0 8 2.67 8 4v2H4v-2c0-1.33 2.67-4 8-4z"/>
           </svg>
-          Entra con SPID
+          Accedi
         </button>
       </form>
     </div>
 
     <div class="footer-note">
-      Stai effettuando una simulazione tramite l'IdP: <strong>{{ test_idp_name }}</strong>.<br>
-      <span style="font-size: 11px; margin-top: 4px; display: block; color: #829ab1;">
+      <span style="font-size: 11px; display: block; color: #829ab1;">
         Accessibile solo durante le sessioni di verifica tecnica e collaudo conformità.
       </span>
     </div>

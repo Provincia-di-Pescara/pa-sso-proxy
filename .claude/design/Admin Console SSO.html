@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Console — SSO Proxy</title>
+<link rel="stylesheet" href="assets/colors_and_type.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { font-family: 'Titillium Web', system-ui, sans-serif; background: #F8FAFC; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+  button, input, select, textarea { font-family: inherit; }
+  p { margin: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="admin-shell.jsx"></script>
+<script type="text/babel" src="admin-dashboard.jsx"></script>
+<script type="text/babel" src="admin-clients-idps.jsx"></script>
+<script type="text/babel" src="admin-cie-settings.jsx"></script>
+
+<script type="text/babel">
+const {
+  AdminShell, Icon,
+  DashboardScreen,
+  ClientsScreen, IdpsScreen,
+  CieScreen, SettingsScreen, CertScreen, LogScreen, BackupScreen, TestScreen, PlaceholderScreen,
+  useTweaks, TweaksPanel, TweakSection, TweakText, TweakRadio, TweakToggle,
+} = window;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "enteName": "Provincia di Pescara",
+  "sidebarColor": "Navy",
+  "satosaOk": true
+}/*EDITMODE-END*/;
+
+const PAGE_TITLES = {
+  dashboard: 'Dashboard',
+  clients:   'Client OIDC',
+  idps:      'IdP SPID',
+  cie:       'CIE — Carta di Identità Elettronica',
+  settings:  'Impostazioni ente',
+  certs:     'Certificato SPID',
+  log:       'Log accessi',
+  test:      'Test client OIDC',
+  backup:    'Backup e ripristino',
+  eidas:     'eIDAS',
+  wallet:    'IT Wallet',
+};
+
+const PAGE_SUB = {
+  clients:  'Applicativi registrati come client OIDC',
+  idps:     'Identity Provider SPID ufficiali AgID',
+  cie:      'Configurazione SAML e OIDC Federation 1.0',
+  settings: 'Dati ente, hostname, contatti e URL istituzionali',
+  certs:    'Certificato SPID — SubjectDN conforme AgID',
+  log:      'Accessi anonimi registrati dal proxy',
+  test:     'Verifica il flusso Authorization Code + PKCE',
+  backup:   'Esporta o importa la configurazione completa',
+};
+
+function App() {
+  const [screen, setScreen] = React.useState('dashboard');
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  const sidebarBg = t.sidebarColor === 'Viola' ? '#2C184A' : '#17324D';
+
+  const renderScreen = () => {
+    switch (screen) {
+      case 'dashboard': return <DashboardScreen onNav={setScreen} satosaOk={t.satosaOk} />;
+      case 'clients':   return <ClientsScreen onNav={setScreen} />;
+      case 'idps':      return <IdpsScreen onNav={setScreen} />;
+      case 'cie':       return <CieScreen onNav={setScreen} />;
+      case 'settings':  return <SettingsScreen />;
+      case 'certs':     return <CertScreen />;
+      case 'log':       return <LogScreen />;
+      case 'test':      return <TestScreen />;
+      case 'backup':    return <BackupScreen />;
+      case 'eidas':     return <PlaceholderScreen title="eIDAS — in arrivo" />;
+      case 'wallet':    return <PlaceholderScreen title="IT Wallet — in arrivo" />;
+      default:          return <DashboardScreen onNav={setScreen} satosaOk={t.satosaOk} />;
+    }
+  };
+
+  return (
+    <>
+      <AdminShell
+        screen={screen}
+        onNav={setScreen}
+        title={PAGE_TITLES[screen] || 'Admin'}
+        subtitle={PAGE_SUB[screen]}
+        enteName={t.enteName}
+        sidebarBg={sidebarBg}
+        satosaOk={t.satosaOk}
+      >
+        {renderScreen()}
+      </AdminShell>
+
+      <TweaksPanel>
+        <TweakSection label="Ente" />
+        <TweakText label="Nome ente" value={t.enteName}
+          onChange={v => setTweak('enteName', v)} />
+        <TweakSection label="Aspetto" />
+        <TweakRadio label="Colore sidebar" value={t.sidebarColor}
+          options={['Navy', 'Viola']}
+          onChange={v => setTweak('sidebarColor', v)} />
+        <TweakSection label="Simulazione" />
+        <TweakToggle label="SATOSA attivo" value={t.satosaOk}
+          onChange={v => setTweak('satosaOk', v)} />
+      </TweaksPanel>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" fill="#17324D"/>
+    <rect x="0" y="0" width="22" height="100" fill="rgba(0,0,0,0.2)"/>
+    <rect x="4" y="12" width="14" height="3" rx="1.5" fill="rgba(255,255,255,0.5)"/>
+    <rect x="4" y="22" width="10" height="2.5" rx="1" fill="rgba(255,255,255,0.25)"/>
+    <rect x="4" y="28" width="14" height="2.5" rx="1" fill="rgba(255,255,255,0.25)"/>
+    <rect x="4" y="34" width="12" height="2.5" rx="1" fill="rgba(0,102,204,0.8)"/>
+    <rect x="26" y="8" width="68" height="8" rx="1" fill="rgba(255,255,255,0.08)"/>
+    <rect x="26" y="22" width="16" height="14" rx="2" fill="rgba(255,255,255,0.1)"/>
+    <rect x="46" y="22" width="16" height="14" rx="2" fill="rgba(0,102,204,0.3)"/>
+    <rect x="66" y="22" width="16" height="14" rx="2" fill="rgba(255,255,255,0.1)"/>
+    <rect x="84" y="22" width="8" height="14" rx="2" fill="rgba(255,255,255,0.1)"/>
+    <rect x="26" y="42" width="66" height="48" rx="2" fill="rgba(255,255,255,0.06)"/>
+  </svg>
+</template>
+</body>
+</html>

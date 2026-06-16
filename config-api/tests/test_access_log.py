@@ -111,3 +111,33 @@ async def test_access_log_advanced_search_cf(auth_client, db_session):
     assert response_hash.status_code == 200
     assert cf_hash in response_hash.text
     assert "2" in response_hash.text
+
+
+async def test_access_log_date_filters(auth_client, db_session):
+    import zoneinfo
+    tz = zoneinfo.ZoneInfo("Europe/Rome")
+    # Log in UTC timezone, representing some local times in Italy
+    db_session.add(AccessLog(
+        provider_type="spid",
+        result="success",
+        timestamp=datetime(2026, 6, 16, 10, 0, 0, tzinfo=tz) # 10:00 Rome time
+    ))
+    db_session.add(AccessLog(
+        provider_type="cie",
+        result="success",
+        timestamp=datetime(2026, 6, 17, 10, 0, 0, tzinfo=tz) # 10:00 Rome time next day
+    ))
+    await db_session.commit()
+
+    # Filter for 2026-06-16 only
+    response = await auth_client.get("/admin/access-log/advanced?from_date=2026-06-16&to_date=2026-06-16")
+    assert response.status_code == 200
+    assert "a-badge-spid" in response.text
+    assert "a-badge-cie" not in response.text
+
+    # Filter for 2026-06-17 only
+    response2 = await auth_client.get("/admin/access-log/advanced?from_date=2026-06-17&to_date=2026-06-17")
+    assert response2.status_code == 200
+    assert "a-badge-cie" in response2.text
+    assert "a-badge-spid" not in response2.text
+
