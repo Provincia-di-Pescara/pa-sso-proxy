@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Risultato verifica SPID{% if settings and settings.org_display_name %} — {{ settings.org_display_name }}{% endif %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Titillium Web', Arial, sans-serif; background: #f5f5f5; color: #17324d; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.12); padding: 40px 48px; max-width: 560px; width: 100%; }
+    .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .logo-text { font-size: 20px; font-weight: 700; color: #0066cc; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
+    .ok { color: #008055; }
+    .err { color: #c02927; }
+    .claim-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .claim-table td { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+    .claim-table td:first-child { font-weight: 600; width: 44%; color: #5c6f82; }
+    .claim-table td code { font-family: monospace; font-size: 13px; word-break: break-all; }
+    .error-box { background: #fdf0ef; border: 1.5px solid #c02927; border-radius: 6px; padding: 16px 20px; margin-bottom: 20px; }
+    .error-box strong { color: #c02927; }
+    .error-box p { font-size: 13px; margin-top: 6px; color: #5c6f82; }
+    .btn { display: inline-block; background: #0066cc; color: #fff; border-radius: 6px; padding: 10px 22px; font-size: 14px; font-weight: 700; text-decoration: none; transition: background .15s; }
+    .btn:hover { background: #004c99; }
+    .section-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #5c6f82; margin-bottom: 8px; margin-top: 20px; }
+    .badge-ok { display: inline-block; background: #d5f0e6; color: #008055; border-radius: 4px; padding: 2px 10px; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
+    .badge-err { display: inline-block; background: #fdf0ef; color: #c02927; border-radius: 4px; padding: 2px 10px; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <span class="logo-text">PA SSO Proxy</span>
+    </div>
+
+    {% if success %}
+    <span class="badge-ok">Autenticazione riuscita</span>
+    <h1 class="ok">Verifica completata</h1>
+
+    {% set cf = userinfo.get('fiscal_number') or userinfo.get('https://attributes.eid.gov.it/fiscal_number') or claims.get('fiscal_number') %}
+    {% set nome = userinfo.get('given_name') or claims.get('given_name') %}
+    {% set cognome = userinfo.get('family_name') or claims.get('family_name') %}
+
+    <p class="section-label">Dati utente</p>
+    <table class="claim-table">
+      {% if nome %}<tr><td>Nome</td><td>{{ nome }}</td></tr>{% endif %}
+      {% if cognome %}<tr><td>Cognome</td><td>{{ cognome }}</td></tr>{% endif %}
+      {% if cf %}<tr><td>Codice fiscale</td><td><code>{{ cf }}</code></td></tr>{% endif %}
+      {% set sub = userinfo.get('sub') or claims.get('sub') %}
+      {% if sub %}<tr><td>Sub (SATOSA)</td><td><code>{{ sub }}</code></td></tr>{% endif %}
+    </table>
+
+    {% if userinfo %}
+    <p class="section-label">Tutti i claims (userinfo)</p>
+    <table class="claim-table">
+      {% for k, v in userinfo.items() %}
+      <tr><td>{{ k }}</td><td><code>{{ v }}</code></td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% else %}
+    <span class="badge-err">Autenticazione fallita</span>
+    <h1 class="err">Errore</h1>
+    <div class="error-box">
+      <strong>{{ error }}</strong>
+      {% if error_description %}<p>{{ error_description }}</p>{% endif %}
+    </div>
+    {% endif %}
+
+    <a href="/verifica" class="btn">← Torna alla verifica</a>
+  </div>
+</body>
+</html>
