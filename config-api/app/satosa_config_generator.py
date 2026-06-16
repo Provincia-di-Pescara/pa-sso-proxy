@@ -16,6 +16,11 @@ SATOSA_CONF_DIR = os.environ.get("SATOSA_CONF_DIR", "/satosa-conf")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
 _TEST_ALIASES = {"spid-demo", "spid-validator"}
+_EIDAS_ALIASES = {"eidas-qa", "eidas-prod"}
+_EIDAS_ENTITY_IDS = {
+    "eidas-qa":   "https://sp-proxy.pre.eid.gov.it/spproxy/idpit",
+    "eidas-prod": "https://sp-proxy.eid.gov.it/spproxy/idpit",
+}
 
 
 def _base_url(hostname: str) -> str:
@@ -140,7 +145,7 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
     remote_metadata = [
         {"url": idp.metadata_url}
         for idp in enabled_idps
-        if idp.metadata_url and idp.alias in _TEST_ALIASES
+        if idp.metadata_url and idp.alias in (_TEST_ALIASES | _EIDAS_ALIASES)
     ]
     metadata_config = {"local": local_metadata}
     if remote_metadata:
@@ -187,7 +192,7 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
             }
         ],
         "metadata": metadata_config,
-        "ficep_enable": False,
+        "ficep_enable": getattr(settings, "eidas_enabled", False) is True,
         "entityid": "<base_url>/<name>/metadata",
         "accepted_time_diff": 10,
         "service": {
@@ -925,6 +930,12 @@ async def generate_satosa_config(db: AsyncSession) -> None:
                 "organization_name": "AgID Validator",
                 "entity_id": "https://validator.spid.gov.it",
                 "logo_uri": "https://pagopa-prx.comune.montesilvano.pe.it/static/spid/spid-agid-logo-lb.png"
+            })
+        elif idp.alias in _EIDAS_ALIASES:
+            spid_idps_json.append({
+                "organization_name": "Entra con eIDAS",
+                "entity_id": _EIDAS_ENTITY_IDS[idp.alias],
+                "logo_uri": ""
             })
         elif idp.registry_entity_id:
             spid_idps_json.append({

@@ -1,5 +1,5 @@
 from typing import Optional
-from sqlalchemy import Integer, String, Text
+from sqlalchemy import Boolean, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
 
@@ -23,3 +23,5 @@ class EnteSettings(Base):
     accessibility_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     support_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     vat_number: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    eidas_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    eidas_environment: Mapped[str] = mapped_column(String(16), nullable=False, default="prod")

@@ -22,6 +22,8 @@ SPID_IDPS = [
     {"alias": "spid-trust",      "display_name": "Trust Technologies", "metadata_url": "https://idp.trusttechnologies.it/saml2/idp/metadata"},
     {"alias": "spid-demo",       "display_name": "Demo Provider",      "metadata_url": "https://demo.spid.gov.it/metadata.xml"},
     {"alias": "spid-validator",  "display_name": "AgID Validator",     "metadata_url": "https://validator.spid.gov.it/metadata.xml"},
+    {"alias": "eidas-qa",        "display_name": "Nodo eIDAS (QA)",    "metadata_url": "https://sp-proxy.pre.eid.gov.it/spproxy/idpitmetadata"},
+    {"alias": "eidas-prod",      "display_name": "Nodo eIDAS",         "metadata_url": "https://sp-proxy.eid.gov.it/spproxy/idpitmetadata"},
 ]
 
 SPID_REGISTRY_API_LIST_URL = "https://registry.spid.gov.it/entities-idp?output=json&page=1&numMetadata=50"

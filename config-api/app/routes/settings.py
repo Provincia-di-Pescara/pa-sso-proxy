@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from app.jinja_templates import templates
@@ -5,7 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import EnteSettings
+from app.models import EnteSettings, SpidIdP
+from app.satosa_generator import generate_and_write
+from app.satosa_reload import reload_satosa
 
 router = APIRouter()
 
@@ -68,3 +72,43 @@ async def settings_save(
     s.vat_number = vat_number
     await db.commit()
     return RedirectResponse("/admin/settings", status_code=302)
+
+
+@router.post("/settings/eidas")
+async def settings_eidas_toggle(
+    request: Request,
+    action: str = Form(...),
+    confirmed: str = Form(default=""),
+    environment: str = Form(default="prod"),
+    db: AsyncSession = Depends(get_db),
+):
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+
+    s = (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
+    if s is None:
+        return RedirectResponse("/admin/settings", status_code=302)
+
+    enable = action == "enable"
+
+    if enable and confirmed != "yes":
+        return RedirectResponse("/admin/settings?eidas_warning=1", status_code=302)
+
+    s.eidas_enabled = enable
+    if enable:
+        s.eidas_environment = environment
+
+    # Sync IdP records: enable correct one, disable the other
+    for alias in ("eidas-qa", "eidas-prod"):
+        idp = (await db.execute(select(SpidIdP).where(SpidIdP.alias == alias))).scalar_one_or_none()
+        if idp:
+            idp.enabled = enable and (
+                (alias == "eidas-qa" and environment == "qa") or
+                (alias == "eidas-prod" and environment == "prod")
+            )
+
+    await db.commit()
+    await generate_and_write(db)
+    await asyncio.to_thread(reload_satosa)
+
+    return RedirectResponse("/admin/settings?eidas_saved=1", status_code=302)
