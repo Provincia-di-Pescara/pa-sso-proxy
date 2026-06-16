@@ -462,12 +462,21 @@ def _cie_oidc_backend_yaml(
     }
 
 
-def _eid_locale_strings(cie_oidc_login_url: str | None, settings: "EnteSettings | None" = None) -> dict:
+def _eid_locale_strings(
+    cie_oidc_login_url: str | None,
+    settings: "EnteSettings | None" = None,
+    enabled_idps: list | None = None,
+) -> dict:
     """Return eid locale dicts for 'it' and 'en' with correct CIE and eIDAS URLs substituted."""
     eidas_login_url = None
-    if settings and getattr(settings, "eidas_enabled", False):
-        env = getattr(settings, "eidas_environment", "prod")
-        eidas_entity_id = "https://sp-proxy.pre.eid.gov.it/spproxy/idpit" if env == "qa" else "https://sp-proxy.eid.gov.it/spproxy/idpit"
+    # Disco visibility driven by IdP enabled state (not eidas_enabled).
+    # This allows temporary hiding without touching SP metadata (ficep_enable).
+    eidas_idp = next(
+        (idp for idp in (enabled_idps or []) if idp.alias in _EIDAS_ALIASES),
+        None,
+    )
+    if eidas_idp:
+        eidas_entity_id = _EIDAS_ENTITY_IDS.get(eidas_idp.alias, "")
         eidas_login_url = f"/spidSaml2/disco?entityID={eidas_entity_id}&return=/spidSaml2/disco"
 
     eidas_it = {
@@ -1005,7 +1014,7 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         else None
     )
     os.makedirs(os.path.join(conf_dir, "locales"), exist_ok=True)
-    for lang, strings in _eid_locale_strings(cie_oidc_login_url, settings).items():
+    for lang, strings in _eid_locale_strings(cie_oidc_login_url, settings, enabled_idps).items():
         _write_json(conf_dir, f"locales/eid-{lang}.json", strings)
 
     _write(conf_dir, "proxy.yaml", _proxy_yaml(hostname, include_cie_oidc))
