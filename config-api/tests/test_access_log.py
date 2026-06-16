@@ -51,12 +51,19 @@ async def test_access_log_advanced_list(auth_client, db_session):
         timestamp=datetime.now(timezone.utc),
         fiscal_number_hash="somehashvalue"
     ))
+    db_session.add(AccessLog(
+        provider_type="spid",
+        result="failure",
+        timestamp=datetime.now(timezone.utc),
+        fiscal_number_hash="somehashvalue2"
+    ))
     await db_session.commit()
 
     response = await auth_client.get("/admin/access-log/advanced")
     assert response.status_code == 200
-    assert "Log Dettagliati" in response.text
-    assert "CIE" in response.text
+    assert "Log Accessi" in response.text
+    assert "somehashvalue" in response.text
+    assert "somehashvalue2" not in response.text # SPID was failure, so it should be filtered out
 
 async def test_access_log_advanced_search_cf(auth_client, db_session):
     key = b"test-key-32-bytes-long-for-hmac"
@@ -77,6 +84,12 @@ async def test_access_log_advanced_search_cf(auth_client, db_session):
     ))
     db_session.add(AccessLog(
         provider_type="cie",
+        result="failure",
+        timestamp=datetime.now(timezone.utc),
+        fiscal_number_hash=cf_hash
+    ))
+    db_session.add(AccessLog(
+        provider_type="cie",
         result="success",
         timestamp=datetime.now(timezone.utc),
         fiscal_number_hash="otherhash"
@@ -88,7 +101,7 @@ async def test_access_log_advanced_search_cf(auth_client, db_session):
     assert response.status_code == 200
     assert "Risultati della ricerca per Codice Fiscale" in response.text
     assert cf_hash in response.text
-    # Total accesses should show 2
+    # Total accesses should show 2 (excluding the failure one)
     assert "2" in response.text
     assert "SPID" in response.text
     assert "CIE" in response.text

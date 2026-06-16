@@ -720,8 +720,8 @@ class AccessLogReporter(ResponseMicroService):
         try:
             import hmac as _hmac
             import hashlib as _hashlib
-            cf_key = os.environ.get("CF_HASH_KEY", "").encode()
-            if cf_key and fiscal_no:
+            cf_key = (os.environ.get("CF_HASH_KEY") or "default-dev-cf-hash-key").encode()
+            if fiscal_no:
                 normalized = str(fiscal_no).strip().upper()
                 if normalized.startswith("TINIT-"):
                     normalized = normalized[6:]

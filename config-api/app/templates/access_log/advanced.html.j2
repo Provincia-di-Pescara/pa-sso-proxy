@@ -1,7 +1,7 @@
 {% extends "base.html.j2" %}
-{% block title %}Log Dettagliati — PA SSO Proxy{% endblock %}
-{% block page_title %}Log Dettagliati{% endblock %}
-{% block page_subtitle %}<span class="a-muted">Esplora nel dettaglio gli accessi, consulta i codici fiscali criptati (hash) e analizza la frequenza di accesso per singolo utente.</span>{% endblock %}
+{% block title %}Log Accessi — PA SSO Proxy{% endblock %}
+{% block page_title %}Log Accessi{% endblock %}
+{% block page_subtitle %}<span class="a-muted">Esplora nel dettaglio gli accessi andati a buon fine, consulta i codici fiscali criptati (hash) e analizza la frequenza di accesso per singolo utente.</span>{% endblock %}
 
 {% block content %}
 <!-- Search and Filter Form -->
@@ -30,19 +30,6 @@
           <option value="cie" {% if provider_type == 'cie' %}selected{% endif %}>CIE</option>
           <option value="eidas" {% if provider_type == 'eidas' %}selected{% endif %}>eIDAS</option>
           <option value="itwallet" {% if provider_type == 'itwallet' %}selected{% endif %}>IT Wallet</option>
-        </select>
-      </div>
-
-      <!-- Result Filter -->
-      <div style="width: auto; min-width: 140px;">
-        <label for="result" style="display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:var(--text-muted, #5f6368);">
-          Esito
-        </label>
-        <select id="result" name="result" class="a-select" style="width:100%;">
-          <option value="">Tutti</option>
-          <option value="success" {% if result_filter == 'success' %}selected{% endif %}>Successo</option>
-          <option value="failure" {% if result_filter == 'failure' %}selected{% endif %}>Fallito</option>
-          <option value="error" {% if result_filter == 'error' %}selected{% endif %}>Errore</option>
         </select>
       </div>
 
@@ -94,7 +81,7 @@
       </div>
     </div>
     <div>
-      <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; color: #666; margin-bottom: 4px;">Accessi totali utente</div>
+      <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; color: #666; margin-bottom: 4px;">Accessi con successo</div>
       <div style="display: flex; align-items: baseline; gap: 6px;">
         <span style="font-size: 24px; font-weight: bold; color: #2e7d32;">{{ total_cf_accesses }}</span>
         <span class="a-muted" style="font-size: 13px;">sessioni registrate</span>
@@ -117,8 +104,6 @@
           <th>Applicazione (Client)</th>
           <th>Tipo</th>
           <th>Codice Fiscale Criptato (Hash)</th>
-          <th>Esito</th>
-          <th>Codice errore</th>
         </tr>
       </thead>
       <tbody>
@@ -135,7 +120,7 @@
             {% else %}<span class="a-badge a-badge-neutral">{{ log.provider_type }}</span>
             {% endif %}
           </td>
-          <td class="a-mono" style="font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ log.idp_entity_id or '' }}">
+          <td class="a-mono" style="font-size: 11px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ log.idp_entity_id or '' }}">
             {{ (log.idp_entity_id or '—') | replace('https://', '') }}
           </td>
           <td class="a-mono" style="font-size: 12px;">
@@ -165,13 +150,6 @@
             <span class="a-muted">—</span>
             {% endif %}
           </td>
-          <td>
-            {% if log.result == 'success' %}<span class="a-badge a-badge-success">Successo</span>
-            {% elif log.result == 'failure' %}<span class="a-badge a-badge-warning">Fallito</span>
-            {% else %}<span class="a-badge a-badge-danger">Errore</span>
-            {% endif %}
-          </td>
-          <td class="a-mono a-muted" style="font-size: 11px;">{{ log.error_code or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -181,7 +159,7 @@
   <!-- Pagination -->
   <div class="a-pagination" style="padding: 16px; border-top: 1px solid #eaeaea;">
     {% if page > 1 %}
-    <a href="/admin/access-log/advanced?page={{ page - 1 }}&search_cf={{ search_cf }}&provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}" 
+    <a href="/admin/access-log/advanced?page={{ page - 1 }}&search_cf={{ search_cf }}&provider_type={{ provider_type }}&from_date={{ from_date }}&to_date={{ to_date }}" 
        class="a-btn a-btn-neutral a-btn-sm">← Precedente</a>
     {% else %}
     <span class="a-btn a-btn-neutral a-btn-sm" style="opacity:.4; cursor:default;">← Precedente</span>
@@ -190,7 +168,7 @@
     <span class="a-muted" style="font-size: 12px; font-weight: 500;">Pagina {{ page }}</span>
     
     {% if has_next %}
-    <a href="/admin/access-log/advanced?page={{ page + 1 }}&search_cf={{ search_cf }}&provider_type={{ provider_type }}&result={{ result_filter }}&from_date={{ from_date }}&to_date={{ to_date }}" 
+    <a href="/admin/access-log/advanced?page={{ page + 1 }}&search_cf={{ search_cf }}&provider_type={{ provider_type }}&from_date={{ from_date }}&to_date={{ to_date }}" 
        class="a-btn a-btn-neutral a-btn-sm">Successiva →</a>
     {% else %}
     <span class="a-btn a-btn-neutral a-btn-sm" style="opacity:.4; cursor:default;">Successiva →</span>

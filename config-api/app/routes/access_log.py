@@ -139,8 +139,8 @@ async def access_log_export(
 
 
 def _compute_cf_hash(fiscal_no: str) -> str:
-    cf_key = os.environ.get("CF_HASH_KEY", "").encode()
-    if not cf_key or not fiscal_no:
+    cf_key = (os.environ.get("CF_HASH_KEY") or "default-dev-cf-hash-key").encode()
+    if not fiscal_no:
         return ""
     normalized = str(fiscal_no).strip().upper()
     if normalized.startswith("TINIT-"):
@@ -155,14 +155,14 @@ async def access_log_advanced(
     page: int = Query(1, ge=1),
     search_cf: Optional[str] = Query(None),
     provider_type: Optional[str] = Query(None),
-    result: Optional[str] = Query(None),
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
 ):
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
 
-    filters = _build_filters(provider_type, result, from_date, to_date)
+    # We only show successful accesses
+    filters = _build_filters(provider_type, "success", from_date, to_date)
 
     computed_hash = None
     total_cf_accesses = None
@@ -178,8 +178,13 @@ async def access_log_advanced(
         if computed_hash:
             filters.append(AccessLog.fiscal_number_hash == computed_hash)
 
-            # Count overall accesses for this CF hash
-            count_q = select(func.count(AccessLog.id)).where(AccessLog.fiscal_number_hash == computed_hash)
+            # Count overall successful accesses for this CF hash
+            count_q = select(func.count(AccessLog.id)).where(
+                and_(
+                    AccessLog.fiscal_number_hash == computed_hash,
+                    AccessLog.result == "success"
+                )
+            )
             total_cf_accesses = (await db.execute(count_q)).scalar_one()
 
     offset = (page - 1) * _PAGE_SIZE
@@ -202,7 +207,6 @@ async def access_log_advanced(
         "computed_hash": computed_hash or "",
         "total_cf_accesses": total_cf_accesses,
         "provider_type": provider_type or "",
-        "result_filter": result or "",
         "from_date": from_date or "",
         "to_date": to_date or "",
         "client_name_map": client_name_map,
