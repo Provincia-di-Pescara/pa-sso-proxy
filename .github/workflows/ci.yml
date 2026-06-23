@@ -6,10 +6,12 @@ on:
     paths:
       - "config-api/**"
       - ".github/workflows/ci.yml"
+      - "publiccode.yml"
   pull_request:
     paths:
       - "config-api/**"
       - ".github/workflows/ci.yml"
+      - "publiccode.yml"
   workflow_dispatch:
 
 permissions:
@@ -23,6 +25,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate-publiccode:
+    name: Validate publiccode.yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate publiccode.yml
+        uses: italia/publiccode-parser-action@v1
+        with:
+          publiccode: 'publiccode.yml'
+
   test-config-api:
     name: pytest (${{ matrix.python-version }})
     runs-on: ubuntu-latest

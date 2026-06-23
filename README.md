@@ -4,11 +4,22 @@ SPID/CIE SSO proxy per Pubblica Amministrazione italiana.
 
 Permette a qualsiasi applicativo dell'ente di autenticare i cittadini tramite SPID e CIE, esponendo una singola interfaccia OIDC standard. L'ente configura il proxy una volta sola; ogni app si collega come client OIDC con PKCE.
 
+---
+
+### Dashboard di amministrazione
+![Dashboard di amministrazione](docs/screenshots/dashboard.png)
+
+### Schermata di login (SPID/CIE)
+![Schermata di login SPID/CIE](docs/screenshots/login.png)
+
+---
+
 ## Funzionalità
 
 - **SPID SAML** — tutti gli IdP ufficiali AgID
 - **CIE SAML** — Ministero dell'Interno
 - **CIE OIDC Federation 1.0** — accreditamento portale AgID
+- **eIDAS SAML (FICEP)** — login per cittadini europei tramite nodo eIDAS italiano (QA e Prod)
 - **Multi-client OIDC** — N applicativi per ente, configurabili via WebUI
 - **WebUI di configurazione** — gestione clienti, certificati, chiavi JWK, metadata IdP
 - **Rinnovo automatico certificato SPID** — cron mensile, notifica cambio metadata
@@ -47,7 +58,7 @@ docker compose -f docker-compose.yaml -f docker-compose.override.local.yml up -d
 
 WebUI disponibile su `http://localhost:8080/admin` (o tramite reverse proxy).
 
-Primo avvio: ~2 minuti per download dipendenze SATOSA. Poi:
+Primo avvio: attendi circa 15-30 secondi per l'avvio del database e del download dei metadati. Poi:
 1. Accedi alla WebUI
 2. Configura i dati dell'ente (Impostazioni)
 3. Aggiungi i client OIDC delle tue app

@@ -62,7 +62,7 @@ FastAPI application (Python). Due ruoli:
 
 **WebUI** (pagine Jinja2): interfaccia admin.
 
-**Config generator** (`satosa_generator.py`): legge da PostgreSQL → scrive YAML SATOSA → triggera reload via Docker socket.
+**Config generator** (`satosa_generator.py`): legge da PostgreSQL → scrive YAML SATOSA → triggera reload di SATOSA toccando il file `.reload` nel volume condiviso.
 
 **Metadata watcher** (`metadata_watcher.py`): cron notturno, fetcha URL metadata SPID/CIE, se cambiati aggiorna DB e triggera reload.
 
@@ -105,7 +105,7 @@ FastAPI application (Python). Due ruoli:
 1. Admin → WebUI → aggiunge/modifica client OIDC
 2. config-api → salva in postgres
 3. satosa_generator.py → riscrive YAML
-4. docker restart satosa (~3-5s downtime)
+4. config-api → tocca il file `/satosa-conf/.reload` → uWSGI in satosa rileva il cambio e ricarica i worker gracefully (zero downtime)
 ```
 
 ## Chiavi e certificati
@@ -122,7 +122,7 @@ Generato da config-api con Python `cryptography`. Valido 10 anni. Rinnovato auto
 
 ### JWK CIE OIDC
 
-Tre keypair RSA 2048:
+Tre keypair RSA 4096:
 - `jwk-federation` — firma entity configuration JWT
 - `jwk-core-sig` — firma OIDC requests (esposto pubblicamente)
 - `jwk-core-enc` — cifratura userinfo (esposto pubblicamente)
@@ -131,6 +131,6 @@ Tre keypair RSA 2048:
 
 - WebUI (`/admin`) separata da percorso pubblico via nginx routing
 - config-api NON esposto su Internet direttamente
-- Docker socket montato solo in config-api, non in satosa
+- Nessun Docker socket montato o privilegi speciali richiesti (il reload è gestito in modo sicuro tramite mtime del file `.reload` condiviso)
 - Client secret memorizzato come bcrypt hash
 - JWK privati in DB (JSONB), mai esposti via API pubblica

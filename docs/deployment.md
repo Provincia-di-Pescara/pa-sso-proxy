@@ -89,6 +89,6 @@ Flow: Authorization Code + PKCE (`code_challenge_method=S256`).
 
 **Metadata SP non generato**: almeno un IdP SPID deve essere abilitato.
 
-**CIE OIDC entity configuration non firmata**: verificare che le chiavi JWK siano generate (WebUI → CIE OIDC) e che SATOSA sia stato riavviato.
+**CIE OIDC entity configuration non firmata**: verificare che le chiavi JWK siano generate (WebUI → CIE OIDC) e che sia avvenuto il reload di SATOSA.
 
 **redirect_uri mismatch**: la URI deve corrispondere esattamente (incluso trailing slash) a quella in WebUI.

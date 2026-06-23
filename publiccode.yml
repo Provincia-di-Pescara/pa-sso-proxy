@@ -1,0 +1,68 @@
+publiccodeYmlVersion: "0.2"
+name: pa-sso-proxy
+url: "https://github.com/Provincia-di-Pescara/pa-sso-proxy"
+landingURL: "https://github.com/Provincia-di-Pescara/pa-sso-proxy"
+softwareVersion: "1.0.0"
+releaseDate: "2026-06-23"
+developmentStatus: "stable"
+softwareType: "standalone/web"
+platforms:
+  - web
+  - linux
+screenshots:
+  - docs/screenshots/dashboard.png
+  - docs/screenshots/login.png
+categories:
+  - security
+  - identity-management
+  - communication
+description:
+  it:
+    shortDescription: "SPID/CIE/eIDAS SSO proxy per Pubblica Amministrazione italiana."
+    longDescription: |
+      Permette a qualsiasi applicativo dell'ente di autenticare i cittadini tramite SPID, CIE e eIDAS, esponendo una singola interfaccia OIDC standard. L'ente configura il proxy una volta sola; ogni app si collega come client OIDC con PKCE.
+      Supporta SPID SAML (tutti gli IdP ufficiali AgID), CIE SAML (Ministero dell'Interno), CIE OIDC Federation 1.0, eIDAS SAML (FICEP), multi-client OIDC, interfaccia web di configurazione, rinnovo automatico certificati e aggiornamento automatico metadata IdP.
+    features:
+      - "SPID SAML (tutti gli IdP ufficiali AgID)"
+      - "CIE SAML (Ministero dell'Interno)"
+      - "CIE OIDC Federation 1.0 (accreditamento portale AgID)"
+      - "eIDAS SAML (login cittadini europei via FICEP)"
+      - "Multi-client OIDC (N applicativi configurabili via WebUI)"
+      - "WebUI di configurazione"
+      - "Rinnovo automatico certificato SPID"
+      - "Aggiornamento automatico metadata IdP"
+  en:
+    shortDescription: "SPID/CIE/eIDAS SSO proxy for Italian Public Administration."
+    longDescription: |
+      Allows any application of the public administration to authenticate citizens through SPID, CIE and eIDAS, exposing a single standard OIDC interface. The organization configures the proxy once; each app connects as an OIDC client with PKCE.
+      Supports SPID SAML (all official AgID IdPs), CIE SAML (Ministry of the Interior), CIE OIDC Federation 1.0, eIDAS SAML (FICEP), multi-client OIDC, configuration web UI, automatic certificate renewal, and automatic IdP metadata updates.
+    features:
+      - "SPID SAML (all official AgID IdPs)"
+      - "CIE SAML (Ministry of the Interior)"
+      - "CIE OIDC Federation 1.0"
+      - "eIDAS SAML (login of European citizens via FICEP)"
+      - "Multi-client OIDC"
+      - "Configuration WebUI"
+      - "Automatic SPID certificate renewal"
+      - "Automatic IdP metadata updates"
+legal:
+  license: "Apache-2.0"
+  mainCopyrightOwner: "Provincia di Pescara"
+  repoOwner: "Provincia di Pescara"
+maintenance:
+  type: "internal"
+  contacts:
+    - name: "Provincia di Pescara"
+      email: "info@provincia.pescara.it"
+localisation:
+  availableLanguages:
+    - it
+    - en
+  localisationReady: true
+it:
+  countryExtensionVersion: "0.2"
+  piattaforme:
+    spid: true
+    cie: true
+  riuso:
+    codiceIPA: "p_pe"
