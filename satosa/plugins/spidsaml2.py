@@ -788,10 +788,10 @@ class SpidSAMLBackend(SAMLBackend):
             cie_99.index = '99'
             cie_99.service_name.append(saml2.md.ServiceName(lang="it", text="eIDAS Natural Person Minimum Attribute Set"))
             cie_99.requested_attribute = [
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='spidCode'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='name'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='familyName'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='dateOfBirth'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='PersonIdentifier'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FirstName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FamilyName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='DateOfBirth'),
             ]
             metadata.spsso_descriptor.attribute_consuming_service.append(cie_99)
 
@@ -804,13 +804,13 @@ class SpidSAMLBackend(SAMLBackend):
             cie_100.index = '100'
             cie_100.service_name.append(saml2.md.ServiceName(lang="it", text="eIDAS Natural Person Full Attribute Set"))
             cie_100.requested_attribute = [
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='spidCode'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='name'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='familyName'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='dateOfBirth'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='placeOfBirth'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='address'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='gender'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='PersonIdentifier'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FirstName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FamilyName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='DateOfBirth'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='PlaceOfBirth'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='CurrentAddress'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='Gender'),
             ]
             metadata.spsso_descriptor.attribute_consuming_service.append(cie_100)
 
