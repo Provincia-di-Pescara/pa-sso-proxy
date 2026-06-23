@@ -119,11 +119,6 @@ Issuer:                 https://<PROXY_HOSTNAME>
 
 Flow: Authorization Code + PKCE (`code_challenge_method=S256`).
 
-## Relazione con altri progetti
-
-- **keycloak-login-proxy** — progetto precedente per Provincia di Pescara; questo repo lo sostituisce per il use case SSO cittadini
-- **GovPay-Interaction-Layer** (Comune di Montesilvano) — da cui è estratto il backend CIE OIDC
-
 ## Licenza
 
-Apache 2.0
+EUPL 1.2

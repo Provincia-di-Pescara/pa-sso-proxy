@@ -9,13 +9,10 @@ softwareType: "standalone/web"
 platforms:
   - web
   - linux
-screenshots:
-  - docs/screenshots/dashboard.png
-  - docs/screenshots/login.png
 categories:
-  - security
+  - it-security
   - identity-management
-  - communication
+  - application-development
 description:
   it:
     shortDescription: "SPID/CIE/eIDAS SSO proxy per Pubblica Amministrazione italiana."
@@ -31,6 +28,9 @@ description:
       - "WebUI di configurazione"
       - "Rinnovo automatico certificato SPID"
       - "Aggiornamento automatico metadata IdP"
+    screenshots:
+      - docs/screenshots/dashboard.png
+      - docs/screenshots/login.png
   en:
     shortDescription: "SPID/CIE/eIDAS SSO proxy for Italian Public Administration."
     longDescription: |
@@ -45,10 +45,15 @@ description:
       - "Configuration WebUI"
       - "Automatic SPID certificate renewal"
       - "Automatic IdP metadata updates"
+    screenshots:
+      - docs/screenshots/dashboard.png
+      - docs/screenshots/login.png
 legal:
-  license: "Apache-2.0"
+  license: "EUPL-1.2"
   mainCopyrightOwner: "Provincia di Pescara"
-  repoOwner: "Provincia di Pescara"
+organisation:
+  name: "Provincia di Pescara"
+  uri: "urn:x-italian-pa:p_pe"
 maintenance:
   type: "internal"
   contacts:
@@ -59,10 +64,8 @@ localisation:
     - it
     - en
   localisationReady: true
-it:
+IT:
   countryExtensionVersion: "0.2"
   piattaforme:
     spid: true
     cie: true
-  riuso:
-    codiceIPA: "p_pe"
