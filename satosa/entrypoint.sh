@@ -24,13 +24,27 @@ fetch_metadata() {
   alias="$1"
   url="$2"
   dest="${REMOTE_META_DIR}/${alias}.xml"
-
   tmp="${dest}.tmp"
-  if curl --silent --show-error --fail \
-       --max-time 10 --retry 2 --retry-delay 2 \
-       --location \
-       --output "${tmp}" \
-       "${url}" 2>/dev/null; then
+
+  # Use Python (guaranteed available) instead of curl (not in Alpine base image).
+  # Pass URL and dest via environment variables to avoid any quoting issues.
+  if _META_URL="${url}" _META_TMP="${tmp}" python3 - <<'PYEOF'
+import os, sys, ssl, urllib.request
+url = os.environ["_META_URL"]
+tmp = os.environ["_META_TMP"]
+try:
+    ctx = ssl.create_default_context()
+    req = urllib.request.Request(url, headers={"User-Agent": "satosa-entrypoint/1.0"})
+    with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+        data = resp.read()
+    with open(tmp, "wb") as f:
+        f.write(data)
+    sys.exit(0)
+except Exception as e:
+    print(f"[entrypoint] fetch error: {e}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+  then
     mv "${tmp}" "${dest}"
     echo "[entrypoint] metadata OK: ${alias} <- ${url}"
   else
@@ -43,6 +57,7 @@ fetch_metadata() {
     fi
   fi
 }
+
 
 # Read the generated spid_backend.yaml to discover which remote IdPs are
 # configured, then download each one. The config-api writes the file before
