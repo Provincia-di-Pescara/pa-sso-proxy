@@ -23,7 +23,7 @@
       <div>
         <div class="a-sidebar-title">PA SSO Proxy</div>
         <div class="a-sidebar-sub">
-          {% if app_version %}v{{ app_version }}{% endif %}
+          {% if app_version %}{{ app_version }}{% endif %}
           {% if s and s.org_display_name %} · {{ s.org_display_name }}{% endif %}
         </div>
       </div>

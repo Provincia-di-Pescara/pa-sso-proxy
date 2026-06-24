@@ -137,19 +137,27 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
     }
 
 
+# Directory where entrypoint.sh pre-downloads remote metadata files so that
+# pysaml2 never makes outbound HTTP calls at startup (avoids SourceNotFound crash).
+_REMOTE_META_DIR = "/satosa-conf/remote-metadata"
+
+
+def _meta_slug(alias: str) -> str:
+    """Return a filesystem-safe filename (without extension) for an IdP alias."""
+    return alias.replace("/", "_").replace(" ", "_")
+
+
 def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_path: str, settings: "EnteSettings") -> dict:
     local_metadata = ["/satosa-conf/spid-entities-idps.xml"]
-    # Production IdPs are already in the local aggregate XML; their metadata_url
-    # endpoints redirect (307) which pysaml2 does not follow → SourceNotFound crash.
-    # Only demo/test IdPs need remote metadata (their URLs return 200 directly).
-    remote_metadata = [
-        {"url": idp.metadata_url}
+    # Production IdPs are already in the local aggregate XML.
+    # Demo/test and eIDAS IdPs are pre-downloaded by entrypoint.sh into
+    # _REMOTE_META_DIR so pysaml2 reads local files — never blocks on network.
+    extra_local = [
+        f"{_REMOTE_META_DIR}/{_meta_slug(idp.alias)}.xml"
         for idp in enabled_idps
         if idp.metadata_url and idp.alias in (_TEST_ALIASES | _EIDAS_ALIASES)
     ]
-    metadata_config = {"local": local_metadata}
-    if remote_metadata:
-        metadata_config["remote"] = remote_metadata
+    metadata_config = {"local": local_metadata + extra_local}
 
     sp_config = {
         "key_file": key_path,
@@ -976,11 +984,8 @@ async def generate_satosa_config(db: AsyncSession) -> None:
                 "logo_uri": "https://pagopa-prx.comune.montesilvano.pe.it/static/spid/spid-agid-logo-lb.png"
             })
         elif idp.alias in _EIDAS_ALIASES:
-            spid_idps_json.append({
-                "organization_name": "Entra con eIDAS",
-                "entity_id": _EIDAS_ENTITY_IDS[idp.alias],
-                "logo_uri": ""
-            })
+            # eIDAS has its own dedicated tab in the disco page — skip from SPID IdP list.
+            pass
         elif idp.registry_entity_id:
             spid_idps_json.append({
                 "organization_name": idp.registry_organization_name or idp.display_name,
@@ -1020,6 +1025,16 @@ async def generate_satosa_config(db: AsyncSession) -> None:
     _write(conf_dir, "proxy.yaml", _proxy_yaml(hostname, include_cie_oidc))
     _write(conf_dir, "oidc_frontend.yaml", _oidc_frontend_yaml(hostname))
     _write(conf_dir, "spid_backend.yaml", _spid_backend_yaml(hostname, enabled_idps, cert_path, key_path, settings))
+
+    # Write a mapping of alias -> metadata_url for every IdP whose metadata
+    # is managed as a local pre-downloaded file (demo / eIDAS).  The
+    # entrypoint.sh reads this file to know which URLs to curl at startup.
+    remote_meta_urls = {
+        idp.alias: idp.metadata_url
+        for idp in enabled_idps
+        if idp.metadata_url and idp.alias in (_TEST_ALIASES | _EIDAS_ALIASES)
+    }
+    _write_json(conf_dir, "remote-metadata-urls.json", remote_meta_urls)
 
 
     if include_cie_oidc:

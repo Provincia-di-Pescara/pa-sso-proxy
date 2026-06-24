@@ -145,8 +145,9 @@ async def test_spid_backend_yaml_has_idp_metadata(full_db, tmp_path, monkeypatch
     from app.satosa_config_generator import generate_satosa_config
     await generate_satosa_config(full_db)
     spid = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
-    urls = [r["url"] for r in spid["metadata"]["remote"]]
-    assert "https://demo.spid.gov.it/metadata" in urls
+    local_paths = spid["metadata"]["local"]
+    assert any("spid-demo" in p for p in local_paths)
+    assert "remote" not in spid["metadata"]
 
 
 
@@ -321,12 +322,12 @@ async def test_satosa_config_generator_spid_testing_providers(db_session, tmp_pa
     assert idps_demo[0]["organization_name"] == "Demo Provider"
     assert idps_demo[0]["entity_id"] == "https://demo.spid.gov.it"
     
-    # Verify spid_backend.yaml has both local catalog and remote demo metadata URL
+    # Verify spid_backend.yaml has local catalog + local path for demo metadata (no remote)
     spid_yaml = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
     assert "local" in spid_yaml["metadata"]
     assert "/satosa-conf/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
-    assert "remote" in spid_yaml["metadata"]
-    assert spid_yaml["metadata"]["remote"] == [{"url": "https://demo.spid.gov.it/metadata.xml"}]
+    assert "remote" not in spid_yaml["metadata"]
+    assert any("spid-demo" in p for p in spid_yaml["metadata"]["local"])
     
     # 3. Test validator mode enabled
     demo.enabled = False
@@ -347,12 +348,12 @@ async def test_satosa_config_generator_spid_testing_providers(db_session, tmp_pa
     assert idps_val[0]["organization_name"] == "AgID Validator"
     assert idps_val[0]["entity_id"] == "https://validator.spid.gov.it"
     
-    # Verify spid_backend.yaml has both local catalog and remote validator metadata URL
+    # Verify spid_backend.yaml has local catalog + local path for validator metadata (no remote)
     spid_yaml = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
     assert "local" in spid_yaml["metadata"]
     assert "/satosa-conf/spid-entities-idps.xml" in spid_yaml["metadata"]["local"]
-    assert "remote" in spid_yaml["metadata"]
-    assert spid_yaml["metadata"]["remote"] == [{"url": "https://validator.spid.gov.it/metadata.xml"}]
+    assert "remote" not in spid_yaml["metadata"]
+    assert any("spid-validator" in p for p in spid_yaml["metadata"]["local"])
 
 
 async def test_satosa_config_generator_combined_providers(db_session, tmp_path, monkeypatch):
