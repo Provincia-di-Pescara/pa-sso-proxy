@@ -201,17 +201,15 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
         ],
         "metadata": metadata_config,
         "ficep_enable": getattr(settings, "eidas_enabled", False) is True,
-        # ficep_entity_id tells the backend which entity ID maps to the FICEP SP-proxy so
-        # it can send attribute_consuming_service_index=99 (minimum eIDAS attribute set)
-        # instead of the default SPID index 0. Derived from the enabled eIDAS IdP alias.
-        **({
-            "ficep_entity_id": next(
-                (_EIDAS_ENTITY_IDS[idp.alias]
-                 for idp in enabled_idps if idp.alias in _EIDAS_ALIASES),
-                None,
-            ),
-            "ficep_default_acs_index": 99,
-        } if any(idp.alias in _EIDAS_ALIASES for idp in enabled_idps) else {}),
+        # ficep_entity_id: entity ID of the FICEP SP-proxy. Used by spidsaml2 backend
+        # to set attribute_consuming_service_index=99 in the AuthnRequest when the
+        # selected IdP is the eIDAS FICEP node (instead of the default SPID index 0).
+        # ficep_default_acs_index must match the ACS index declared in the SP metadata.
+        **({"ficep_entity_id": _EIDAS_ENTITY_IDS[eidas_idp.alias],
+            "ficep_default_acs_index": 99}
+           if (eidas_idp := next(
+               (idp for idp in enabled_idps if idp.alias in _EIDAS_ALIASES), None))
+           else {}),
         "entityid": "<base_url>/<name>/metadata",
         "accepted_time_diff": 10,
         "service": {
