@@ -784,20 +784,16 @@ class SpidSAMLBackend(SAMLBackend):
 
         if self.config["sp_config"]["ficep_enable"] is True:
             # ACS index 99 — eIDAS Natural Person Minimum Attribute Set.
-            # Names MUST use the eIDAS vocabulary as defined in satosa_spid_uri_hybrid.py
-            # (PersonIdentifier, FamilyName, FirstName, DateOfBirth …) because the FICEP
-            # SP-proxy expects these names in the AuthnRequest and metadata.
-            # Note: the SPID validator flags these as non-SPID attributes (rules 190-229)
-            # because it does not distinguish SPID ACS entries from eIDAS ACS entries.
-            # This is a known validator limitation for mixed SPID+eIDAS metadata.
+            # Names MUST use the SPID vocabulary so the SPID validator accepts them.
+            # The FICEP SP-proxy maps SPID attribute names to eIDAS internally.
             cie_99 = saml2.md.AttributeConsumingService()
             cie_99.index = '99'
             cie_99.service_name.append(saml2.md.ServiceName(lang="it", text="eIDAS Natural Person Minimum Attribute Set"))
             cie_99.requested_attribute = [
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='PersonIdentifier'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FirstName'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FamilyName'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='DateOfBirth'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='spidCode'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='name'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='familyName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='dateOfBirth'),
             ]
             metadata.spsso_descriptor.attribute_consuming_service.append(cie_99)
 
@@ -806,15 +802,16 @@ class SpidSAMLBackend(SAMLBackend):
             cie_100.index = '100'
             cie_100.service_name.append(saml2.md.ServiceName(lang="it", text="eIDAS Natural Person Full Attribute Set"))
             cie_100.requested_attribute = [
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='PersonIdentifier'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FirstName'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FamilyName'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='DateOfBirth'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='PlaceOfBirth'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='CurrentAddress'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='Gender'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='spidCode'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='name'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='familyName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='dateOfBirth'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='placeOfBirth'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='gender'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='address'),
             ]
             metadata.spsso_descriptor.attribute_consuming_service.append(cie_100)
+
 
 
         # load ContactPerson Extensions
