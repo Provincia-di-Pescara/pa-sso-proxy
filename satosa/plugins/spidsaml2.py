@@ -782,15 +782,36 @@ class SpidSAMLBackend(SAMLBackend):
         metadata.spsso_descriptor.assertion_consumer_service[0].index = '0'
         metadata.spsso_descriptor.assertion_consumer_service[0].is_default = 'true'
 
-        # NOTE: eIDAS-specific AttributeConsumingService entries (index 99/100) are
-        # intentionally NOT added to the SP metadata. The SPID validator rejects
-        # eIDAS attribute names (PersonIdentifier, FirstName, FamilyName, DateOfBirth,
-        # CurrentAddress, Gender) because they are not in the SPID attribute vocabulary.
-        # The FICEP SP-proxy does not require the SP to declare eIDAS attribute sets in
-        # the metadata: it only uses the attribute_consuming_service_index value in the
-        # AuthnRequest to determine which attribute set to return. The correct index (99
-        # for minimum, 100 for full) is set at AuthnRequest build time via ficep_entity_id
-        # + ficep_default_acs_index in the sp_config.
+        if self.config["sp_config"]["ficep_enable"] is True:
+            # ACS index 99 — eIDAS Natural Person Minimum Attribute Set.
+            # Attribute names MUST use SPID vocabulary (not eIDAS names like
+            # PersonIdentifier/FirstName) so the SPID validator accepts them.
+            # The FICEP SP-proxy maps SPID attribute names to eIDAS internally.
+            cie_99 = saml2.md.AttributeConsumingService()
+            cie_99.index = '99'
+            cie_99.service_name.append(saml2.md.ServiceName(lang="it", text="eIDAS Natural Person Minimum Attribute Set"))
+            cie_99.requested_attribute = [
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='spidCode'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='name'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='familyName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='dateOfBirth'),
+            ]
+            metadata.spsso_descriptor.attribute_consuming_service.append(cie_99)
+
+            # ACS index 100 — eIDAS Natural Person Full Attribute Set.
+            cie_100 = saml2.md.AttributeConsumingService()
+            cie_100.index = '100'
+            cie_100.service_name.append(saml2.md.ServiceName(lang="it", text="eIDAS Natural Person Full Attribute Set"))
+            cie_100.requested_attribute = [
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='spidCode'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='name'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='familyName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='dateOfBirth'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='placeOfBirth'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='gender'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='address'),
+            ]
+            metadata.spsso_descriptor.attribute_consuming_service.append(cie_100)
 
 
         # load ContactPerson Extensions
