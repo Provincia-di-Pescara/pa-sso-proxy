@@ -782,41 +782,16 @@ class SpidSAMLBackend(SAMLBackend):
         metadata.spsso_descriptor.assertion_consumer_service[0].index = '0'
         metadata.spsso_descriptor.assertion_consumer_service[0].is_default = 'true'
 
-        if self.config["sp_config"]["ficep_enable"] is True:
-            # Aggiungere CIE 99
-            cie_99 = saml2.md.AttributeConsumingService()
-            cie_99.index = '99'
-            cie_99.service_name.append(saml2.md.ServiceName(lang="it", text="eIDAS Natural Person Minimum Attribute Set"))
-            cie_99.requested_attribute = [
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='PersonIdentifier'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FirstName'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FamilyName'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='DateOfBirth'),
-            ]
-            metadata.spsso_descriptor.attribute_consuming_service.append(cie_99)
+        # NOTE: eIDAS-specific AttributeConsumingService entries (index 99/100) are
+        # intentionally NOT added to the SP metadata. The SPID validator rejects
+        # eIDAS attribute names (PersonIdentifier, FirstName, FamilyName, DateOfBirth,
+        # CurrentAddress, Gender) because they are not in the SPID attribute vocabulary.
+        # The FICEP SP-proxy does not require the SP to declare eIDAS attribute sets in
+        # the metadata: it only uses the attribute_consuming_service_index value in the
+        # AuthnRequest to determine which attribute set to return. The correct index (99
+        # for minimum, 100 for full) is set at AuthnRequest build time via ficep_entity_id
+        # + ficep_default_acs_index in the sp_config.
 
-            if len(metadata.spsso_descriptor.assertion_consumer_service) > 1:
-                metadata.spsso_descriptor.assertion_consumer_service[1].index = '99'
-                metadata.spsso_descriptor.assertion_consumer_service[1].is_default = None
-
-            # Aggiungere CIE 100
-            cie_100 = saml2.md.AttributeConsumingService()
-            cie_100.index = '100'
-            cie_100.service_name.append(saml2.md.ServiceName(lang="it", text="eIDAS Natural Person Full Attribute Set"))
-            cie_100.requested_attribute = [
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='PersonIdentifier'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FirstName'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='FamilyName'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='DateOfBirth'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='PlaceOfBirth'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='CurrentAddress'),
-                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='Gender'),
-            ]
-            metadata.spsso_descriptor.attribute_consuming_service.append(cie_100)
-
-            if len(metadata.spsso_descriptor.assertion_consumer_service) > 2:
-                metadata.spsso_descriptor.assertion_consumer_service[2].index = '100'
-                metadata.spsso_descriptor.assertion_consumer_service[2].is_default = None
 
         # load ContactPerson Extensions
         self._metadata_contact_person(metadata, conf)
