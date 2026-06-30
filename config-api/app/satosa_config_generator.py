@@ -1,8 +1,14 @@
+import asyncio
 import base64
 import json
+import logging
 import os
 import random
+import ssl
+import urllib.request
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 import yaml
 from cryptography.hazmat.primitives import serialization
@@ -140,6 +146,45 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
 # Directory where entrypoint.sh pre-downloads remote metadata files so that
 # pysaml2 never makes outbound HTTP calls at startup (avoids SourceNotFound crash).
 _REMOTE_META_DIR = "/satosa-conf/remote-metadata"
+_EMPTY_META = '<?xml version="1.0"?><EntitiesDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"/>'
+
+
+async def _ensure_remote_metadata(remote_meta_urls: dict) -> None:
+    """Ensure pre-downloaded metadata files exist for all remote IdPs.
+
+    entrypoint.sh only runs at container start, so when a new remote IdP is
+    enabled mid-session the file won't exist yet. This function downloads any
+    missing files (or writes an empty placeholder on failure) so SATOSA can
+    reload without a FileNotFoundError.
+    """
+    os.makedirs(_REMOTE_META_DIR, exist_ok=True)
+
+    for alias, url in remote_meta_urls.items():
+        dest = os.path.join(_REMOTE_META_DIR, f"{_meta_slug(alias)}.xml")
+        if os.path.exists(dest):
+            continue
+
+        def _fetch(url: str = url, dest: str = dest, alias: str = alias) -> bool:
+            try:
+                ctx = ssl.create_default_context()
+                req = urllib.request.Request(url, headers={"User-Agent": "config-api/1.0"})
+                with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+                    data = resp.read()
+                tmp = dest + ".tmp"
+                with open(tmp, "wb") as f:
+                    f.write(data)
+                os.replace(tmp, dest)
+                logger.info("remote metadata downloaded: %s <- %s", alias, url)
+                return True
+            except Exception as e:
+                logger.warning("remote metadata fetch failed for %s (%s): %s", alias, url, e)
+                return False
+
+        ok = await asyncio.to_thread(_fetch)
+        if not ok and not os.path.exists(dest):
+            with open(dest, "w", encoding="utf-8") as f:
+                f.write(_EMPTY_META)
+            logger.warning("wrote empty metadata placeholder for %s", alias)
 
 
 def _meta_slug(alias: str) -> str:
@@ -1044,7 +1089,7 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         if idp.metadata_url and idp.alias in (_TEST_ALIASES | _EIDAS_ALIASES)
     }
     _write_json(conf_dir, "remote-metadata-urls.json", remote_meta_urls)
-
+    await _ensure_remote_metadata(remote_meta_urls)
 
     if include_cie_oidc:
         _write(
