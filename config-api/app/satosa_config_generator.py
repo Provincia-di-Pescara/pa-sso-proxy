@@ -149,7 +149,7 @@ _REMOTE_META_DIR = "/satosa-conf/remote-metadata"
 _EMPTY_META = '<?xml version="1.0"?><EntitiesDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"/>'
 
 
-async def _ensure_remote_metadata(remote_meta_urls: dict) -> None:
+async def _ensure_remote_metadata(conf_dir: str, remote_meta_urls: dict) -> None:
     """Ensure pre-downloaded metadata files exist for all remote IdPs.
 
     entrypoint.sh only runs at container start, so when a new remote IdP is
@@ -157,10 +157,11 @@ async def _ensure_remote_metadata(remote_meta_urls: dict) -> None:
     missing files (or writes an empty placeholder on failure) so SATOSA can
     reload without a FileNotFoundError.
     """
-    os.makedirs(_REMOTE_META_DIR, exist_ok=True)
+    remote_meta_dir = os.path.join(conf_dir, "remote-metadata")
+    os.makedirs(remote_meta_dir, exist_ok=True)
 
     for alias, url in remote_meta_urls.items():
-        dest = os.path.join(_REMOTE_META_DIR, f"{_meta_slug(alias)}.xml")
+        dest = os.path.join(remote_meta_dir, f"{_meta_slug(alias)}.xml")
         if os.path.exists(dest):
             continue
 
@@ -1089,7 +1090,7 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         if idp.metadata_url and idp.alias in (_TEST_ALIASES | _EIDAS_ALIASES)
     }
     _write_json(conf_dir, "remote-metadata-urls.json", remote_meta_urls)
-    await _ensure_remote_metadata(remote_meta_urls)
+    await _ensure_remote_metadata(conf_dir, remote_meta_urls)
 
     if include_cie_oidc:
         _write(
