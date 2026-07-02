@@ -198,7 +198,6 @@
 .sso-help a:hover { text-decoration: underline; }
 .sso-help .muted { font-size: var(--fs-13); color: var(--fg-3); }
 
-/* ---------- FOOTER ---------- */
 .sso-foot {
   flex: 0 0 auto;
   border-top: 1px solid var(--border-1);
@@ -206,12 +205,83 @@
   padding: var(--sp-4) var(--sp-5);
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4);
   font-size: var(--fs-12); color: var(--fg-3);
+  flex-wrap: wrap;
 }
-.sso-foot { flex-wrap: wrap; }
 .sso-foot .links { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); justify-content: flex-end; }
 .sso-foot a { color: var(--fg-2); text-decoration: none; white-space: nowrap; }
 .sso-foot a:hover { text-decoration: underline; }
 .sso-foot .agid { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--fg-2); }
+
+@media (min-width: 768px) {
+  .sso-foot .agid {
+    flex: 1 1 0%;
+  }
+  .sso-foot .links {
+    flex: 1 1 0%;
+  }
+  .sso-foot .links-placeholder {
+    flex: 1 1 0%;
+  }
+}
+
+@media (max-width: 767px) {
+  .sso-foot {
+    flex-direction: column;
+    gap: var(--sp-3);
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .sso-foot .links {
+    justify-content: center;
+  }
+}
+
+/* ---------- SOFTWARE BADGE ---------- */
+.sso-software-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: 12px;
+  padding: 4px 10px;
+  color: var(--fg-2);
+  text-decoration: none;
+  font-weight: 600;
+  transition: all var(--dur-fast) var(--ease-out);
+  font-size: var(--fs-12);
+}
+
+.sso-software-badge:hover {
+  background: var(--bg-2);
+  border-color: var(--border-2);
+  color: var(--fg-1);
+  text-decoration: none !important;
+}
+
+.sso-software-badge svg {
+  color: var(--fg-3);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.sso-software-badge:hover svg {
+  color: var(--fg-1);
+}
+
+.sso-software-badge .version {
+  font-size: 10px;
+  background: var(--border-1);
+  color: var(--fg-3);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.sso-software-badge:hover .version {
+  background: var(--border-2);
+  color: var(--fg-2);
+}
 
 /* ---------- SPLIT LAYOUT (variant B) ---------- */
 .sso-split { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; }

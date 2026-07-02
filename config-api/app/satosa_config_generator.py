@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidIdP
+from app.version import get_display_version
 
 SATOSA_CONF_DIR = os.environ.get("SATOSA_CONF_DIR", "/satosa-conf")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
@@ -722,12 +723,14 @@ def _eid_locale_strings(
         "titles": common_titles_it,
         "digital_id": _digital_id(cie_it, spid_it, it_wallet_it, eidas_it, cie_oidc_login_url, "it"),
         "footer": footer_it,
+        "version": get_display_version(),
     }
     en_locale = {
         "header": {"region_name": _org_name_en, "logo_url": _logo_url, "favicon_url": _favicon_url},
         "titles": common_titles_en,
         "digital_id": _digital_id(cie_en, spid_en, it_wallet_en, eidas_en, cie_oidc_login_url, "en"),
         "footer": footer_en,
+        "version": get_display_version(),
     }
     return {"it": it_locale, "en": en_locale}
 
