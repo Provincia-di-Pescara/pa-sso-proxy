@@ -30,7 +30,8 @@
           <td>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <a href="/admin/clients/{{ c.id }}/edit" class="a-btn a-btn-secondary a-btn-sm">Modifica</a>
-              <a href="/admin/clients/{{ c.id }}/secret" class="a-btn a-btn-secondary a-btn-sm">Credenziali</a>
+              <button type="button" class="a-btn a-btn-secondary a-btn-sm" onclick="copyText('{{ c.client_id }}', this)">Copia ID</button>
+              <button type="button" class="a-btn a-btn-secondary a-btn-sm" onclick="copyText('{{ c.client_secret_plain if c.client_secret_plain else '' }}', this)">Copia Secret</button>
               <form method="post" action="/admin/clients/{{ c.id }}/toggle" style="display:inline;">
                 <button class="a-btn a-btn-neutral a-btn-sm">{% if c.enabled %}Disabilita{% else %}Abilita{% endif %}</button>
               </form>
@@ -52,4 +53,114 @@
   <div style="margin-top:8px;"><a href="/admin/clients/new" class="a-btn a-btn-primary a-btn-sm">Aggiungi il primo</a></div>
 </div>
 {% endif %}
+
+{% if proxy_hostname %}
+<div class="a-card" style="margin-top:24px;">
+  <div class="a-card-header">Parametri di Integrazione OIDC</div>
+  <div class="a-card-body" style="font-size:13px; display: flex; flex-direction: column; gap: 16px;">
+    
+    <div style="background:var(--bg-1); padding:16px; border-radius:6px; border:1px solid var(--border-2);">
+      <h4 style="margin:0 0 8px 0; font-size:14px; color:var(--brand); display:flex; align-items:center; gap:6px;">
+        <span style="font-size:16px;">ℹ️</span> Guida all'integrazione
+      </h4>
+      <p style="margin:0 0 10px 0; line-height:1.4; color:var(--fg-2);">
+        Per autenticare gli utenti tramite questo proxy, configura la tua applicazione (client) come client OpenID Connect standard utilizzando le credenziali e gli endpoint forniti di seguito.
+      </p>
+      <ul style="margin:0 0 12px 0; padding-left:20px; line-height:1.5; color:var(--fg-2);">
+        <li><strong>Client ID</strong> e <strong>Client Secret</strong>: Generati per ciascun client e copiabili dalla tabella in alto.</li>
+        <li><strong>Redirect URI</strong>: L'URI o gli URI a cui l'utente viene reindirizzato dopo l'autenticazione. Devono corrispondere esattamente a quelli registrati sul proxy.</li>
+        <li><strong>Scopes</strong>: È necessario richiedere almeno lo scope <code>openid</code>. Si consiglia di includere anche <code>profile</code> e <code>email</code> per ottenere le informazioni dell'utente.</li>
+      </ul>
+      <div style="font-size:12px;">
+        📖 <strong>Risorsa ufficiale:</strong> Per saperne di più su come funziona l'integrazione OIDC, consulta la guida <a href="https://openid.net/developers/how-connect-works/" target="_blank" rel="noopener noreferrer" style="color:var(--brand); text-decoration:underline; font-weight:600;">How OpenID Connect Works</a>.
+      </div>
+    </div>
+
+    <div>
+      <h4 style="margin:0 0 12px 0; font-size:14px;">Endpoint OIDC del Proxy</h4>
+      
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
+          <div style="flex:1;">
+            <strong>Issuer (Provider):</strong><br>
+            <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC</code>
+          </div>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC', this)">Copia</button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
+          <div style="flex:1;">
+            <strong>Discovery URL (Well-Known):</strong><br>
+            <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/.well-known/openid-configuration</code>
+          </div>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/.well-known/openid-configuration', this)">Copia</button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
+          <div style="flex:1;">
+            <strong>Authorization Endpoint:</strong><br>
+            <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/authorization</code>
+          </div>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/authorization', this)">Copia</button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
+          <div style="flex:1;">
+            <strong>Token Endpoint:</strong><br>
+            <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/token</code>
+          </div>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/token', this)">Copia</button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
+          <div style="flex:1;">
+            <strong>Userinfo Endpoint:</strong><br>
+            <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/userinfo</code>
+          </div>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/userinfo', this)">Copia</button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
+          <div style="flex:1;">
+            <strong>JWKS URI:</strong><br>
+            <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/jwks</code>
+          </div>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/jwks', this)">Copia</button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; padding-bottom:4px;">
+          <div style="flex:1;">
+            <strong>Logout URL (End Session Endpoint):</strong><br>
+            <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/end_session</code><br>
+            <span class="a-muted" style="font-size:11px;">Parametri supportati: <code>post_logout_redirect_uri</code> (obbligatorio), <code>id_token_hint</code> (consigliato).</span>
+          </div>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/end_session', this)">Copia</button>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+</div>
+{% endif %}
+
+<script>
+  function copyText(val, btn) {
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(function() {
+      var originalText = btn.textContent;
+      btn.textContent = 'Copiato!';
+      var originalColor = btn.style.color;
+      var originalBorder = btn.style.borderColor;
+      btn.style.color = '#10B981';
+      btn.style.borderColor = '#10B981';
+      setTimeout(function() {
+        btn.textContent = originalText;
+        btn.style.color = originalColor;
+        btn.style.borderColor = originalBorder;
+      }, 1500);
+    }).catch(function(err) {
+      console.error('Errore copia:', err);
+    });
+  }
+</script>
 {% endblock %}

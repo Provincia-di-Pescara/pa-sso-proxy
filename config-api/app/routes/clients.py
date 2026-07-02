@@ -27,7 +27,12 @@ async def clients_list(request: Request, db: AsyncSession = Depends(get_db)):
         return RedirectResponse("/admin/login", status_code=302)
     result = await db.execute(select(OIDCClient).order_by(OIDCClient.created_at.desc()))
     clients = result.scalars().all()
-    return templates.TemplateResponse(request, "clients/list.html.j2", {"clients": clients})
+    settings_result = await db.execute(select(EnteSettings).limit(1))
+    settings = settings_result.scalar_one_or_none()
+    proxy_hostname = settings.proxy_hostname if settings and settings.proxy_hostname else request.url.netloc
+    return templates.TemplateResponse(
+        request, "clients/list.html.j2", {"clients": clients, "proxy_hostname": proxy_hostname}
+    )
 
 
 @router.get("/clients/new", response_class=HTMLResponse)
