@@ -477,12 +477,14 @@ class AuthorizationCallBackHandler(BaseEndpoint):
         # Frontoffice SAML callback checks multiple aliases; provide them defensively.
         _set_if_missing("first_name", first_name)
         _set_if_missing("given_name", first_name)
+        _set_if_missing("givenname", first_name)
         _set_if_missing("givenName", first_name)
         _set_if_missing("name", first_name)
         _set_if_missing("urn:oid:2.5.4.42", first_name)
 
         _set_if_missing("last_name", last_name)
         _set_if_missing("family_name", last_name)
+        _set_if_missing("familyname", last_name)
         _set_if_missing("familyName", last_name)
         _set_if_missing("sn", last_name)
         _set_if_missing("surname", last_name)

@@ -776,14 +776,6 @@ class AccessLogReporter(ResponseMicroService):
         )
 
     def process(self, context, internal_data):
-        provider_type = "spid"
-        try:
-            backend = getattr(context, "target_backend", "") or ""
-            if "cie" in backend.lower():
-                provider_type = "cie"
-        except Exception:
-            pass
-
         client_id = None
         try:
             for v in context.state.values():
@@ -826,6 +818,16 @@ class AccessLogReporter(ResponseMicroService):
             auth_info = getattr(internal_data, "auth_info", None)
             if auth_info:
                 idp_entity_id = getattr(auth_info, "issuer", None) or None
+        except Exception:
+            pass
+
+        provider_type = "spid"
+        try:
+            backend = getattr(context, "target_backend", "") or ""
+            if "cie" in backend.lower():
+                provider_type = "cie"
+            elif idp_entity_id and "eid.gov.it" in idp_entity_id.lower():
+                provider_type = "eidas"
         except Exception:
             pass
 
