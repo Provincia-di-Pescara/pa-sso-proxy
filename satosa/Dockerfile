@@ -21,6 +21,7 @@ COPY plugins/cieoidc-endpoints/ /satosa_proxy/backends/cieoidc/endpoints/
 COPY plugins/cieoidc-models/    /satosa_proxy/backends/cieoidc/models/
 COPY plugins/redis_storage.py   /satosa_proxy/backends/cieoidc/storage/impl/redis_storage.py
 COPY plugins/spidsaml2.py       /satosa_proxy/backends/spidsaml2.py
+COPY internal_attributes.yaml  /satosa_proxy/internal_attributes.yaml
 
 # Override public-facing SSO pages (design system .italia — card centrata)
 COPY public/static/sso/         /satosa_proxy/static/sso/

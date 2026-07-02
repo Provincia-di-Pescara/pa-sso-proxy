@@ -1,0 +1,96 @@
+attributes:
+  address:
+    openid: [address]
+    saml: [postaladdress, address]
+    openid4vp: [address]
+  displayname:
+    openid: [nickname]
+    saml: [displayName, familyname, FamilyName, familyName]
+  edupersontargetedid:
+    openid: [sub]
+    saml: [eduPersonTargetedID, eduPersonTargetedId, spidCode, sub, id, fiscalNumber]
+    openid4vp: [sub]
+  edupersonprincipalname:
+    saml: [eduPersonPrincipalName]
+  edupersonscopedaffiliation:
+    saml: [eduPersonScopedAffiliation]
+  edupersonentilement:
+    saml: [eduPersonEntitlement]
+  schacpersonaluniqueid:
+    saml: [schacPersonalUniqueID, fiscalNumber]
+    openid: [fiscal_number]
+  schacpersonaluniquecode:
+    saml: [schacPersonalUniqueCode]
+  schachomeorganizationtype:
+    saml: [schacHomeOrganizationType]
+  schachomeorganization:
+    saml: [schacHomeOrganization]
+  givenname:
+    openid: [given_name]
+    openid4vp: [given_name]
+    saml: [givenName, name, Name]
+  mail:
+    openid: [email]
+    saml: [mail, email]
+    openid4vp: [mail, email]
+  name:
+    openid: [name]
+    saml: [name, Name]
+    openid4vp: [given_name]
+    openid4vci: [given_name]
+  surname:
+    openid: [family_name]
+    saml: [sn, surname, familyName, FamilyName]
+    openid4vp: [family_name]
+    openid4vci: [family_name]
+  # spid related
+  spidcode:
+    openid: [sub]
+    openid4vp: [sub]
+    saml: [spidCode]
+# decommentando questo la email rilasciata anche in caso di account linking sarà quella di spid
+# commentando: email sarà rilasciato in formato URI
+  email:
+    openid: [email]
+    openid4vp: [mail, email]
+    saml: [mail]
+  email_verified:
+    openid: [email_verified]
+  familyname:
+    saml: [familyName, familyname, FamilyName]
+    openid: [family_name]
+
+  fiscalnumber:
+    saml: [fiscalNumber, fiscalnumber, FiscalNumber]
+    openid: [fiscal_number]
+  gender:
+    saml: [gender, Gender]
+    openid: [gender]
+  companyName:
+    saml: [companyName]
+  registeredOffice:
+    saml: [registeredOffice]
+  ivaCode:
+    saml: [ivaCode]
+  idCard:
+    saml: [idCard]
+  digitalAddress:
+    saml: [digitalAddress]
+  placeOfBirth:
+    saml: [placeOfBirth]
+    openid: [place_of_birth]
+  countyOfBirth:
+    saml: [countyOfBirth]
+  dateOfBirth:
+    saml: [dateOfBirth]
+    openid: [birthdate]
+  birthdate:
+    saml: [dateOfBirth]
+    openid: [birthdate]
+  expirationDate:
+    saml: [expirationDate]
+  fiscal_code:
+    openid4vci: [fiscal_code, fiscal_number]
+# user identification mapping
+user_id_from_attrs: [edupersontargetedid]
+user_id_to_attr: spidcode
