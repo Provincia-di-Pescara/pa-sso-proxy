@@ -749,16 +749,27 @@ class SpidSAMLBackend(SAMLBackend):
             # Extract fiscal number from spidcode if not already set (typical for eIDAS)
             if "spidcode" in internal_data.attributes and internal_data.attributes["spidcode"]:
                 spid_val = internal_data.attributes["spidcode"][0]
-                if "TINIT-" in spid_val.upper():
-                    parts = spid_val.upper().split("TINIT-")
-                    if len(parts) > 1:
-                        fiscal_code = parts[1].strip()
-                        full_fiscal = f"TINIT-{fiscal_code}"
-                        
-                        if "fiscalnumber" not in internal_data.attributes or not internal_data.attributes["fiscalnumber"]:
-                            internal_data.attributes["fiscalnumber"] = [full_fiscal]
-                        if "schacpersonaluniqueid" not in internal_data.attributes or not internal_data.attributes["schacpersonaluniqueid"]:
-                            internal_data.attributes["schacpersonaluniqueid"] = [full_fiscal]
+                
+                # Check if it matches eIDAS PersonIdentifier format: XX/YY/ZZ...
+                import re as _re
+                if _re.match(r"^[A-Z]{2}/[A-Z]{2}/", spid_val.upper()):
+                    # It's an eIDAS login
+                    if "TINIT-" in spid_val.upper():
+                        # Italian citizen under eIDAS: extract and format as TINIT-<fiscal_code>
+                        parts = spid_val.upper().split("TINIT-")
+                        if len(parts) > 1:
+                            fiscal_code = parts[1].strip()
+                            full_fiscal = f"TINIT-{fiscal_code}"
+                        else:
+                            full_fiscal = spid_val
+                    else:
+                        # Foreign EU citizen: use the full eIDAS PersonIdentifier
+                        full_fiscal = spid_val
+                    
+                    if "fiscalnumber" not in internal_data.attributes or not internal_data.attributes["fiscalnumber"]:
+                        internal_data.attributes["fiscalnumber"] = [full_fiscal]
+                    if "schacpersonaluniqueid" not in internal_data.attributes or not internal_data.attributes["schacpersonaluniqueid"]:
+                        internal_data.attributes["schacpersonaluniqueid"] = [full_fiscal]
         return internal_data
 
     def __create_metadata(self, conf):
