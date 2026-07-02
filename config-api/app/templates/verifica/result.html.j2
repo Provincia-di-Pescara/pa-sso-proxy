@@ -206,7 +206,7 @@
         {% if cf %}
           <tr>
             <td class="label-col">Codice Fiscale</td>
-            <td><code>{{ cf }}</code></td>
+            <td><code>{% if cf is string %}{{ cf }}{% else %}{{ cf | join(', ') }}{% endif %}</code></td>
           </tr>
         {% endif %}
         {% set sub = userinfo.get('sub') or claims.get('sub') %}
