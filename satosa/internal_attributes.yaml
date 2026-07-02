@@ -5,7 +5,7 @@ attributes:
     openid4vp: [address]
   displayname:
     openid: [nickname]
-    saml: [displayName, familyname, FamilyName, familyName]
+    saml: [displayName]
   edupersontargetedid:
     openid: [sub]
     saml: [eduPersonTargetedID, eduPersonTargetedId, spidCode, sub, id, fiscalNumber]

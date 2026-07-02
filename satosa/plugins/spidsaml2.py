@@ -743,6 +743,24 @@ class SpidSAMLBackend(SAMLBackend):
             context, self._translate_response(authn_response, context.state)
         )
 
+    def _translate_response(self, response, state):
+        internal_data = super()._translate_response(response, state)
+        if internal_data and internal_data.attributes:
+            # Extract fiscal number from spidcode if not already set (typical for eIDAS)
+            if "spidcode" in internal_data.attributes and internal_data.attributes["spidcode"]:
+                spid_val = internal_data.attributes["spidcode"][0]
+                if "TINIT-" in spid_val.upper():
+                    parts = spid_val.upper().split("TINIT-")
+                    if len(parts) > 1:
+                        fiscal_code = parts[1].strip()
+                        full_fiscal = f"TINIT-{fiscal_code}"
+                        
+                        if "fiscalnumber" not in internal_data.attributes or not internal_data.attributes["fiscalnumber"]:
+                            internal_data.attributes["fiscalnumber"] = [full_fiscal]
+                        if "schacpersonaluniqueid" not in internal_data.attributes or not internal_data.attributes["schacpersonaluniqueid"]:
+                            internal_data.attributes["schacpersonaluniqueid"] = [full_fiscal]
+        return internal_data
+
     def __create_metadata(self, conf):
         """
         method __create_metadata private
