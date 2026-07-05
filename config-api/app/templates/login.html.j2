@@ -16,6 +16,8 @@
     <h1>Accesso amministratore</h1>
     {% if error %}
     <div class="a-alert a-alert-danger">{{ error }}</div>
+    {% elif warning %}
+    <div class="a-alert a-alert-warning">{{ warning }}</div>
     {% endif %}
     <form method="post" action="/admin/login">
       <div class="a-form-group">

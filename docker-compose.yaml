@@ -58,6 +58,7 @@ services:
       - ADMIN_USER=${ADMIN_USER}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - SESSION_SECRET=${SESSION_SECRET:-changeme-generate-random-32chars}
+      - SESSION_MAX_AGE=${SESSION_MAX_AGE:-1800}
       - PROXY_HOSTNAME=${PROXY_HOSTNAME}
       - SATOSA_CONF_DIR=/satosa-conf
       - SATOSA_STATE_ENCRYPTION_KEY=${SATOSA_STATE_ENCRYPTION_KEY:-changeme-generate-random-state-key-32chars}

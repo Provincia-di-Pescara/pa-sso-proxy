@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,7 @@ async def _migrate_spid_registry_columns() -> None:
 from app.version import get_display_version
 
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "changeme")
+SESSION_MAX_AGE = int(os.environ.get("SESSION_MAX_AGE", 1800))
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "changeme")
 
@@ -161,7 +163,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    max_age=SESSION_MAX_AGE,
+)
 
 @app.middleware("http")
 async def add_settings_to_state(request: Request, call_next):
@@ -174,6 +180,26 @@ async def add_settings_to_state(request: Request, call_next):
                 request.state.s = s
         except Exception:
             request.state.s = None
+    response = await call_next(request)
+    return response
+
+
+@app.middleware("http")
+async def admin_session_expiry_middleware(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/admin") and not (
+        path.startswith("/admin/login") or 
+        path.startswith("/admin/static") or 
+        path == "/admin/logout"
+    ):
+        user = request.session.get("user")
+        if user:
+            now = int(time.time())
+            last_activity = request.session.get("last_activity")
+            if last_activity and (now - last_activity > SESSION_MAX_AGE):
+                request.session.clear()
+                return RedirectResponse("/admin/login?timeout=1", status_code=302)
+            request.session["last_activity"] = now
     response = await call_next(request)
     return response
 
@@ -204,16 +230,30 @@ async def _get_settings(db: AsyncSession) -> EnteSettings | None:
 
 
 @app.get("/admin/login", response_class=HTMLResponse)
-async def login_page(request: Request, db: AsyncSession = Depends(get_db)):
+async def login_page(
+    request: Request,
+    timeout: int | None = None,
+    db: AsyncSession = Depends(get_db)
+):
     ip_address = request.headers.get("x-real-ip") or (request.client.host if request.client else "unknown")
     banned, remaining = await is_ip_banned(db, ip_address)
     error = None
     if banned:
         error = f"Troppi tentativi falliti. Riprova tra {remaining} minut{'o' if remaining == 1 else 'i'}."
+    
+    warning = None
+    if timeout == 1 and not banned:
+        warning = "Sessione scaduta per inattività. Effettua nuovamente il login."
+
     return templates.TemplateResponse(
         request,
         "login.html.j2",
-        {"error": error, "banned": banned, "s": await _get_settings(db)},
+        {
+            "error": error,
+            "warning": warning,
+            "banned": banned,
+            "s": await _get_settings(db),
+        },
     )
 
 
@@ -238,6 +278,7 @@ async def login_post(
     if username == ADMIN_USER and password == ADMIN_PASSWORD:
         await clear_attempts(db, ip_address)
         request.session["user"] = username
+        request.session["last_activity"] = int(time.time())
         return RedirectResponse("/admin/", status_code=302)
 
     await record_failed_attempt(db, ip_address)
