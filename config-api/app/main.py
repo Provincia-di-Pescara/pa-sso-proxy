@@ -163,11 +163,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=SESSION_SECRET,
-    max_age=SESSION_MAX_AGE,
-)
+
 
 @app.middleware("http")
 async def add_settings_to_state(request: Request, call_next):
@@ -202,6 +198,13 @@ async def admin_session_expiry_middleware(request: Request, call_next):
             request.session["last_activity"] = now
     response = await call_next(request)
     return response
+
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    max_age=SESSION_MAX_AGE,
+)
 
 app.mount("/admin/static", StaticFiles(directory="app/static"), name="static")
 
