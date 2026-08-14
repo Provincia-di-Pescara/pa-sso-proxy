@@ -162,7 +162,12 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 
+from app.sentry import init_sentry
+
+init_sentry()
+
 app = FastAPI(lifespan=lifespan)
+
 
 
 @app.middleware("http")

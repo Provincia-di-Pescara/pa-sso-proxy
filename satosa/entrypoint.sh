@@ -111,8 +111,9 @@ mkdir -p /satosa-conf/locales
 
 exec uwsgi \
     --chdir /satosa_proxy \
-    --wsgi-file "/.venv/lib/${PYTHON_VER}/site-packages/satosa/wsgi.py" \
+    --wsgi-file "/satosa_proxy/wsgi_sentry.py" \
     --callable app \
+
     --http-socket 0.0.0.0:8080 \
     --workers 2 \
     --harakiri 60 \

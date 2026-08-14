@@ -35,6 +35,9 @@ services:
       - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
       - REDIS_URL=redis://redis:6379/0
       - CF_HASH_KEY=${CF_HASH_KEY:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     volumes:
       - proxy_satosa_conf:/satosa-conf
     networks:
@@ -65,6 +68,10 @@ services:
       - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
       - PROXY_BASE_URL=${PROXY_BASE_URL:-}
       - CF_HASH_KEY=${CF_HASH_KEY:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+
     volumes:
       - proxy_satosa_conf:/satosa-conf
     networks:
