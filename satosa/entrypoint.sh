@@ -113,7 +113,6 @@ exec uwsgi \
     --chdir /satosa_proxy \
     --wsgi-file "/satosa_proxy/wsgi_sentry.py" \
     --callable app \
-
     --http-socket 0.0.0.0:8080 \
     --workers 2 \
     --harakiri 60 \
@@ -123,3 +122,4 @@ exec uwsgi \
     --static-map /static/locales/eid-it.json=/satosa-conf/locales/eid-it.json \
     --static-map /static/locales/eid-en.json=/satosa-conf/locales/eid-en.json \
     --static-map /static=/satosa_proxy/static
+
