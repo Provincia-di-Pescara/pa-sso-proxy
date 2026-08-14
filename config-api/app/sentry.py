@@ -24,9 +24,13 @@ def init_sentry() -> None:
     except ValueError:
         sample_rate = 0.1
 
+    from app.version import get_display_version
+    release = f"config-api@{get_display_version()}"
+
     sentry_sdk.init(
         dsn=sentry_dsn,
         environment=sentry_env,
         traces_sample_rate=sample_rate,
+        release=release,
     )
-    logger.info("Sentry inizializzato con successo (environment=%s)", sentry_env)
+    logger.info("Sentry inizializzato con successo (environment=%s, release=%s)", sentry_env, release)

@@ -14,12 +14,15 @@ if sentry_dsn:
         except ValueError:
             sample_rate = 0.1
 
+        release = f"satosa@{os.environ.get('APP_VERSION', 'unknown')}"
+
         sentry_sdk.init(
             dsn=sentry_dsn,
             environment=sentry_env,
             traces_sample_rate=sample_rate,
+            release=release,
         )
-        logger.info("[SATOSA] Sentry inizializzato con successo (environment=%s)", sentry_env)
+        logger.info("[SATOSA] Sentry inizializzato con successo (environment=%s, release=%s)", sentry_env, release)
     except ImportError:
         logger.warning("[SATOSA] sentry-sdk non installato, tracciamento Sentry disabilitato.")
 

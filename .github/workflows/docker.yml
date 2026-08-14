@@ -75,10 +75,14 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
 
+      - name: Compute app version
+        id: version
+        run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+
       - name: Write version file
         run: |
           if [ "${{ matrix.image }}" = "config-api" ]; then
-            git describe --tags --always > config-api/app_version.txt
+            echo "${{ steps.version.outputs.value }}" > config-api/app_version.txt
           fi
 
       - name: Build and push
@@ -88,6 +92,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.value }}
           provenance: false
           sbom: false
           cache-from: type=gha,scope=${{ matrix.scope }}

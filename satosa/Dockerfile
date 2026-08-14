@@ -2,6 +2,11 @@ FROM ghcr.io/italia/iam-proxy-italia:latest
 
 USER root
 
+# Versione applicativo (tag git / sha) iniettata a build-time, usata come
+# Sentry "release" per raggruppare gli errori per versione deployata.
+ARG APP_VERSION=unknown
+ENV APP_VERSION=${APP_VERSION}
+
 # Base image contains only /.venv/ — no project files. Clone them.
 # Alpine-based image — use apk
 RUN apk add --no-cache git
