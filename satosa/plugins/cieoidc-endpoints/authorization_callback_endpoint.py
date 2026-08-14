@@ -66,8 +66,26 @@ class AuthorizationCallBackHandler(BaseEndpoint):
         self.grant_type = config.get("grant_type")
         self.jws_core = config.get("jwks_core")
         self._db_engine = OidcDbEngine(config.get("db_config", {}))
-        self._db_engine.connect()
-        if not self._db_engine.is_connected():
+        # register_endpoints() (quindi questo __init__) gira ad ogni reload
+        # graceful di SATOSA (uwsgi --touch-reload), non solo al boot del
+        # container: qualunque azione admin (client/IdP/cert) o il cron
+        # metadata_watcher lo triggera. Un blip transitorio di rete/redis
+        # in quel momento rompeva la registrazione dell'endpoint senza
+        # retry (vedi PA-SSO-PROXY-1). Ritentiamo poche volte prima di
+        # arrenderci.
+        _RETRY_ATTEMPTS = 3
+        _RETRY_DELAY_S = 0.5
+        for attempt in range(1, _RETRY_ATTEMPTS + 1):
+            self._db_engine.connect()
+            if self._db_engine.is_connected():
+                break
+            logger.warning(
+                "CIE OIDC storage non raggiungibile (tentativo %d/%d)",
+                attempt, _RETRY_ATTEMPTS,
+            )
+            if attempt < _RETRY_ATTEMPTS:
+                time.sleep(_RETRY_DELAY_S)
+        else:
             raise StorageUnreachable
         self.configuration_plugins = self.generate_configuration_plugin(self.config)
 
