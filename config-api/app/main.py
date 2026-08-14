@@ -155,7 +155,11 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.warning("Startup config generation failed (ok on first boot)", exc_info=True)
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(run_metadata_watcher, CronTrigger(hour=2, minute=0))
+    # Ogni 6h invece di 1 volta/giorno: riduce la finestra di staleness dei
+    # certificati IdP nel metadata aggregato SPID dopo una rotazione AgID
+    # (in precedenza fino a 24h di cert non aggiornato -> verifica firma FAILED
+    # per utenti reali, vedi PA-SSO-PROXY-2/3).
+    scheduler.add_job(run_metadata_watcher, CronTrigger(hour="*/6", minute=0))
     scheduler.add_job(run_retention, CronTrigger(day=1, hour=3, minute=0))
     scheduler.start()
     yield

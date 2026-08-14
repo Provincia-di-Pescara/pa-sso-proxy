@@ -101,10 +101,42 @@ if [ ! -f /satosa-conf/spid-idps-default.json ]; then
     cp /satosa_proxy/static/js/spid-idps-default.json /satosa-conf/spid-idps-default.json
 fi
 
-# Use aggregate XML from shared volume (kept fresh by config-api metadata_watcher).
-# Fall back to bundled file only if config-api hasn't downloaded it yet.
-if [ ! -f /satosa-conf/spid-entities-idps.xml ]; then
-    cp /satosa_proxy/metadata/idp/spid-entities-idps.xml /satosa-conf/spid-entities-idps.xml
+# Aggregate XML ufficiale SPID: kept fresh anche da config-api metadata_watcher
+# (cron ogni 6h), ma qui tentiamo comunque un fetch fresco ad ogni avvio del
+# container, cosi' un volume ricreato/pulito non parte con la copia bundled
+# nell'immagine (che puo' essere vecchia di mesi e contenere certificati IdP
+# gia' ruotati -> verifica firma FAILED per utenti reali).
+# Su fallimento del download il file esistente sul volume NON viene toccato
+# (stale-but-valid); la copia bundled e' usata solo se non esiste ancora nulla.
+_AGGREGATE_DEST=/satosa-conf/spid-entities-idps.xml
+_AGGREGATE_TMP="${_AGGREGATE_DEST}.tmp"
+if _META_URL="https://registry.spid.gov.it/metadata/idp/spid-entities-idps.xml" _META_TMP="${_AGGREGATE_TMP}" python3 - <<'PYEOF'
+import os, sys, ssl, urllib.request
+url = os.environ["_META_URL"]
+tmp = os.environ["_META_TMP"]
+try:
+    ctx = ssl.create_default_context()
+    req = urllib.request.Request(url, headers={"User-Agent": "satosa-entrypoint/1.0"})
+    with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+        data = resp.read()
+    with open(tmp, "wb") as f:
+        f.write(data)
+    sys.exit(0)
+except Exception as e:
+    print(f"[entrypoint] spid-entities-idps fetch error: {e}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+then
+    mv "${_AGGREGATE_TMP}" "${_AGGREGATE_DEST}"
+    echo "[entrypoint] spid-entities-idps.xml aggiornato all'avvio"
+else
+    rm -f "${_AGGREGATE_TMP}"
+    if [ -f "${_AGGREGATE_DEST}" ]; then
+        echo "[entrypoint] fetch spid-entities-idps.xml fallito, uso file esistente sul volume"
+    else
+        echo "[entrypoint] fetch spid-entities-idps.xml fallito, nessun file sul volume: uso copia bundled"
+        cp /satosa_proxy/metadata/idp/spid-entities-idps.xml "${_AGGREGATE_DEST}"
+    fi
 fi
 
 mkdir -p /satosa-conf/locales
