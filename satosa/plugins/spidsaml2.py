@@ -616,6 +616,10 @@ class SpidSAMLBackend(SAMLBackend):
                     }
                 )
         except SignatureError as err:
+            logger.error(
+                "SignatureError - raw SAMLResponse for forensics: %s",
+                context.request.get("SAMLResponse"),
+            )
             return self.handle_error(
                 **{
                     "err": err,
