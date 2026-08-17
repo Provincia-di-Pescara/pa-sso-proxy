@@ -22,6 +22,16 @@ if sentry_dsn:
             traces_sample_rate=sample_rate,
             release=release,
         )
+
+        # pysaml2 (saml2.sigver) logga a livello ERROR ogni tentativo di verifica
+        # firma fallito con xmlsec1 anche quando un tentativo successivo con un
+        # altro certificato dell'IdP (rotazione chiave) va a buon fine — il login
+        # SPID completa comunque con successo. Questo genera issue Sentry rumorose
+        # e non azionabili. Il fallimento reale (nessun cert valido) è già loggato
+        # esplicitamente da spidsaml2.py (SignatureError) su un logger separato.
+        from sentry_sdk.integrations.logging import ignore_logger
+        ignore_logger("saml2.sigver")
+
         logger.info("[SATOSA] Sentry inizializzato con successo (environment=%s, release=%s)", sentry_env, release)
     except ImportError:
         logger.warning("[SATOSA] sentry-sdk non installato, tracciamento Sentry disabilitato.")
