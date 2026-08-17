@@ -24,6 +24,29 @@ from .spidsaml2_validator import Saml2ResponseValidator
 logger = logging.getLogger(__name__)
 
 
+def _redact_pii_xml(raw_b64):
+    """
+    Decodifica un SAMLResponse (base64, binding HTTP-POST) e rimuove il
+    contenuto di AttributeStatement (fiscalNumber, name, familyName,
+    email, ...) prima di loggarlo per forensics. La verifica firma non
+    richiede i valori degli attributi personali — servono solo
+    Signature/SignedInfo/ID/cert, che restano intatti.
+    """
+    if not raw_b64:
+        return raw_b64
+    try:
+        import base64 as _b64
+        xml = _b64.b64decode(raw_b64).decode("utf-8", errors="replace")
+        return re.sub(
+            r"(<(?:saml2|saml):AttributeStatement\b.*?</(?:saml2|saml):AttributeStatement>)",
+            "[REDACTED AttributeStatement]",
+            xml,
+            flags=re.DOTALL,
+        )
+    except Exception:
+        return "[REDACTED: impossibile decodificare/redigere SAMLResponse per forensics]"
+
+
 def _post_access_log(provider_type, client_id, result, error_code=None):
     try:
         import json as _json
@@ -617,8 +640,8 @@ class SpidSAMLBackend(SAMLBackend):
                 )
         except SignatureError as err:
             logger.error(
-                "SignatureError - raw SAMLResponse for forensics: %s",
-                context.request.get("SAMLResponse"),
+                "SignatureError - raw SAMLResponse for forensics (PII redatte): %s",
+                _redact_pii_xml(context.request.get("SAMLResponse")),
             )
             return self.handle_error(
                 **{
@@ -742,7 +765,7 @@ class SpidSAMLBackend(SAMLBackend):
         context.state.pop(self.name, None)
         context.state.pop(Context.KEY_FORCE_AUTHN, None)
 
-        logger.info(f"SAMLResponse{authn_response.xmlstr}")
+        logger.debug(f"SAMLResponse{authn_response.xmlstr}")
         return self.auth_callback_func(
             context, self._translate_response(authn_response, context.state)
         )
