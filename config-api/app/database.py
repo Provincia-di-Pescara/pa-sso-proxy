@@ -3,7 +3,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./dev.db")
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
