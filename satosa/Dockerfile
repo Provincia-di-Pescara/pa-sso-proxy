@@ -18,7 +18,7 @@ RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
     && rm -rf /tmp/upstream
 
 # Install redis client and sentry-sdk inside the venv
-RUN . /.venv/bin/activate && pip install redis sentry-sdk --quiet
+RUN . /.venv/bin/activate && pip install redis==8.1.0 sentry-sdk==2.68.1 --quiet
 
 # Sentry WSGI wrapper
 COPY wsgi_sentry.py /satosa_proxy/wsgi_sentry.py
