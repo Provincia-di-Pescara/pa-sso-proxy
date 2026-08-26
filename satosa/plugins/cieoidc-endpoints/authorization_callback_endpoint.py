@@ -156,16 +156,25 @@ class AuthorizationCallBackHandler(BaseEndpoint):
             httpc_params=self.httpc_params,
         )
 
-        token_response = oAuth2_authorization.access_token_request(
-            redirect_uri=authorization_data["redirect_uri"],
-            state=authorization.get("state"),
-            code=code,
-            client_id=authorization.get("client_id"),
-            token_endpoint_url=authorization["provider_configuration"]["openid_provider"].get(
-                "token_endpoint"
-            ),
-            code_verifier=authorization_data.get("code_verifier"),
-        )
+        try:
+            token_response = oAuth2_authorization.access_token_request(
+                redirect_uri=authorization_data["redirect_uri"],
+                state=authorization.get("state"),
+                code=code,
+                client_id=authorization.get("client_id"),
+                token_endpoint_url=authorization["provider_configuration"]["openid_provider"].get(
+                    "token_endpoint"
+                ),
+                code_verifier=authorization_data.get("code_verifier"),
+            )
+        except Exception as exception:
+            # Il token endpoint CIE (oidc.idserver.servizicie.interno.gov.it) puo'
+            # non rispondere entro il timeout configurato (rete, manutenzione IdP,
+            # ecc.). Senza questo except, l'eccezione di rete (es. ConnectTimeout)
+            # propaga non gestita fino a SATOSA core, che risponde con un errore
+            # generico invece della pagina di errore SPID/CIE dedicata.
+            logger.error(f"Exception from access_token_request, detail: {exception}")
+            raise SATOSAAuthenticationError(context.state, "token request failed") from exception
 
         if not token_response:
             logger.debug("Token response is empty")
