@@ -181,3 +181,19 @@ Colonne tabella `access_log`: `provider_type`, `client_id`, `result`, `error_cod
 
 ### Pagina /verifica
 Pagina pubblica (no login admin) per validazione AgID. Gate: 404 se nessun IdP con alias `spid-demo` o `spid-validator` è abilitato. Flusso PKCE completo via `__spid_verifica__` client. URL: `https://<hostname>/verifica`. Mandare questo link ad AgID per la sessione di validazione.
+
+### Test satosa/plugins/
+`satosa`/`pysaml2` da PyPI sono pacchetti sbagliati: il Dockerfile usa fork pinnati (`peppelinux/pysaml2`, `peppelinux/SATOSA`) via immagine base `ghcr.io/italia/iam-proxy-italia:latest`. `pyeudiw` ha un bug di packaging upstream (sottopacchetti `federation`/`trust`/ecc. assenti dal pacchetto installato). I file in `satosa/plugins/` sono override (`COPY` nel Dockerfile) sopra l'albero upstream clonato a build-time — non moduli autosufficienti.
+
+Unico modo per testarli davvero: build dell'immagine satosa e pytest dentro il container (`docker build -t satosa-test -f satosa/Dockerfile satosa/`, poi `docker run --entrypoint sh satosa-test -c "... PYTHONPATH=/satosa_proxy pytest ..."`, import tipo `from backends.spidsaml2 import ...`). Vedi `.github/workflows/satosa-tests.yml` job `test-satosa-plugins-docker`.
+
+Su Windows/Git Bash, `-v "$PWD/...":...` nel `docker run` non risolve il path — usa `MSYS_NO_PATHCONV=1` e path assoluto `/c/Users/...`.
+
+### CI/CD
+`docker/metadata-action` con `tags:` custom deve includere `type=ref,event=pr`, altrimenti su evento PR i tag sono vuoti (rompe step che dipendono da `steps.meta.outputs.tags`, es. scan Trivy).
+
+Trivy su immagine satosa: gate ristretto a `CRITICAL` (non `HIGH`) — il venv del fork upstream (`iam-proxy-italia` v3.3, ultima release) porta CVE HIGH non ancora patchate a monte, non risolvibili da questo repo. config-api/nginx restano bloccanti su HIGH+CRITICAL.
+
+`config-api/.coverage` è un file binario tracciato in git (pre-esistente) — non aggiungerlo/modificarlo nei commit, `git checkout -- config-api/.coverage` prima di committare dopo un run locale con `--cov`.
+
+Merge PR: repo usa solo squash (`gh pr merge --squash --delete-branch`), nessun merge commit in storia.
