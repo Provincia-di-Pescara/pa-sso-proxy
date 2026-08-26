@@ -45,4 +45,21 @@ jobs:
 
       - name: Run tests
         working-directory: satosa/tests
-        run: pytest -q
+        run: pytest -q test_redis_storage.py
+
+  test-satosa-plugins-docker:
+    name: pytest inside satosa image (CIE OIDC / SPID SAML)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build satosa image
+        run: docker build -t satosa-test -f satosa/Dockerfile satosa/
+
+      - name: Run tests inside container
+        run: |
+          docker run --rm -v "$PWD/satosa/tests:/tests" --entrypoint sh satosa-test -c \
+            ". /.venv/bin/activate && \
+             pip install -q -r /tests/requirements-test.txt && \
+             cd /satosa_proxy && \
+             PYTHONPATH=/satosa_proxy pytest /tests -q --ignore=/tests/test_redis_storage.py"
