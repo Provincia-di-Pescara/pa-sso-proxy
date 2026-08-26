@@ -9,6 +9,7 @@ ENV APP_VERSION=${APP_VERSION}
 
 # Base image contains only /.venv/ — no project files. Clone them.
 # Alpine-based image — use apk
+RUN apk update && apk upgrade --no-cache
 RUN apk add --no-cache git
 
 ARG IAM_PROXY_REF=v3.3
