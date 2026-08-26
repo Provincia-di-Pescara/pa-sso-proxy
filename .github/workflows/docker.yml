@@ -34,6 +34,7 @@ jobs:
   build-images:
     name: Build ${{ matrix.image }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -41,12 +42,20 @@ jobs:
           - image: satosa
             context: ./satosa
             scope: satosa
+            # Dipendenze Python nel venv del fork upstream (iam-proxy-italia
+            # v3.3, ultima release disponibile) portano vulnerabilita' HIGH
+            # non ancora patchate a monte - blocchiamo solo su CRITICAL per
+            # non tenere l'immagine rossa in permanenza per un problema che
+            # non controlliamo. Gli HIGH restano visibili nel log dello scan.
+            trivy-severity: "CRITICAL"
           - image: config-api
             context: ./config-api
             scope: config-api
+            trivy-severity: "CRITICAL,HIGH"
           - image: nginx
             context: ./nginx
             scope: nginx
+            trivy-severity: "CRITICAL,HIGH"
 
     steps:
       - uses: actions/checkout@v7
@@ -71,6 +80,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
           tags: |
             type=ref,event=branch
+            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
@@ -90,11 +100,25 @@ jobs:
         with:
           context: ${{ matrix.context }}
           push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=${{ steps.version.outputs.value }}
-          provenance: false
-          sbom: false
           cache-from: type=gha,scope=${{ matrix.scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.scope }}
+
+      - name: First image tag
+        id: first-tag
+        run: |
+          first_tag="$(head -n1 <<< "${{ steps.meta.outputs.tags }}")"
+          echo "tag=${first_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.first-tag.outputs.tag }}
+          format: table
+          exit-code: "1"
+          severity: ${{ matrix.trivy-severity }}
+          ignore-unfixed: true

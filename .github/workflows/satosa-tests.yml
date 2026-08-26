@@ -23,6 +23,7 @@ jobs:
   test-satosa-plugins:
     name: pytest (${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -47,14 +48,40 @@ jobs:
         working-directory: satosa/tests
         run: pytest -q test_redis_storage.py
 
-  test-satosa-plugins-docker:
-    name: pytest inside satosa image (CIE OIDC / SPID SAML)
+  audit-satosa-tests:
+    name: pip-audit
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
 
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Run pip-audit
+        run: pipx run pip-audit -r satosa/tests/requirements-test.txt
+
+  test-satosa-plugins-docker:
+    name: pytest inside satosa image (CIE OIDC / SPID SAML)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Build satosa image
-        run: docker build -t satosa-test -f satosa/Dockerfile satosa/
+        uses: docker/build-push-action@v7
+        with:
+          context: ./satosa
+          file: ./satosa/Dockerfile
+          tags: satosa-test:latest
+          load: true
+          cache-from: type=gha,scope=satosa-test
+          cache-to: type=gha,mode=max,scope=satosa-test
 
       - name: Run tests inside container
         run: |
