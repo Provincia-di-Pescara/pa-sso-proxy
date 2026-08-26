@@ -34,6 +34,7 @@ jobs:
   build-images:
     name: Build ${{ matrix.image }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -90,11 +91,25 @@ jobs:
         with:
           context: ${{ matrix.context }}
           push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=${{ steps.version.outputs.value }}
-          provenance: false
-          sbom: false
           cache-from: type=gha,scope=${{ matrix.scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.scope }}
+
+      - name: First image tag
+        id: first-tag
+        run: |
+          first_tag="$(head -n1 <<< "${{ steps.meta.outputs.tags }}")"
+          echo "tag=${first_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ${{ steps.first-tag.outputs.tag }}
+          format: table
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
