@@ -1,5 +1,5 @@
 fakeredis>=2.37.1
-pydantic>=2.13.4
+pydantic>=2.13.5
 redis>=8.1.0
 pytest>=9.1.1
-responses>=0.25
+responses>=0.26.3
