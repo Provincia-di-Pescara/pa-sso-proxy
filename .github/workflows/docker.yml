@@ -122,3 +122,4 @@ jobs:
           exit-code: "1"
           severity: ${{ matrix.trivy-severity }}
           ignore-unfixed: true
+          trivyignores: ${{ github.workspace }}/.trivyignore
