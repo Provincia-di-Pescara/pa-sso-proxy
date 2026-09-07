@@ -43,6 +43,8 @@ IdP → satosa (callback) → JWT con attributi → App
 - `spid_backend` — SPID SAML (tutti gli IdP ufficiali AgID + nodo eIDAS italiano)
 - `cie_oidc_backend` — CIE OIDC Federation 1.0 (codice in `satosa/plugins/`, mantenuto in questo repo)
 
+**IT-Wallet/OpenID4VP**: nessun backend esiste ancora in questo repo. Ricerca preparatoria (attori, processo onboarding federativo, variabili RP config) in `docs/itwallet-registration.md` — leggere prima di ripartire su questo, evita di rifare la ricerca.
+
 ### Config API (`config-api/`)
 
 FastAPI app con due ruoli:
@@ -197,3 +199,9 @@ Trivy su immagine satosa: gate ristretto a `CRITICAL` (non `HIGH`) — il venv d
 `config-api/.coverage` è un file binario tracciato in git (pre-esistente) — non aggiungerlo/modificarlo nei commit, `git checkout -- config-api/.coverage` prima di committare dopo un run locale con `--cov`.
 
 Merge PR: repo usa solo squash (`gh pr merge --squash --delete-branch`), nessun merge commit in storia.
+
+**`main` protetto** (ruleset "Main Branch", `enforcement:active`): required check `Analyze (python)` (CodeQL) SOLO — è l'unico check non path-filtrato. Gli altri (ci.yml/satosa-tests.yml/docker.yml) girano solo se cambia il path relativo (`config-api/**`/`satosa/**`/...) — richiederli come required bloccherebbe per sempre una PR che non tocca quel componente (GitHub non skippa un required check path-filtrato mai partito).
+**Tutte le Action pinnate per commit SHA** (`# vX` a commento) in tutti e 5 i workflow — dependabot ecosistema `github-actions` apre PR per bump.
+**`dependabot.yml` cooldown**: `default-days: 7` (minimo accettato, valori più bassi restano segnalati come "mancanti" da tool di audit), `semver-major-days: 14`, su tutti gli update block.
+**`.trivyignore` a root, wired con `trivyignores:` nello step trivy-action** (mancava — il file esisteva ma non veniva letto). CVE su package `pip/_vendor/*` (es. `setuptools`/`msgpack` vendorizzati DENTRO pip stesso, mai importati dal codice app) sono falsi positivi comuni su immagini `python:3.14-slim` con pip 26.x — verificare con `pip show <pkg>` (→ "not found" se è solo vendored) prima di ignorare o meglio: se pip non serve a runtime (solo l'app WSGI/ASGI), rimuoverlo fisicamente nel Dockerfile (`python -m pip uninstall -y pip setuptools`) elimina il CVE alla radice invece di ignorarlo.
+**`gh run rerun --failed` NON rilegge il workflow YAML aggiornato** — resta pinnato alla versione del file al momento del trigger originale. Un fix al workflow richiede un nuovo push/evento (su una PR dependabot: commentare `@dependabot rebase`, aspetta il bot — force-push manuale su branch dependabot è bloccato dal classificatore di sicurezza di Claude Code).
