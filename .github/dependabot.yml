@@ -4,6 +4,9 @@ updates:
     directory: "/config-api"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     groups:
       python-dependencies:
         patterns:
@@ -13,6 +16,9 @@ updates:
     directory: "/satosa/tests"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     groups:
       python-test-dependencies:
         patterns:
@@ -22,18 +28,30 @@ updates:
     directory: "/config-api"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
 
   - package-ecosystem: "docker"
     directory: "/satosa"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
 
   - package-ecosystem: "docker"
     directory: "/nginx"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
