@@ -194,7 +194,15 @@ Su Windows/Git Bash, `-v "$PWD/...":...` nel `docker run` non risolve il path �
 ### CI/CD
 `docker/metadata-action` con `tags:` custom deve includere `type=ref,event=pr`, altrimenti su evento PR i tag sono vuoti (rompe step che dipendono da `steps.meta.outputs.tags`, es. scan Trivy).
 
-Trivy su immagine satosa: gate ristretto a `CRITICAL` (non `HIGH`) — il venv del fork upstream (`iam-proxy-italia` v3.3, ultima release) porta CVE HIGH non ancora patchate a monte, non risolvibili da questo repo. config-api/nginx restano bloccanti su HIGH+CRITICAL.
+Trivy su immagine satosa: gate ristretto a `CRITICAL` (non `HIGH`) — il venv del fork upstream (`iam-proxy-italia` v3.3, ultima release) porta CVE HIGH non ancora patchate a monte, non risolvibili da questo repo. config-api/nginx restano bloccanti su HIGH+CRITICAL. Un CVE CRITICAL reale su dipendenza transitiva (es. `anyio`) va fissato forzando bump esplicito nella riga `pip install` del Dockerfile satosa (stesso pattern usato per `redis`/`sentry-sdk`), non ignorato in `.trivyignore`.
+
+**PR Actions accoppiate** (es. `codeql-action` `init`+`analyze`, stesso SHA/versione su entrambi step): se dependabot le splitta in 2 PR separate, mergiarne una sola rompe il required check `Analyze (python)` (version mismatch tra step). Allinea manualmente lo SHA su entrambi gli step nella stessa PR, chiudi l'altra come ridondante.
+
+**`@dependabot rebase` è no-op se il branch è già up-to-date con main** (non forza rebuild CI — utile per verificare se un fail Trivy era solo timing, patch Debian non ancora rilasciata al momento del build). Usa `@dependabot recreate` per forzare push fresco — ATTENZIONE: chiude la PR corrente e ne apre una NUOVA con numero diverso.
+
+**Mai push diretto su `main`**, nemmeno per fix minimi/urgenti — sempre branch + PR. `main` è protetto (required check CodeQL); il push diretto viene spesso rifiutato se il remote è avanti, ma non affidarsi a quello come rete di sicurezza.
+
+**`gh run view --job X --log-failed`** spesso ritorna solo step di cleanup ("UNKNOWN STEP"), non l'errore vero. Usa `gh run view --job X --log | grep -iE "##\[error\]|CRITICAL"` sul log completo.
 
 `config-api/.coverage` è un file binario tracciato in git (pre-esistente) — non aggiungerlo/modificarlo nei commit, `git checkout -- config-api/.coverage` prima di committare dopo un run locale con `--cov`.
 
