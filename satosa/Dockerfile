@@ -19,7 +19,9 @@ RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
     && rm -rf /tmp/upstream
 
 # Install redis client and sentry-sdk inside the venv
-RUN . /.venv/bin/activate && pip install redis==8.1.0 sentry-sdk==2.68.1 --quiet
+# anyio>=4.14.2 forza fix CVE-2026-63374 (CRITICAL, TLSStream IDNA host encoding)
+# sulla copia transitiva 4.13.0 portata dal venv upstream del fork
+RUN . /.venv/bin/activate && pip install redis==8.1.0 sentry-sdk==2.68.1 "anyio>=4.14.2" --quiet
 
 # Sentry WSGI wrapper
 COPY wsgi_sentry.py /satosa_proxy/wsgi_sentry.py
