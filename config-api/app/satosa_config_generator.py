@@ -137,6 +137,10 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
                         "profile", "picture", "website", "gender", "birthdate",
                         "zoneinfo", "locale", "updated_at", "preferred_username",
                         "fiscal_number",
+                        # Presenti solo per identita' SPID persona giuridica (fiscal_number
+                        # con prefisso PG:IT-<piva>) - l'IdP non li invia per persona
+                        # fisica, l'applicativo verifica la loro presenza.
+                        "company_name", "registered_office", "iva_code",
                     ],
                 },
             },

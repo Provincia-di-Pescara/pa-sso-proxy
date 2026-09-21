@@ -130,6 +130,17 @@ async def test_oidc_frontend_yaml_issuer(full_db, tmp_path, monkeypatch):
     assert frontend["issuer"] == "https://proxy.ente.it"
 
 
+async def test_oidc_frontend_profile_scope_includes_legal_entity_claims(full_db, tmp_path, monkeypatch):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+    frontend = yaml.safe_load((tmp_path / "oidc_frontend.yaml").read_text())
+    profile_claims = frontend["config"]["provider"]["extra_scopes"]["profile"]
+    assert "company_name" in profile_claims
+    assert "registered_office" in profile_claims
+    assert "iva_code" in profile_claims
+
+
 async def test_spid_backend_yaml_has_idp_metadata(full_db, tmp_path, monkeypatch):
     from app.models import SpidIdP
     demo = SpidIdP(
