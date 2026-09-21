@@ -1,4 +1,4 @@
-fakeredis>=2.37.1
+fakeredis>=2.38.0
 pydantic>=2.13.5
 redis>=8.1.0
 pytest>=9.1.1
