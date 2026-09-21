@@ -68,10 +68,13 @@ attributes:
     openid: [gender]
   companyName:
     saml: [companyName]
+    openid: [company_name]
   registeredOffice:
     saml: [registeredOffice]
+    openid: [registered_office]
   ivaCode:
     saml: [ivaCode]
+    openid: [iva_code]
   idCard:
     saml: [idCard]
   digitalAddress:
