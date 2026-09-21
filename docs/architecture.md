@@ -44,6 +44,8 @@ Reverse proxy interno. Routing:
 
 SATOSA IAM proxy (Python). Core del sistema.
 
+Immagine base: [`ghcr.io/italia/iam-proxy-italia`](https://github.com/italia/iam-proxy-italia) (fork `peppelinux/pysaml2` + `peppelinux/SATOSA`), tag pinnato via `IAM_PROXY_REF` in `satosa/Dockerfile` (attuale: `v3.3`, ultima release upstream). `satosa/plugins/` sovrascrive parte dell'albero upstream a build-time — vedi `CLAUDE.md` sezione "Test satosa/plugins/" per dettagli su come testarli.
+
 **Frontend OIDC** (`oidcop`): espone l'interfaccia verso gli applicativi dell'ente. Supporta N client configurati dinamicamente. Protocollo: OIDC Authorization Code + PKCE.
 
 **Backend SPID SAML**: SP SAML verso gli IdP SPID ufficiali AgID.
