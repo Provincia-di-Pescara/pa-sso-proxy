@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.metadata_watcher import fetch_idp_metadata, fetch_spid_aggregate
-from app.models import SpidIdP, EnteSettings, SpidCert
+from app.models import SpidIdP, EnteSettings, SpidCert, SpidMetadataVersion
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_seeder import sync_spid_idps_from_registry
@@ -167,6 +167,15 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     )
     registry_provider_enabled = any(item.enabled for item in idps)
 
+    metadata_versions_result = await db.execute(
+        select(SpidMetadataVersion).order_by(SpidMetadataVersion.created_at.desc())
+    )
+    metadata_versions = metadata_versions_result.scalars().all()
+    metadata_exposed_mismatch = any(
+        v.is_exposed and v.cert_id is not None and (cert is None or v.cert_id != cert.id)
+        for v in metadata_versions
+    )
+
     return templates.TemplateResponse(
         request,
         "idps/list.html.j2",
@@ -174,6 +183,10 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
             "idps": idps,
             "test_provider_enabled": test_provider_enabled,
             "registry_provider_enabled": registry_provider_enabled,
+            "metadata_versions": metadata_versions,
+            "metadata_exposed_mismatch": metadata_exposed_mismatch,
+            "metadata_error": request.query_params.get("metadata_error"),
+            "metadata_warning": request.query_params.get("metadata_warning"),
             "sync_status": sync_status,
             "sync_inserted": sync_inserted,
             "sync_error": sync_error,

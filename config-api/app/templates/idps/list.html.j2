@@ -43,6 +43,10 @@
     <span class="a-tab-dot" style="background:{% if s and s.legal_entity_enabled %}var(--success){% else %}var(--fg-muted){% endif %};"></span>
     Persona giuridica
   </button>
+  <button type="button" class="a-tab" data-tab="gestione-metadata" role="tab">
+    <span class="a-tab-dot" style="background:{% if metadata_exposed_mismatch %}var(--danger){% elif not metadata_versions %}var(--fg-muted){% else %}var(--success){% endif %};"></span>
+    Gestione metadata
+  </button>
 </div>
 
 <style>
@@ -384,6 +388,91 @@
         <button type="submit" class="a-btn a-btn-primary">Salva configurazione</button>
       </div>
     </form>
+  </div>
+</div>
+</section>
+
+<section id="gestione-metadata" class="a-tab-panel" hidden>
+<div class="a-card">
+  <div class="a-card-header">
+    Storico e gestione metadata SPID/eIDAS
+    <span class="a-badge a-badge-neutral">SAML SP</span>
+  </div>
+  <div class="a-card-body">
+    {% if metadata_error %}<div class="a-alert a-alert-danger">{{ metadata_error }}</div>{% endif %}
+    {% if metadata_warning %}<div class="a-alert a-alert-warning">{{ metadata_warning }}</div>{% endif %}
+
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;">
+      <form method="post" action="/admin/metadata/upload" enctype="multipart/form-data">
+        <div class="a-form-group">
+          <label class="a-label">Carica metadata XML manuale</label>
+          <input type="file" name="file" accept=".xml" class="a-input">
+        </div>
+        <button type="submit" class="a-btn a-btn-secondary">Carica</button>
+      </form>
+      <form method="post" action="/admin/metadata/regenerate">
+        <div class="a-form-group">
+          <label class="a-label">Metadata disallineato dal certificato attivo?</label>
+          <div class="a-form-hint" style="margin-bottom:8px;">Forza un reload SATOSA senza toccare le chiavi — crea uno snapshot firmato con il certificato oggi attivo.</div>
+        </div>
+        <button type="submit" class="a-btn a-btn-secondary">Rigenera metadata</button>
+      </form>
+    </div>
+
+    {% if not metadata_versions %}
+    <div class="a-alert a-alert-warning">Nessuna versione di metadata storicizzata ancora.</div>
+    {% else %}
+    <div class="a-table-wrap">
+    <table class="a-table">
+      <thead>
+        <tr>
+          <th>Fonte</th>
+          <th>Generato il</th>
+          <th>Cert usato</th>
+          <th>Hash</th>
+          <th>Stato</th>
+          <th>Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in metadata_versions %}
+        <tr>
+          <td>{{ "Generato" if v.source == "generated" else "Caricato" }}</td>
+          <td>{{ v.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>
+            {% if v.cert_id %}
+              #{{ v.cert_id }}{% if not cert or v.cert_id != cert.id %} <span class="a-badge a-badge-warning">non è il cert attivo</span>{% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td class="a-mono" style="font-size:11px;">{{ v.content_hash[:12] }}</td>
+          <td>
+            {% if v.is_exposed %}<span class="a-badge a-badge-success">Esposto</span>{% endif %}
+            {% if v.is_validated %}<span class="a-badge a-badge-info">Validato AgID</span>{% endif %}
+          </td>
+          <td>
+            {% if not v.is_exposed %}
+            <form method="post" action="/admin/metadata/{{ v.id }}/expose" style="display:inline;" onsubmit="return confirm('Esporre questa versione al posto di quella corrente?');">
+              <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Esponi</button>
+            </form>
+            {% endif %}
+            {% if not v.is_validated %}
+            <form method="post" action="/admin/metadata/{{ v.id }}/validate" style="display:inline;">
+              <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Segna validato</button>
+            </form>
+            {% endif %}
+            <a href="/admin/metadata/{{ v.id }}/download" class="a-btn a-btn-secondary a-btn-sm">Scarica XML</a>
+            {% if not v.is_exposed and not v.is_validated %}
+            <form method="post" action="/admin/metadata/{{ v.id }}/delete" style="display:inline;" onsubmit="return confirm('Eliminare questa versione?');">
+              <button type="submit" class="a-btn a-btn-danger a-btn-sm">Elimina</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
   </div>
 </div>
 </section>
