@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import os
 from urllib.parse import quote
@@ -12,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import SpidCert, SpidMetadataVersion
+from app.satosa_generator import generate_and_write
+from app.satosa_reload import reload_satosa
 
 router = APIRouter()
 
@@ -40,6 +43,20 @@ async def metadata_history(request: Request, db: AsyncSession = Depends(get_db))
             "warning": request.query_params.get("warning"),
         },
     )
+
+
+@router.post("/metadata/regenerate")
+async def metadata_regenerate(request: Request, db: AsyncSession = Depends(get_db)):
+    """Forza un reload SATOSA (senza toccare le chiavi) per ottenere uno snapshot
+    di metadata fresco firmato con il certificato attivo corrente."""
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+    try:
+        await generate_and_write(db)
+        await asyncio.to_thread(reload_satosa)
+    except Exception:
+        pass
+    return RedirectResponse("/admin/metadata", status_code=303)
 
 
 def _override_path() -> str:

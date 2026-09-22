@@ -7,13 +7,22 @@
   {% if error %}<div class="a-alert a-alert-danger">{{ error }}</div>{% endif %}
   {% if warning %}<div class="a-alert a-alert-warning">{{ warning }}</div>{% endif %}
 
-  <form method="post" action="/admin/metadata/upload" enctype="multipart/form-data" style="margin-bottom:20px;">
-    <div class="a-form-group">
-      <label class="a-label">Carica metadata XML manuale</label>
-      <input type="file" name="file" accept=".xml" class="a-input">
-    </div>
-    <button type="submit" class="a-btn a-btn-secondary">Carica</button>
-  </form>
+  <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;">
+    <form method="post" action="/admin/metadata/upload" enctype="multipart/form-data">
+      <div class="a-form-group">
+        <label class="a-label">Carica metadata XML manuale</label>
+        <input type="file" name="file" accept=".xml" class="a-input">
+      </div>
+      <button type="submit" class="a-btn a-btn-secondary">Carica</button>
+    </form>
+    <form method="post" action="/admin/metadata/regenerate">
+      <div class="a-form-group">
+        <label class="a-label">Metadata disallineato dal certificato attivo?</label>
+        <div class="a-form-hint" style="margin-bottom:8px;">Forza un reload SATOSA senza toccare le chiavi — crea uno snapshot firmato con il certificato oggi attivo.</div>
+      </div>
+      <button type="submit" class="a-btn a-btn-secondary">Rigenera metadata</button>
+    </form>
+  </div>
 
   {% if not versions %}
   <div class="a-alert a-alert-warning">Nessuna versione di metadata storicizzata ancora.</div>

@@ -17,6 +17,7 @@ from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_seeder import sync_spid_idps_from_registry
 from app.routes.eidas import check_sp_metadata
+from app.routes.legal_entity import check_company_attributes
 
 router = APIRouter()
 
@@ -152,7 +153,14 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     cert = cert_result.scalar_one_or_none()
     cert_error = request.query_params.get("cert_error")
 
-    metadata_status = await check_sp_metadata()
+    saved = request.query_params.get("saved") == "1"
+    # Skip metadata check immediately after save: SATOSA may still be reloading.
+    if saved:
+        metadata_status = None
+        legal_entity_metadata_status = None
+    else:
+        metadata_status = await check_sp_metadata()
+        legal_entity_metadata_status = await check_company_attributes()
 
     return templates.TemplateResponse(
         request,
@@ -166,10 +174,15 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
             "demo_idp": demo_idp,
             "validator_idp": validator_idp,
             "proxy_hostname": proxy_hostname,
+            "s": settings,
             "cert": cert,
             "cert_error": cert_error,
             "now": datetime.now(timezone.utc),
             "metadata_status": metadata_status,
+            "legal_entity_metadata_status": legal_entity_metadata_status,
+            "saved": saved,
+            "eidas_warning": request.query_params.get("eidas_warning"),
+            "legal_entity_warning": request.query_params.get("legal_entity_warning"),
         },
     )
 

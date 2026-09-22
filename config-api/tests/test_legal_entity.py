@@ -1,5 +1,3 @@
-from unittest.mock import AsyncMock, patch
-
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -35,22 +33,11 @@ async def auth_client(db_session, app_env):
     app.dependency_overrides.clear()
 
 
-async def test_legal_entity_config_page_loads(auth_client, db_session):
-    db_session.add(EnteSettings(
-        id=1, org_display_name="Test Ente", org_name="Test Ente",
-        org_url="https://test.it", proxy_hostname="sso.test.it",
-        ipa_code="TEST", contact_email="test@test.it", contact_phone="+39",
-        org_city="Pescara",
-    ))
-    await db_session.commit()
-
-    with patch(
-        "app.routes.legal_entity.check_company_attributes",
-        new=AsyncMock(return_value={"valid": True, "has_company_attributes": False}),
-    ):
-        response = await auth_client.get("/admin/legal-entity")
-    assert response.status_code == 200
-    assert "Persona giuridica" in response.text
+async def test_legal_entity_get_page_redirects_to_idps(auth_client, db_session):
+    """La pagina dedicata /admin/legal-entity non esiste più: è una sezione di /admin/idps."""
+    response = await auth_client.get("/admin/legal-entity", follow_redirects=False)
+    assert response.status_code == 301
+    assert response.headers["location"] == "/admin/idps#persona-giuridica"
 
 
 async def test_legal_entity_enable_flow(auth_client, db_session):
@@ -69,7 +56,7 @@ async def test_legal_entity_enable_flow(auth_client, db_session):
         follow_redirects=False,
     )
     assert response.status_code == 302
-    assert "/admin/legal-entity?saved=1" in response.headers["location"]
+    assert response.headers["location"] == "/admin/idps?saved=1#persona-giuridica"
 
     s = (await db_session.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one()
     assert s.legal_entity_enabled is True

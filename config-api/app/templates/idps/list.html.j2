@@ -1,6 +1,6 @@
 {% extends "base.html.j2" %}
-{% block title %}Provider SPID — PA SSO Proxy{% endblock %}
-{% block page_title %}Provider SPID{% endblock %}
+{% block title %}SPID — PA SSO Proxy{% endblock %}
+{% block page_title %}SPID{% endblock %}
 
 {% block topbar_actions %}
 <div style="display:flex;gap:8px;align-items:center;">
@@ -17,6 +17,18 @@
 {% endblock %}
 
 {% block content %}
+{% if saved %}
+<div class="a-alert a-alert-success" style="margin-bottom:16px;">Configurazione aggiornata. SATOSA ricaricato.</div>
+{% endif %}
+
+{# Sub-nav tra le tre sezioni #}
+<div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border-1);">
+  <a href="#spid" class="a-btn a-btn-neutral a-btn-sm" style="border-radius:6px 6px 0 0;">SPID</a>
+  <a href="#eidas" class="a-btn a-btn-neutral a-btn-sm" style="border-radius:6px 6px 0 0;">eIDAS</a>
+  <a href="#persona-giuridica" class="a-btn a-btn-neutral a-btn-sm" style="border-radius:6px 6px 0 0;">Persona giuridica</a>
+</div>
+
+<section id="spid">
 {# Test/Validation providers #}
 <div class="a-card" style="margin-bottom:14px;">
   <div class="a-card-header">
@@ -91,7 +103,7 @@
 {# Certificate section #}
 <div class="a-card" style="margin-bottom:14px;">
   <div class="a-card-header">
-    Certificato di Firma SPID (SAML SP)
+    Chiavi di Firma SPID/eIDAS (SAML SP)
     <span class="a-badge a-badge-neutral">Certificato</span>
   </div>
   <div class="a-card-body">
@@ -99,7 +111,7 @@
     {% if s and s.eidas_enabled and metadata_status and not metadata_status.has_eidas %}
       <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
         <strong>Attenzione:</strong> eIDAS è abilitato in configurazione, ma il metadata pubblicato non supporta ancora eIDAS (indici FICEP 99/100 mancanti).
-        Rigenera il certificato di firma per pubblicare il metadata conforme a eIDAS.
+        Verifica che SATOSA sia stato ricaricato correttamente (in fondo alla pagina Metadata SPID trovi "Rigenera metadata").
       </div>
     {% endif %}
     {% if cert %}
@@ -117,19 +129,19 @@
       </div>
       <div class="a-muted" style="font-size:12px;margin-bottom:16px;">Generato il: <span class="a-mono">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
       <form method="post" action="/admin/certs/generate" onsubmit="return confirmRegenCert()">
-        <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Rigenera certificato</button>
+        <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Rigenera chiavi</button>
       </form>
     {% else %}
-      <div class="a-alert a-alert-warning" style="margin-bottom:16px;">Nessun certificato SPID configurato. Genera il certificato per abilitare l'autenticazione SPID.</div>
+      <div class="a-alert a-alert-warning" style="margin-bottom:16px;">Nessun certificato SPID configurato. Genera le chiavi per abilitare l'autenticazione SPID.</div>
       <form method="post" action="/admin/certs/generate">
-        <button type="submit" class="a-btn a-btn-primary">Genera certificato</button>
+        <button type="submit" class="a-btn a-btn-primary">Genera chiavi</button>
       </form>
     {% endif %}
       <a href="/admin/certs" class="a-link" style="font-size:13px;">Storico certificati &rarr;</a>
   </div>
 </div>
 
-{# SAML SP Metadata Status Card #}
+{# SAML SP Metadata Status Card — SPID + eIDAS + persona giuridica insieme #}
 <div class="a-card" style="margin-bottom:14px;">
   <div class="a-card-header">
     Stato Metadata SAML (Service Provider)
@@ -142,7 +154,7 @@
     <div class="a-form-group" style="margin-bottom:12px;">
       <input class="a-input a-input-ro a-mono" type="text" value="https://{{ proxy_hostname }}/spidSaml2/metadata" readonly style="font-size:12px;">
     </div>
-    
+
     {% if metadata_status %}
       {% if metadata_status.valid %}
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
@@ -162,6 +174,16 @@
               <span class="a-badge a-badge-neutral">Non attivo</span>
             {% endif %}
           </div>
+          {% if legal_entity_metadata_status and legal_entity_metadata_status.valid %}
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto persona giuridica:</span>
+            {% if legal_entity_metadata_status.has_company_attributes %}
+              <span class="a-badge a-badge-success">Attributi azienda dichiarati</span>
+            {% else %}
+              <span class="a-badge a-badge-neutral">Non dichiarati</span>
+            {% endif %}
+          </div>
+          {% endif %}
         </div>
       {% else %}
         <div class="a-alert a-alert-danger" style="margin-top:8px;">
@@ -244,11 +266,153 @@
   <div class="a-card-body a-muted" style="font-size:13px;">Nessun IdP sincronizzato dal registry.</div>
   {% endif %}
 </div>
+</section>
+
+<section id="eidas" style="margin-top:24px;">
+<div class="a-card" style="max-width:720px;">
+  <div class="a-card-header">
+    Integrazione eIDAS
+    {% if s and s.eidas_enabled %}
+    <span class="a-badge a-badge-success">abilitato</span>
+    {% else %}
+    <span class="a-badge a-badge-neutral">disabilitato</span>
+    {% endif %}
+  </div>
+  <div class="a-card-body">
+    {% if eidas_warning %}
+    <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
+      Conferma l'abilitazione dal toggle qui sotto — modifica il metadata SP pubblicato e richiede ri-validazione AgID.
+    </div>
+    {% endif %}
+    <p style="font-size:13px;margin-bottom:20px;color:var(--fg-muted);">
+      Permette l'autenticazione di cittadini europei tramite il Nodo eIDAS Italiano (FICEP / AgID).
+    </p>
+
+    <form method="post" action="/admin/eidas/toggle" id="eidas-form" onsubmit="return handleEidasSubmit(event)">
+      <input type="hidden" name="confirmed" id="eidas-confirmed" value="no">
+
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+        <label class="a-toggle">
+          <input type="checkbox" name="eidas_enabled" id="eidas-enabled" value="yes" {% if s and s.eidas_enabled %}checked{% endif %}>
+          <span class="a-toggle-slider"></span>
+        </label>
+        <span style="font-weight:600;font-size:14px;color:var(--fg-1);user-select:none;">Abilita Integrazione eIDAS</span>
+      </div>
+
+      <div class="a-form-group">
+        <label class="a-label" for="eidas-env">Ambiente di esercizio</label>
+        <select name="environment" id="eidas-env" class="a-select" style="max-width:300px;">
+          <option value="prod" {% if s and s.eidas_environment == 'prod' %}selected{% endif %}>Produzione (PROD)</option>
+          <option value="qa" {% if s and s.eidas_environment == 'qa' %}selected{% endif %}>Pre-produzione (QA)</option>
+        </select>
+        <div class="a-form-hint">Seleziona l'ambiente del gateway eIDAS italiano gestito da AgID.</div>
+      </div>
+
+      <div style="margin-top:24px;">
+        <button type="submit" class="a-btn a-btn-primary">Salva configurazione</button>
+      </div>
+    </form>
+  </div>
+</div>
+</section>
+
+<section id="persona-giuridica" style="margin-top:24px;">
+<div class="a-card" style="max-width:720px;">
+  <div class="a-card-header">
+    Accesso SPID persona giuridica
+    {% if s and s.legal_entity_enabled %}
+    <span class="a-badge a-badge-success">abilitato</span>
+    {% else %}
+    <span class="a-badge a-badge-neutral">disabilitato</span>
+    {% endif %}
+  </div>
+  <div class="a-card-body">
+    {% if legal_entity_warning %}
+    <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
+      Conferma l'abilitazione dal toggle qui sotto — modifica il metadata SP pubblicato e richiede ri-validazione AgID.
+    </div>
+    {% endif %}
+    <p style="font-size:13px;margin-bottom:20px;color:var(--fg-muted);">
+      Permette l'autenticazione SPID Tipo 4 ("uso professionale per la persona giuridica")
+      per i client OIDC che richiedono esplicitamente lo scope <code>legal_entity</code>.
+      Aggiunge gli attributi azienda (ragione sociale, sede legale, codice fiscale/P.IVA)
+      al metadata SP pubblicato.
+    </p>
+
+    <form method="post" action="/admin/legal-entity/toggle" id="legal-entity-form" onsubmit="return handleLegalEntitySubmit(event)">
+      <input type="hidden" name="confirmed" id="legal-entity-confirmed" value="no">
+
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+        <label class="a-toggle">
+          <input type="checkbox" name="legal_entity_enabled" id="legal-entity-enabled" value="yes" {% if s and s.legal_entity_enabled %}checked{% endif %}>
+          <span class="a-toggle-slider"></span>
+        </label>
+        <span style="font-weight:600;font-size:14px;color:var(--fg-1);user-select:none;">Abilita accesso persona giuridica</span>
+      </div>
+
+      <div style="margin-top:24px;">
+        <button type="submit" class="a-btn a-btn-primary">Salva configurazione</button>
+      </div>
+    </form>
+  </div>
+</div>
+</section>
 
 <script>
+const eidasInitialEnabled = {% if s and s.eidas_enabled %}true{% else %}false{% endif %};
+const legalEntityInitialEnabled = {% if s and s.legal_entity_enabled %}true{% else %}false{% endif %};
+
+function handleEidasSubmit(event) {
+  var isEnabled = document.getElementById("eidas-enabled").checked;
+  var envSelect = document.getElementById("eidas-env");
+  var envLabel = envSelect.options[envSelect.selectedIndex].text;
+  var confirmedInput = document.getElementById("eidas-confirmed");
+
+  if (isEnabled && !eidasInitialEnabled) {
+    var ok = window.confirm(
+      "Abilitare l'integrazione eIDAS in ambiente " + envLabel + "?\n\n" +
+      "Questo renderà visibile il pulsante di login eIDAS sulla pagina di scelta provider."
+    );
+    if (!ok) { event.preventDefault(); return false; }
+    confirmedInput.value = "yes";
+  } else if (!isEnabled && eidasInitialEnabled) {
+    var ok = window.confirm(
+      "Disabilitare l'integrazione eIDAS?\n\n" +
+      "Questo nasconderà il pulsante di login eIDAS dalla pagina di scelta provider."
+    );
+    if (!ok) { event.preventDefault(); return false; }
+    confirmedInput.value = "yes";
+  } else {
+    confirmedInput.value = "yes";
+  }
+  return true;
+}
+
+function handleLegalEntitySubmit(event) {
+  var isEnabled = document.getElementById("legal-entity-enabled").checked;
+  var confirmedInput = document.getElementById("legal-entity-confirmed");
+
+  if (isEnabled && !legalEntityInitialEnabled) {
+    var ok = window.confirm(
+      "Abilitare l'accesso SPID persona giuridica?\n\n" +
+      "Questo modifica il metadata SP pubblicato (nuovi attributi opzionali azienda) " +
+      "e richiede ri-validazione presso AgID."
+    );
+    if (!ok) { event.preventDefault(); return false; }
+    confirmedInput.value = "yes";
+  } else if (!isEnabled && legalEntityInitialEnabled) {
+    var ok = window.confirm("Disabilitare l'accesso SPID persona giuridica?");
+    if (!ok) { event.preventDefault(); return false; }
+    confirmedInput.value = "yes";
+  } else {
+    confirmedInput.value = "yes";
+  }
+  return true;
+}
+
 function confirmRegenCert() {
   return window.confirm(
-    "ATTENZIONE: La rigenerazione del certificato genererà una nuova chiave privata e un nuovo certificato di firma.\n\n" +
+    "ATTENZIONE: La rigenerazione delle chiavi genera un nuovo certificato e una nuova chiave privata.\n\n" +
     "Questo invaliderà immediatamente il metadata SAML precedentemente registrato su AgID/FICEP e renderà impossibile l'autenticazione fino all'aggiornamento dei portali governativi.\n\n" +
     "Vuoi procedere?"
   );
