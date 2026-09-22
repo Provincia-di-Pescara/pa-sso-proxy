@@ -122,7 +122,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     idps_total = (await db.execute(select(func.count()).select_from(SpidIdP))).scalar()
     idps_enabled = (await db.execute(select(func.count()).select_from(SpidIdP).where(SpidIdP.enabled == True))).scalar()
 
-    cert_row = (await db.execute(select(SpidCert).order_by(SpidCert.created_at.desc()).limit(1))).scalar_one_or_none()
+    cert_row = (await db.execute(select(SpidCert).where(SpidCert.is_active == True).limit(1))).scalar_one_or_none()
     cert_days = None
     if cert_row:
         cert_days = (cert_row.not_valid_after - datetime.now(timezone.utc)).days

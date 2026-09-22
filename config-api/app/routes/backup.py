@@ -80,9 +80,13 @@ async def _export_bundle(db: AsyncSession) -> dict:
     res = await db.execute(select(JwkKey).order_by(JwkKey.id))
     keys = [_row_to_dict(k) for k in res.scalars().all()]
 
-    # spid_cert (più recente)
-    res = await db.execute(select(SpidCert).order_by(SpidCert.id.desc()))
-    cert = res.scalars().first()
+    # spid_cert — preferisce il certificato attivo; fallback difensivo al più
+    # recente se per qualche motivo nessuno è marcato attivo.
+    res = await db.execute(select(SpidCert).where(SpidCert.is_active == True).limit(1))
+    cert = res.scalar_one_or_none()
+    if cert is None:
+        res = await db.execute(select(SpidCert).order_by(SpidCert.id.desc()))
+        cert = res.scalars().first()
     cert_dict = _row_to_dict(cert) if cert else {}
 
     return {
@@ -141,9 +145,13 @@ async def _restore_bundle(bundle: dict, db: AsyncSession) -> None:
     if bundle.get("cie_config"):
         db.add(CieConfig(**_clean(bundle["cie_config"], CieConfig)))
 
-    # spid_cert
+    # spid_cert — il restore è una sostituzione completa dello stato: non esiste
+    # nessun altro SpidCert nel DB appena ripristinato, quindi questo diventa
+    # sempre quello attivo, indipendentemente dal valore nel bundle.
     if bundle.get("spid_cert"):
-        db.add(SpidCert(**_clean(bundle["spid_cert"], SpidCert)))
+        cert_data = _clean(bundle["spid_cert"], SpidCert)
+        cert_data["is_active"] = True
+        db.add(SpidCert(**cert_data))
 
     await db.commit()
 

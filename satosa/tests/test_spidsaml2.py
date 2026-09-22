@@ -10,7 +10,8 @@ richiederebbe una configurazione SPID SP completa fuori scope per unit test
 per fixture analoghe se in futuro si vuole coprire anche questo.
 """
 import base64
-from unittest.mock import patch
+import os
+from unittest.mock import MagicMock, patch
 
 import backends.spidsaml2 as spidsaml2
 
@@ -107,3 +108,84 @@ def test_build_purpose_extension_produces_expected_xml():
     assert 'https://spid.gov.it/saml-extensions' in xml
     assert '<spid:Purpose' in xml or ':Purpose' in xml
     assert '>PG<' in xml
+
+
+def test_report_metadata_snapshot_posts_xml(monkeypatch):
+    monkeypatch.setenv("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
+    captured = {}
+
+    def fake_urlopen(req, timeout):
+        captured["url"] = req.full_url
+        captured["data"] = req.data
+        captured["method"] = req.get_method()
+        return MagicMock()
+
+    monkeypatch.setattr("backends.spidsaml2.urllib.request.urlopen", fake_urlopen)
+    spidsaml2._report_metadata_snapshot("<EntityDescriptor/>")
+
+    assert captured["url"] == "http://config-api:8000/internal/spid-metadata-snapshot"
+    assert captured["method"] == "POST"
+    assert b"EntityDescriptor" in captured["data"]
+
+
+def test_report_metadata_snapshot_swallows_errors(monkeypatch):
+    def fake_urlopen(req, timeout):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr("backends.spidsaml2.urllib.request.urlopen", fake_urlopen)
+    spidsaml2._report_metadata_snapshot("<EntityDescriptor/>")  # non deve sollevare
+
+
+def test_read_metadata_override_returns_none_if_missing(monkeypatch, tmp_path):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    assert spidsaml2._read_metadata_override() is None
+
+
+def test_read_metadata_override_returns_bytes_if_present(monkeypatch, tmp_path):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    override_path = tmp_path / "spid_sp_metadata_override.xml"
+    override_path.write_text("<Overridden/>")
+    assert spidsaml2._read_metadata_override() == b"<Overridden/>"
+
+
+def test_read_metadata_override_returns_none_if_symlink(monkeypatch, tmp_path):
+    # os.O_NOFOLLOW makes the open() itself refuse a symlinked override file
+    # atomically (no separate os.path.islink() TOCTOU window). This exercises
+    # the ELOOP path of the single try/except in _read_metadata_override.
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    secret_path = tmp_path / "spid_sp_key.pem"
+    secret_path.write_text("-----BEGIN PRIVATE KEY-----\nSECRET\n-----END PRIVATE KEY-----")
+    override_path = tmp_path / "spid_sp_metadata_override.xml"
+    os.symlink(secret_path, override_path)
+    assert spidsaml2._read_metadata_override() is None
+
+
+def test_read_metadata_override_returns_none_if_unreadable(monkeypatch, tmp_path):
+    # A permission error (or any other OSError raised by os.open — file
+    # removed mid-request in a race, etc.) is caught by the same broad
+    # `except Exception` branch as the symlink case above: any failure to
+    # open falls back to None (dynamic metadata) instead of raising and
+    # 500-ing the public /spidSaml2/metadata endpoint.
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    override_path = tmp_path / "spid_sp_metadata_override.xml"
+    override_path.write_text("<Overridden/>")
+
+    def fake_open(path, flags):
+        raise PermissionError("Permission denied")
+
+    monkeypatch.setattr("backends.spidsaml2.os.open", fake_open)
+    assert spidsaml2._read_metadata_override() is None
+
+
+def test_read_metadata_override_round_trips_atomic_write(monkeypatch, tmp_path):
+    # Mirrors the write side in config-api/app/routes/metadata.py: write to
+    # a temp file then os.replace() into place. The read side must still
+    # see the final content after that atomic swap.
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    override_path = tmp_path / "spid_sp_metadata_override.xml"
+    tmp_write_path = str(override_path) + ".tmp"
+    with open(tmp_write_path, "w", encoding="utf-8") as f:
+        f.write("<AtomicallyWritten/>")
+    os.replace(tmp_write_path, str(override_path))
+
+    assert spidsaml2._read_metadata_override() == b"<AtomicallyWritten/>"

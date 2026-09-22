@@ -1,40 +1,51 @@
 {% extends "base.html.j2" %}
-{% block title %}Certificato SPID — PA SSO Proxy{% endblock %}
-{% block page_title %}Certificato SPID{% endblock %}
+{% block title %}Storico certificati SPID — PA SSO Proxy{% endblock %}
+{% block page_title %}Storico certificati SPID{% endblock %}
 
 {% block content %}
-<div style="max-width:640px;">
-  {% if error %}<div class="a-alert a-alert-danger">{{ error }}</div>{% endif %}
+<div style="max-width:900px;">
+  {% if cert_error %}<div class="a-alert a-alert-danger">{{ cert_error }}</div>{% endif %}
 
-  {% if cert %}
-    {% set days_left = (cert.not_valid_after - now).days %}
-    {% if days_left < 90 %}
-    <div class="a-alert a-alert-warning">
-      Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}). Rigenera il certificato.
-    </div>
-    {% else %}
-    <div class="a-alert a-alert-success">
-      Certificato valido fino al <strong>{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</strong> ({{ days_left }} giorni rimanenti).
-    </div>
-    {% endif %}
-
-    <div class="a-card" style="margin-top:16px;">
-      <div class="a-card-body">
-        <div class="a-form-group">
-          <label class="a-label">Subject DN</label>
-          <input class="a-input a-input-ro" type="text" value="{{ cert.subject_dn }}" readonly>
-        </div>
-        <div style="font-size:12px;color:var(--fg-muted);">Generato il: <span class="a-mono">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
-      </div>
-    </div>
+  {% if not certs %}
+  <div class="a-alert a-alert-warning">Nessun certificato SPID configurato. Genera il certificato dalla pagina Provider di Identità.</div>
   {% else %}
-  <div class="a-alert a-alert-warning">Nessun certificato SPID configurato. Configura le impostazioni ente e genera il certificato.</div>
+  <table class="a-table">
+    <thead>
+      <tr>
+        <th>Subject DN</th>
+        <th>Generato il</th>
+        <th>Scadenza</th>
+        <th>Stato</th>
+        <th>Azioni</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cert in certs %}
+      <tr>
+        <td class="a-mono" style="font-size:12px;">{{ cert.subject_dn }}</td>
+        <td>{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</td>
+        <td>
+          {% if cert.is_active %}<span class="a-badge a-badge-success">Attivo</span>{% endif %}
+        </td>
+        <td>
+          {% if not cert.is_active %}
+          <form method="post" action="/admin/certs/{{ cert.id }}/activate" style="display:inline;" onsubmit="return confirm('Attivare questo certificato? Il metadata SPID esposto dinamicamente cambierà.');">
+            <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Attiva</button>
+          </form>
+          {% endif %}
+          <a href="/admin/certs/{{ cert.id }}/download/cert" class="a-btn a-btn-secondary a-btn-sm">Scarica cert.</a>
+          <a href="/admin/certs/{{ cert.id }}/download/key" class="a-btn a-btn-secondary a-btn-sm" onclick="return confirm('Stai per scaricare la chiave privata. Continuare?');">Scarica chiave</a>
+          {% if not cert.is_active %}
+          <form method="post" action="/admin/certs/{{ cert.id }}/delete" style="display:inline;" onsubmit="return confirm('Eliminare definitivamente questo certificato?');">
+            <button type="submit" class="a-btn a-btn-danger a-btn-sm">Elimina</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   {% endif %}
-
-  <form method="post" action="/admin/certs/generate" style="margin-top:20px;">
-    <button type="submit" class="a-btn a-btn-primary">
-      {% if cert %}Rigenera certificato{% else %}Genera certificato{% endif %}
-    </button>
-  </form>
 </div>
 {% endblock %}

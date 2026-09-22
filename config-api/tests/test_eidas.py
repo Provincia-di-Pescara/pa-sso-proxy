@@ -49,6 +49,41 @@ async def test_eidas_config_page_loads(auth_client, db_session):
     assert "Stato Metadata SAML" in response.text
 
 
+async def test_eidas_config_page_shows_active_cert_not_latest(auth_client, db_session):
+    from datetime import datetime, timezone
+    from app.models import SpidCert
+
+    db_session.add(EnteSettings(
+        id=1, org_display_name="Test Ente", org_name="Test Ente",
+        org_url="https://test.it", proxy_hostname="sso.test.it",
+        ipa_code="TEST", contact_email="test@test.it", contact_phone="+39",
+        org_city="Pescara",
+    ))
+    old = SpidCert(
+        certificate_pem="-----BEGIN CERTIFICATE-----\nold\n-----END CERTIFICATE-----",
+        private_key_pem="-----BEGIN PRIVATE KEY-----\nold\n-----END PRIVATE KEY-----",
+        not_valid_after=datetime(2036, 1, 1, tzinfo=timezone.utc),
+        subject_dn="CN=old.test.it",
+        is_active=True,
+    )
+    db_session.add(old)
+    await db_session.commit()
+    new = SpidCert(
+        certificate_pem="-----BEGIN CERTIFICATE-----\nnew\n-----END CERTIFICATE-----",
+        private_key_pem="-----BEGIN PRIVATE KEY-----\nnew\n-----END PRIVATE KEY-----",
+        not_valid_after=datetime(2036, 1, 1, tzinfo=timezone.utc),
+        subject_dn="CN=new.test.it",
+        is_active=False,
+    )
+    db_session.add(new)
+    await db_session.commit()
+
+    response = await auth_client.get("/admin/eidas")
+    assert response.status_code == 200
+    assert "CN=old.test.it" in response.text
+    assert "CN=new.test.it" not in response.text
+
+
 async def test_eidas_enable_flow(auth_client, db_session):
     # Setup EnteSettings and mock SpidIdP entries for eidas
     db_session.add(EnteSettings(

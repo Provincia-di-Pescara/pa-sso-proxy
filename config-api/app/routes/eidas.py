@@ -62,7 +62,7 @@ async def eidas_config_page(request: Request, db: AsyncSession = Depends(get_db)
     s = (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
     proxy_hostname = s.proxy_hostname if s else "localhost"
     
-    cert_result = await db.execute(select(SpidCert).order_by(SpidCert.created_at.desc()).limit(1))
+    cert_result = await db.execute(select(SpidCert).where(SpidCert.is_active == True).limit(1))
     cert = cert_result.scalar_one_or_none()
     
     saved = request.query_params.get("saved") == "1"
