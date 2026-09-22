@@ -10,6 +10,7 @@ richiederebbe una configurazione SPID SP completa fuori scope per unit test
 per fixture analoghe se in futuro si vuole coprire anche questo.
 """
 import base64
+import os
 from unittest.mock import MagicMock, patch
 
 import backends.spidsaml2 as spidsaml2
@@ -145,3 +146,12 @@ def test_read_metadata_override_returns_bytes_if_present(monkeypatch, tmp_path):
     override_path = tmp_path / "spid_sp_metadata_override.xml"
     override_path.write_text("<Overridden/>")
     assert spidsaml2._read_metadata_override() == b"<Overridden/>"
+
+
+def test_read_metadata_override_returns_none_if_symlink(monkeypatch, tmp_path):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    secret_path = tmp_path / "spid_sp_key.pem"
+    secret_path.write_text("-----BEGIN PRIVATE KEY-----\nSECRET\n-----END PRIVATE KEY-----")
+    override_path = tmp_path / "spid_sp_metadata_override.xml"
+    os.symlink(secret_path, override_path)
+    assert spidsaml2._read_metadata_override() is None

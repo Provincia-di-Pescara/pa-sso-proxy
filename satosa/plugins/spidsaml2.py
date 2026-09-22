@@ -78,6 +78,15 @@ def _read_metadata_override():
     override_path = os.path.join(conf_dir, "spid_sp_metadata_override.xml")
     if not os.path.exists(override_path):
         return None
+    if os.path.islink(override_path):
+        # L'endpoint /spidSaml2/metadata è pubblico e non autenticato: se un
+        # attaccante con accesso in scrittura al volume condiviso rimpiazza
+        # questo file con un symlink (es. verso spid_sp_key.pem), non deve
+        # essere servito. Trattalo come "nessun override" (fallback dinamico).
+        logger.warning(
+            "spid_sp_metadata_override.xml è un symlink: ignorato per sicurezza"
+        )
+        return None
     with open(override_path, "rb") as f:
         return f.read()
 
