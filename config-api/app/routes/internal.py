@@ -1,12 +1,14 @@
+import hashlib
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import AccessLog
+from app.models import AccessLog, SpidCert, SpidMetadataVersion
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -38,4 +40,36 @@ async def log_access(entry: AccessLogEntry, db: AsyncSession = Depends(get_db)):
         await db.commit()
     except Exception:
         logger.error("Failed to save access log entry", exc_info=True)
+    return {"ok": True}
+
+
+class MetadataSnapshotEntry(BaseModel):
+    xml_content: str
+
+
+@router.post("/internal/spid-metadata-snapshot")
+async def log_metadata_snapshot(entry: MetadataSnapshotEntry, db: AsyncSession = Depends(get_db)):
+    try:
+        content_hash = hashlib.sha256(entry.xml_content.encode("utf-8")).hexdigest()
+        last_result = await db.execute(
+            select(SpidMetadataVersion)
+            .where(SpidMetadataVersion.source == "generated")
+            .order_by(SpidMetadataVersion.created_at.desc())
+            .limit(1)
+        )
+        last_row = last_result.scalar_one_or_none()
+        if last_row is None or last_row.content_hash != content_hash:
+            cert_result = await db.execute(select(SpidCert).where(SpidCert.is_active == True).limit(1))
+            cert = cert_result.scalar_one_or_none()
+            row = SpidMetadataVersion(
+                source="generated",
+                xml_content=entry.xml_content,
+                content_hash=content_hash,
+                cert_id=cert.id if cert else None,
+                is_exposed=last_row is None,
+            )
+            db.add(row)
+            await db.commit()
+    except Exception:
+        logger.error("Failed to save metadata snapshot", exc_info=True)
     return {"ok": True}
