@@ -21,14 +21,134 @@
 <div class="a-alert a-alert-success" style="margin-bottom:16px;">Configurazione aggiornata. SATOSA ricaricato.</div>
 {% endif %}
 
-{# Sub-nav tra le tre sezioni #}
-<div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border-1);">
-  <a href="#spid" class="a-btn a-btn-neutral a-btn-sm" style="border-radius:6px 6px 0 0;">SPID</a>
-  <a href="#eidas" class="a-btn a-btn-neutral a-btn-sm" style="border-radius:6px 6px 0 0;">eIDAS</a>
-  <a href="#persona-giuridica" class="a-btn a-btn-neutral a-btn-sm" style="border-radius:6px 6px 0 0;">Persona giuridica</a>
+{# Tab bar: click cambia pannello visibile, pallino = stato sezione #}
+<div class="a-tabs" role="tablist">
+  <button type="button" class="a-tab" data-tab="spid" role="tab">
+    <span class="a-tab-dot" style="background:{% if cert %}{% if (cert.not_valid_after - now).days < 30 %}var(--danger){% else %}var(--success){% endif %}{% else %}var(--danger){% endif %};"></span>
+    SPID
+  </button>
+  <button type="button" class="a-tab" data-tab="provider" role="tab">
+    <span class="a-tab-dot" style="background:{% if any_provider_enabled %}var(--success){% else %}var(--fg-muted){% endif %};"></span>
+    Provider
+  </button>
+  <button type="button" class="a-tab" data-tab="eidas" role="tab">
+    <span class="a-tab-dot" style="background:{% if s and s.eidas_enabled %}var(--success){% else %}var(--fg-muted){% endif %};"></span>
+    eIDAS
+  </button>
+  <button type="button" class="a-tab" data-tab="persona-giuridica" role="tab">
+    <span class="a-tab-dot" style="background:{% if s and s.legal_entity_enabled %}var(--success){% else %}var(--fg-muted){% endif %};"></span>
+    Persona giuridica
+  </button>
 </div>
 
-<section id="spid">
+<style>
+.a-tabs { display:flex; gap:4px; margin-bottom:16px; border-bottom:1px solid var(--border-1); }
+.a-tab { display:inline-flex; align-items:center; gap:8px; padding:10px 16px; font-size:13px; font-weight:600; color:var(--fg-muted); background:transparent; border:1px solid transparent; border-bottom:none; border-radius:6px 6px 0 0; cursor:pointer; }
+.a-tab:hover { color:var(--fg-1); background:var(--bg-2); }
+.a-tab.active { color:var(--fg-1); background:var(--bg-1); border-color:var(--border-1); }
+.a-tab-dot { width:8px; height:8px; border-radius:50%; flex:none; }
+.a-tab-panel[hidden] { display:none; }
+</style>
+
+<section id="spid" class="a-tab-panel">
+{# Certificate section #}
+<div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">
+      Chiavi di Firma SPID/eIDAS (SAML SP)
+      <span class="a-badge a-badge-neutral">Certificato</span>
+    </div>
+    <div class="a-card-body">
+      {% if cert_error %}<div class="a-alert a-alert-danger">{{ cert_error }}</div>{% endif %}
+      {% if s and s.eidas_enabled and metadata_status and not metadata_status.has_eidas %}
+        <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
+          <strong>Attenzione:</strong> eIDAS è abilitato in configurazione, ma il metadata pubblicato non supporta ancora eIDAS (indici FICEP 99/100 mancanti).
+          Verifica che SATOSA sia stato ricaricato correttamente (in fondo alla pagina Metadata SPID trovi "Rigenera metadata").
+        </div>
+      {% endif %}
+      {% if cert %}
+        {% set days_left = (cert.not_valid_after - now).days %}
+        {% if days_left < 30 %}
+          <div class="a-alert a-alert-danger">Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}).</div>
+        {% elif days_left < 90 %}
+          <div class="a-alert a-alert-warning">Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}).</div>
+        {% else %}
+          <div class="a-alert a-alert-success">Certificato valido fino al <strong>{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</strong> ({{ days_left }} giorni).</div>
+        {% endif %}
+        <div class="a-form-group">
+          <label class="a-label">Subject DN</label>
+          <input class="a-input a-input-ro" type="text" value="{{ cert.subject_dn }}" readonly>
+        </div>
+        <div class="a-muted" style="font-size:12px;margin-bottom:16px;">Generato il: <span class="a-mono">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
+        <form method="post" action="/admin/certs/generate" onsubmit="return confirmRegenCert()">
+          <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Rigenera chiavi</button>
+        </form>
+      {% else %}
+        <div class="a-alert a-alert-warning" style="margin-bottom:16px;">Nessun certificato SPID configurato. Genera le chiavi per abilitare l'autenticazione SPID.</div>
+        <form method="post" action="/admin/certs/generate">
+          <button type="submit" class="a-btn a-btn-primary">Genera chiavi</button>
+        </form>
+      {% endif %}
+        <a href="/admin/certs" class="a-link" style="font-size:13px;">Storico certificati &rarr;</a>
+    </div>
+</div>
+
+{# SAML SP Metadata Status Card — SPID + eIDAS + persona giuridica insieme #}
+<div class="a-card">
+    <div class="a-card-header">
+      Stato Metadata SAML (Service Provider)
+      <span class="a-badge a-badge-neutral">SAML SP</span>
+    </div>
+    <div class="a-card-body">
+      <p style="font-size:13px;margin-bottom:12px;color:var(--fg-muted);">
+        Il proxy pubblica il proprio metadata SAML a questo URL pubblico, necessario per registrare il servizio presso AgID/IdP:
+      </p>
+      <div class="a-form-group" style="margin-bottom:12px;">
+        <input class="a-input a-input-ro a-mono" type="text" value="https://{{ proxy_hostname }}/spidSaml2/metadata" readonly style="font-size:12px;">
+      </div>
+
+      {% if metadata_status %}
+        {% if metadata_status.valid %}
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto SPID:</span>
+              {% if metadata_status.has_spid %}
+                <span class="a-badge a-badge-success">Attivo</span>
+              {% else %}
+                <span class="a-badge a-badge-danger">Non configurato</span>
+              {% endif %}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto eIDAS (FICEP):</span>
+              {% if metadata_status.has_eidas %}
+                <span class="a-badge a-badge-success">Attivo (indici 99/100 presenti)</span>
+              {% else %}
+                <span class="a-badge a-badge-neutral">Non attivo</span>
+              {% endif %}
+            </div>
+            {% if legal_entity_metadata_status and legal_entity_metadata_status.valid %}
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto persona giuridica:</span>
+              {% if legal_entity_metadata_status.has_company_attributes %}
+                <span class="a-badge a-badge-success">Attributi azienda dichiarati</span>
+              {% else %}
+                <span class="a-badge a-badge-neutral">Non dichiarati</span>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="a-alert a-alert-danger" style="margin-top:8px;">
+            <strong>Impossibile verificare lo stato del metadata locale:</strong> {{ metadata_status.error }}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="a-muted" style="font-size:12px;">Verifica in corso...</div>
+      {% endif %}
+    </div>
+</div>
+</section>
+
+<section id="provider" class="a-tab-panel" hidden>
 {# Test/Validation providers #}
 <div class="a-card" style="margin-bottom:14px;">
   <div class="a-card-header">
@@ -97,102 +217,6 @@
         </div>
       </div>
     </div>
-  </div>
-</div>
-
-{# Certificate section #}
-<div class="a-card" style="margin-bottom:14px;">
-  <div class="a-card-header">
-    Chiavi di Firma SPID/eIDAS (SAML SP)
-    <span class="a-badge a-badge-neutral">Certificato</span>
-  </div>
-  <div class="a-card-body">
-    {% if cert_error %}<div class="a-alert a-alert-danger">{{ cert_error }}</div>{% endif %}
-    {% if s and s.eidas_enabled and metadata_status and not metadata_status.has_eidas %}
-      <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
-        <strong>Attenzione:</strong> eIDAS è abilitato in configurazione, ma il metadata pubblicato non supporta ancora eIDAS (indici FICEP 99/100 mancanti).
-        Verifica che SATOSA sia stato ricaricato correttamente (in fondo alla pagina Metadata SPID trovi "Rigenera metadata").
-      </div>
-    {% endif %}
-    {% if cert %}
-      {% set days_left = (cert.not_valid_after - now).days %}
-      {% if days_left < 30 %}
-        <div class="a-alert a-alert-danger">Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}).</div>
-      {% elif days_left < 90 %}
-        <div class="a-alert a-alert-warning">Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}).</div>
-      {% else %}
-        <div class="a-alert a-alert-success">Certificato valido fino al <strong>{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</strong> ({{ days_left }} giorni).</div>
-      {% endif %}
-      <div class="a-form-group">
-        <label class="a-label">Subject DN</label>
-        <input class="a-input a-input-ro" type="text" value="{{ cert.subject_dn }}" readonly>
-      </div>
-      <div class="a-muted" style="font-size:12px;margin-bottom:16px;">Generato il: <span class="a-mono">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
-      <form method="post" action="/admin/certs/generate" onsubmit="return confirmRegenCert()">
-        <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Rigenera chiavi</button>
-      </form>
-    {% else %}
-      <div class="a-alert a-alert-warning" style="margin-bottom:16px;">Nessun certificato SPID configurato. Genera le chiavi per abilitare l'autenticazione SPID.</div>
-      <form method="post" action="/admin/certs/generate">
-        <button type="submit" class="a-btn a-btn-primary">Genera chiavi</button>
-      </form>
-    {% endif %}
-      <a href="/admin/certs" class="a-link" style="font-size:13px;">Storico certificati &rarr;</a>
-  </div>
-</div>
-
-{# SAML SP Metadata Status Card — SPID + eIDAS + persona giuridica insieme #}
-<div class="a-card" style="margin-bottom:14px;">
-  <div class="a-card-header">
-    Stato Metadata SAML (Service Provider)
-    <span class="a-badge a-badge-neutral">SAML SP</span>
-  </div>
-  <div class="a-card-body">
-    <p style="font-size:13px;margin-bottom:12px;color:var(--fg-muted);">
-      Il proxy pubblica il proprio metadata SAML a questo URL pubblico, necessario per registrare il servizio presso AgID/IdP:
-    </p>
-    <div class="a-form-group" style="margin-bottom:12px;">
-      <input class="a-input a-input-ro a-mono" type="text" value="https://{{ proxy_hostname }}/spidSaml2/metadata" readonly style="font-size:12px;">
-    </div>
-
-    {% if metadata_status %}
-      {% if metadata_status.valid %}
-        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto SPID:</span>
-            {% if metadata_status.has_spid %}
-              <span class="a-badge a-badge-success">Attivo</span>
-            {% else %}
-              <span class="a-badge a-badge-danger">Non configurato</span>
-            {% endif %}
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto eIDAS (FICEP):</span>
-            {% if metadata_status.has_eidas %}
-              <span class="a-badge a-badge-success">Attivo (indici 99/100 presenti)</span>
-            {% else %}
-              <span class="a-badge a-badge-neutral">Non attivo</span>
-            {% endif %}
-          </div>
-          {% if legal_entity_metadata_status and legal_entity_metadata_status.valid %}
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:13px;font-weight:600;color:var(--fg-muted);">Supporto persona giuridica:</span>
-            {% if legal_entity_metadata_status.has_company_attributes %}
-              <span class="a-badge a-badge-success">Attributi azienda dichiarati</span>
-            {% else %}
-              <span class="a-badge a-badge-neutral">Non dichiarati</span>
-            {% endif %}
-          </div>
-          {% endif %}
-        </div>
-      {% else %}
-        <div class="a-alert a-alert-danger" style="margin-top:8px;">
-          <strong>Impossibile verificare lo stato del metadata locale:</strong> {{ metadata_status.error }}
-        </div>
-      {% endif %}
-    {% else %}
-      <div class="a-muted" style="font-size:12px;">Verifica in corso...</div>
-    {% endif %}
   </div>
 </div>
 
@@ -268,7 +292,7 @@
 </div>
 </section>
 
-<section id="eidas" style="margin-top:24px;">
+<section id="eidas" class="a-tab-panel" hidden>
 <div class="a-card" style="max-width:720px;">
   <div class="a-card-header">
     Integrazione eIDAS
@@ -316,7 +340,7 @@
 </div>
 </section>
 
-<section id="persona-giuridica" style="margin-top:24px;">
+<section id="persona-giuridica" class="a-tab-panel" hidden>
 <div class="a-card" style="max-width:720px;">
   <div class="a-card-header">
     Accesso SPID persona giuridica
@@ -359,6 +383,27 @@
 </section>
 
 <script>
+(function () {
+  var tabs = document.querySelectorAll(".a-tab");
+  var panels = document.querySelectorAll(".a-tab-panel");
+  var validTabs = Array.prototype.map.call(tabs, function (t) { return t.dataset.tab; });
+
+  function activate(name) {
+    if (validTabs.indexOf(name) === -1) name = "spid";
+    tabs.forEach(function (t) { t.classList.toggle("active", t.dataset.tab === name); });
+    panels.forEach(function (p) { p.hidden = p.id !== name; });
+  }
+
+  tabs.forEach(function (t) {
+    t.addEventListener("click", function () {
+      history.replaceState(null, "", "#" + t.dataset.tab);
+      activate(t.dataset.tab);
+    });
+  });
+
+  activate((window.location.hash || "#spid").slice(1));
+})();
+
 const eidasInitialEnabled = {% if s and s.eidas_enabled %}true{% else %}false{% endif %};
 const legalEntityInitialEnabled = {% if s and s.legal_entity_enabled %}true{% else %}false{% endif %};
 
