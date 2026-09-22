@@ -46,3 +46,19 @@ async def test_spid_metadata_version_defaults(db_session):
     assert row.is_exposed is False
     assert row.is_validated is False
     assert row.cert_id is None
+
+
+async def test_metadata_history_page_loads_empty(auth_client):
+    response = await auth_client.get("/admin/metadata")
+    assert response.status_code == 200
+    assert "Nessuna versione" in response.text
+
+
+async def test_metadata_history_page_lists_versions(auth_client, db_session):
+    db_session.add(SpidMetadataVersion(
+        source="generated", xml_content="<A/>", content_hash="h1", is_exposed=True,
+    ))
+    await db_session.commit()
+    response = await auth_client.get("/admin/metadata")
+    assert response.status_code == 200
+    assert "generated" in response.text or "Generato" in response.text
