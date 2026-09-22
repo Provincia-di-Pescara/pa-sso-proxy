@@ -1,4 +1,5 @@
 import hashlib
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -81,3 +82,12 @@ async def test_snapshot_new_content_creates_second_row_not_exposed(client, db_se
     rows = result.scalars().all()
     assert len(rows) == 2
     assert rows[1].is_exposed is False
+
+
+async def test_snapshot_db_failure_still_returns_ok(client, db_session, monkeypatch):
+    monkeypatch.setattr(db_session, "execute", AsyncMock(side_effect=Exception("db down")))
+
+    response = await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
