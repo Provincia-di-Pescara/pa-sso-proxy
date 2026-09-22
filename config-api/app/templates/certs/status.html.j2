@@ -6,27 +6,31 @@
 <div style="max-width:640px;">
   {% if error %}<div class="a-alert a-alert-danger">{{ error }}</div>{% endif %}
 
-  {% if cert %}
-    {% set days_left = (cert.not_valid_after - now).days %}
-    {% if days_left < 90 %}
-    <div class="a-alert a-alert-warning">
-      Il certificato scade tra <strong>{{ days_left }} giorni</strong> ({{ cert.not_valid_after.strftime('%Y-%m-%d') }}). Rigenera il certificato.
-    </div>
-    {% else %}
-    <div class="a-alert a-alert-success">
-      Certificato valido fino al <strong>{{ cert.not_valid_after.strftime('%Y-%m-%d') }}</strong> ({{ days_left }} giorni rimanenti).
-    </div>
-    {% endif %}
-
-    <div class="a-card" style="margin-top:16px;">
-      <div class="a-card-body">
-        <div class="a-form-group">
-          <label class="a-label">Subject DN</label>
-          <input class="a-input a-input-ro" type="text" value="{{ cert.subject_dn }}" readonly>
-        </div>
-        <div style="font-size:12px;color:var(--fg-muted);">Generato il: <span class="a-mono">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
-      </div>
-    </div>
+  {% if certs %}
+    <table class="a-table" style="margin-top:16px;">
+      <thead>
+        <tr><th>Subject DN</th><th>Attivo</th><th>Scadenza</th><th>Generato il</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for c in certs %}
+        <tr>
+          <td>{{ c.subject_dn }}</td>
+          <td>{{ "Sì" if c.is_active else "No" }}</td>
+          <td>{{ c.not_valid_after.strftime('%Y-%m-%d') }}</td>
+          <td>{{ c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else "" }}</td>
+          <td>
+            <a href="/admin/certs/{{ c.id }}/download/cert">cert</a>
+            <a href="/admin/certs/{{ c.id }}/download/key">key</a>
+            {% if not c.is_active %}
+            <form method="post" action="/admin/certs/{{ c.id }}/activate" style="display:inline;">
+              <button type="submit" class="a-btn a-btn-sm">Attiva</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   {% else %}
   <div class="a-alert a-alert-warning">Nessun certificato SPID configurato. Configura le impostazioni ente e genera il certificato.</div>
   {% endif %}
