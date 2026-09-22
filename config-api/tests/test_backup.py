@@ -366,3 +366,62 @@ async def test_backup_import_invalid_json_returns_error(db_session, app_env):
     app.dependency_overrides.clear()
     assert resp.status_code == 302
     assert "/admin/backup" in resp.headers["location"]
+
+
+async def test_backup_restore_writes_cert_and_jwk_files_to_disk(db_session, app_env, tmp_path, monkeypatch):
+    """Disaster recovery: dopo restore su volumi azzerati, i file cert SPID e
+    JWK CIE devono essere scritti su SATOSA_CONF_DIR, non solo salvati nel DB —
+    altrimenti SATOSA non li trova al riavvio."""
+    from app.main import app
+
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+
+    bundle = {
+        "version": "1",
+        "exported_at": "2026-01-01T00:00:00+00:00",
+        "ente_settings": {},
+        "oidc_clients": [],
+        "spid_idps": [],
+        "cie_config": {},
+        "jwk_keys": [
+            {
+                "name": "cie-federation-test",
+                "use": "federation",
+                "private_jwk": {"kty": "RSA", "d": "priv"},
+                "public_jwk": {"kty": "RSA"},
+            }
+        ],
+        "spid_cert": {
+            "certificate_pem": "-----BEGIN CERTIFICATE-----\ndisaster-recovery\n-----END CERTIFICATE-----",
+            "private_key_pem": "-----BEGIN PRIVATE KEY-----\ndisaster-recovery\n-----END PRIVATE KEY-----",
+            "not_valid_after": "2036-01-01T00:00:00+00:00",
+            "subject_dn": "CN=dr.test.it",
+            "is_active": True,
+        },
+    }
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with patch("app.routes.backup.generate_and_write", new_callable=AsyncMock), \
+         patch("app.routes.backup.reload_satosa", new_callable=AsyncMock):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            await _login(c)
+            import_resp = await c.post(
+                "/admin/backup/import",
+                files={"file": ("backup.json", json.dumps(bundle).encode("utf-8"), "application/json")},
+                follow_redirects=False,
+            )
+    app.dependency_overrides.clear()
+    assert import_resp.status_code == 302
+
+    cert_path = tmp_path / "spid_sp_cert.pem"
+    key_path = tmp_path / "spid_sp_key.pem"
+    assert cert_path.exists()
+    assert "disaster-recovery" in cert_path.read_text()
+    assert key_path.exists()
+    assert "disaster-recovery" in key_path.read_text()
+
+    assert (tmp_path / "cie_jwks_public.json").exists()
+    assert (tmp_path / "cie_jwks_private.json").exists()
