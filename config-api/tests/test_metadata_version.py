@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import select
 
 from app.database import get_db
 from app.models import SpidCert, SpidMetadataVersion
@@ -122,3 +123,88 @@ async def test_expose_warns_when_cert_mismatch(auth_client, db_session, tmp_path
     response = await auth_client.post(f"/admin/metadata/{older.id}/expose", follow_redirects=False)
     assert response.status_code == 303
     assert "warning=" in response.headers["location"]
+
+
+async def test_validate_switches_flag(auth_client, db_session):
+    v1 = SpidMetadataVersion(source="generated", xml_content="<A/>", content_hash="h1", is_validated=True)
+    v2 = SpidMetadataVersion(source="generated", xml_content="<B/>", content_hash="h2", is_validated=False)
+    db_session.add_all([v1, v2])
+    await db_session.commit()
+    await db_session.refresh(v2)
+
+    response = await auth_client.post(f"/admin/metadata/{v2.id}/validate", follow_redirects=False)
+    assert response.status_code == 303
+
+    await db_session.refresh(v1)
+    await db_session.refresh(v2)
+    assert v1.is_validated is False
+    assert v2.is_validated is True
+
+
+async def test_upload_valid_xml_creates_uploaded_row(auth_client, db_session):
+    xml_bytes = b'<?xml version="1.0"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://test.it/metadata"/>'
+    response = await auth_client.post(
+        "/admin/metadata/upload",
+        files={"file": ("metadata.xml", xml_bytes, "text/xml")},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=" not in response.headers["location"]
+
+    result = await db_session.execute(select(SpidMetadataVersion))
+    rows = result.scalars().all()
+    assert len(rows) == 1
+    assert rows[0].source == "uploaded"
+    assert rows[0].cert_id is None
+    assert rows[0].is_exposed is False
+
+
+async def test_upload_invalid_xml_rejected(auth_client, db_session):
+    response = await auth_client.post(
+        "/admin/metadata/upload",
+        files={"file": ("bad.xml", b"not xml at all", "text/xml")},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=" in response.headers["location"]
+
+    result = await db_session.execute(select(SpidMetadataVersion))
+    assert result.scalars().all() == []
+
+
+async def test_download_returns_xml_content(auth_client, db_session):
+    v = SpidMetadataVersion(source="generated", xml_content="<Downloadable/>", content_hash="h1")
+    db_session.add(v)
+    await db_session.commit()
+    await db_session.refresh(v)
+
+    response = await auth_client.get(f"/admin/metadata/{v.id}/download")
+    assert response.status_code == 200
+    assert "<Downloadable/>" in response.text
+
+
+async def test_delete_blocked_if_exposed(auth_client, db_session):
+    v = SpidMetadataVersion(source="generated", xml_content="<A/>", content_hash="h1", is_exposed=True)
+    db_session.add(v)
+    await db_session.commit()
+    await db_session.refresh(v)
+
+    response = await auth_client.post(f"/admin/metadata/{v.id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+    assert "error=" in response.headers["location"]
+
+    result = await db_session.execute(select(SpidMetadataVersion).where(SpidMetadataVersion.id == v.id))
+    assert result.scalar_one_or_none() is not None
+
+
+async def test_delete_removes_unexposed_unvalidated_row(auth_client, db_session):
+    v = SpidMetadataVersion(source="uploaded", xml_content="<A/>", content_hash="h1")
+    db_session.add(v)
+    await db_session.commit()
+    await db_session.refresh(v)
+
+    response = await auth_client.post(f"/admin/metadata/{v.id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+
+    result = await db_session.execute(select(SpidMetadataVersion).where(SpidMetadataVersion.id == v.id))
+    assert result.scalar_one_or_none() is None

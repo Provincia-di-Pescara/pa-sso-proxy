@@ -1,8 +1,10 @@
+import hashlib
 import os
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from defusedxml import ElementTree
+from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from app.jinja_templates import templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -93,3 +95,77 @@ async def metadata_expose(version_id: int, request: Request, db: AsyncSession = 
     if warning:
         redirect_url += f"?warning={warning}"
     return RedirectResponse(redirect_url, status_code=303)
+
+
+@router.post("/metadata/{version_id}/validate")
+async def metadata_validate(version_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+    result = await db.execute(select(SpidMetadataVersion).where(SpidMetadataVersion.id == version_id))
+    if not result.scalar_one_or_none():
+        return RedirectResponse(f"/admin/metadata?error={quote('Versione non trovata.')}", status_code=303)
+
+    all_versions = await db.execute(select(SpidMetadataVersion))
+    for v in all_versions.scalars().all():
+        v.is_validated = v.id == version_id
+    await db.commit()
+    return RedirectResponse("/admin/metadata", status_code=303)
+
+
+@router.post("/metadata/upload")
+async def metadata_upload(request: Request, db: AsyncSession = Depends(get_db), file: UploadFile = File(...)):
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+
+    raw = await file.read()
+    try:
+        xml_text = raw.decode("utf-8")
+        root = ElementTree.fromstring(xml_text)
+    except Exception:
+        return RedirectResponse(
+            f"/admin/metadata?error={quote('File non valido: XML non ben formato.')}", status_code=303
+        )
+    if not root.tag.endswith("}EntityDescriptor") and root.tag != "EntityDescriptor":
+        return RedirectResponse(
+            f"/admin/metadata?error={quote('File non valido: root deve essere EntityDescriptor.')}",
+            status_code=303,
+        )
+
+    content_hash = hashlib.sha256(xml_text.encode("utf-8")).hexdigest()
+    row = SpidMetadataVersion(source="uploaded", xml_content=xml_text, content_hash=content_hash, is_exposed=False)
+    db.add(row)
+    await db.commit()
+    return RedirectResponse("/admin/metadata", status_code=303)
+
+
+@router.get("/metadata/{version_id}/download")
+async def metadata_download(version_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+    result = await db.execute(select(SpidMetadataVersion).where(SpidMetadataVersion.id == version_id))
+    version = result.scalar_one_or_none()
+    if not version:
+        return RedirectResponse(f"/admin/metadata?error={quote('Versione non trovata.')}", status_code=303)
+    return PlainTextResponse(
+        version.xml_content,
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="spid_metadata_{version_id}.xml"'},
+    )
+
+
+@router.post("/metadata/{version_id}/delete")
+async def metadata_delete(version_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+    result = await db.execute(select(SpidMetadataVersion).where(SpidMetadataVersion.id == version_id))
+    version = result.scalar_one_or_none()
+    if not version:
+        return RedirectResponse(f"/admin/metadata?error={quote('Versione non trovata.')}", status_code=303)
+    if version.is_exposed or version.is_validated:
+        return RedirectResponse(
+            f"/admin/metadata?error={quote('Impossibile eliminare una versione esposta o validata.')}",
+            status_code=303,
+        )
+    await db.delete(version)
+    await db.commit()
+    return RedirectResponse("/admin/metadata", status_code=303)
