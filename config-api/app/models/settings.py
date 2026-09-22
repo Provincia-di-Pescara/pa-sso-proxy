@@ -25,3 +25,4 @@ class EnteSettings(Base):
     vat_number: Mapped[str] = mapped_column(String(32), nullable=False, default="")
     eidas_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     eidas_environment: Mapped[str] = mapped_column(String(16), nullable=False, default="prod")
+    legal_entity_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
