@@ -22,7 +22,7 @@
       <label class="a-label">Scopes</label>
       <div class="a-check-group">
         {% set current_scopes = client.allowed_scopes if client else ['openid'] %}
-        {% for scope in ['openid', 'profile', 'email'] %}
+        {% for scope in ['openid', 'profile', 'email', 'legal_entity'] %}
         <label class="a-check-chip {% if scope in current_scopes %}selected{% endif %}">
           <input type="checkbox" name="scopes" value="{{ scope }}"
                  {% if scope in current_scopes %}checked{% endif %}
