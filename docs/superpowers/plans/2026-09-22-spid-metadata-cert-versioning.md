@@ -1562,6 +1562,7 @@ Expected: FAIL — `AttributeError: module 'backends.spidsaml2' has no attribute
 In `satosa/plugins/spidsaml2.py`, aggiungi in cima agli import:
 
 ```python
+import inspect
 import json
 import logging
 import os
@@ -1570,7 +1571,7 @@ import urllib.parse
 import urllib.request
 ```
 
-(sostituisce il blocco import esistente aggiungendo `os` e `urllib.request` — `json`, `logging`, `re`, `urllib.parse` restano invariati).
+(sostituisce il blocco import esistente aggiungendo `os` e `urllib.request` — `inspect`, `json`, `logging`, `re`, `urllib.parse` restano invariati e vanno mantenuti: `inspect` è già usato altrove nel file, es. `inspect.getframeinfo` in `_metadata_endpoint`/`_metadata_contact_person`).
 
 Dopo la definizione di `_redact_pii_xml` (funzione pura esistente a livello di modulo), aggiungi:
 
