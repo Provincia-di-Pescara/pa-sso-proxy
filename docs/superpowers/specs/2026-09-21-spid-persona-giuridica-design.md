@@ -96,32 +96,64 @@ invece di un fallimento silenzioso.
 - Nuovo template `legal_entity/config.html.j2` (pattern `eidas/config.html.j2`).
 - Link nav WebUI.
 
-### B — Wiring `Purpose` in `spidsaml2.py`
+### B — Wiring `Purpose` in `spidsaml2.py` (aggiornato dopo lettura diretta del file)
 
-- `authn_request(self, context, entity_id)`: legge
-  `purpose = context.request.get("purpose")`.
-- Whitelist stretta `{None, "P", "LP", "PG", "PF", "PX"}` — valore fuori
-  whitelist ignorato (query param proveniente da client esterno, mai
-  passato raw a XML senza validazione).
-- Costruisce l'estensione:
-  ```python
-  from saml2 import samlp
-  purpose_ext = saml2.ExtensionElement(
-      "Purpose", namespace="https://spid.gov.it/saml-extensions", text=purpose
-  )
-  authn_req.extensions = samlp.Extensions(extension_elements=[purpose_ext])
-  ```
-  Nome esatto dell'attributo (`extension_elements` vs alternativa) da
-  fissare in TDD contro l'XML atteso (confronto con l'esempio letterale
-  dell'Avviso 18).
-- `context.request.get("purpose")` accessibile in `authn_request()` sulla
-  base della lettura del sorgente `disco_response` (stesso `context`,
-  nessuna cancellazione dei parametri) — **da confermare empiricamente**
-  con un test d'integrazione (unico punto del design non verificato a
-  runtime).
-- Gestione errore `nr30`/`nr08`: estendere `handle_spid_anomaly` (già
-  esistente) con messaggio dedicato quando l'anomalia deriva da un
-  mismatch Purpose.
+`authn_request()` (righe 415-430 di `satosa/plugins/spidsaml2.py`) **ha
+già** un meccanismo funzionante e testato in produzione per leggere
+parametri custom dalla query OIDC originale: itera `context.state.values()`
+cercando un dict con chiave `"oidc_request"`, ne fa il parse con
+`urllib.parse.parse_qs`, ed estrae chiavi note (oggi usato per
+`attribute_consuming_service_index`/`acs_index`). Stesso identico
+meccanismo riusabile per leggere lo `scope` OIDC — **non serve alcun
+round-trip via disco page**, il segnale è già disponibile nello stesso
+punto in cui viene costruito l'`AuthnRequest`, indipendentemente da quale
+IdP l'utente ha scelto tramite la discovery page normale (invariata).
+
+Due funzioni pure nuove (testabili in unit test isolati, senza bisogno di
+un `SAMLBackend`/pysaml2 SP completamente inizializzato — pattern già
+usato per `_redact_pii_xml` in questo stesso file):
+
+```python
+def _legal_entity_requested(context) -> bool:
+    for v in context.state.values():
+        if isinstance(v, dict) and "oidc_request" in v:
+            oidc_request = v["oidc_request"]
+            if not oidc_request:
+                return False
+            params = urllib.parse.parse_qs(oidc_request)
+            scopes = params.get("scope", [""])[0].split()
+            return "legal_entity" in scopes
+    return False
+
+
+def _build_purpose_extension(purpose: str) -> saml2.samlp.Extensions:
+    ext = saml2.ExtensionElement(
+        "Purpose", namespace="https://spid.gov.it/saml-extensions", text=purpose
+    )
+    return saml2.samlp.Extensions(extension_elements=[ext])
+```
+
+In `authn_request()`, subito dopo `authn_req.requested_authn_context = req_authn_context`
+(riga 462) e prima di `client.sign(...)` (l'estensione deve rientrare
+nella firma):
+
+```python
+if _legal_entity_requested(context):
+    authn_req.extensions = _build_purpose_extension("PG")
+```
+
+Nessuna whitelist necessaria: l'unico valore che costruiamo è la costante
+`"PG"` (Tipo 4, uso professionale per persona giuridica) — non c'è input
+esterno che finisce raw nell'XML.
+
+**Gestione errore `nr30`**: già implementata, nessuna modifica necessaria.
+`SPID_ANOMALIES[30]` (riga 98 dello stesso file) contiene già messaggio e
+troubleshoot corretti ("L'identità digitale utilizzata non è un'identità
+digitale del tipo atteso"); `authn_response()` cattura già
+`StatusAuthnFailed`, estrae il codice errore dalla `StatusMessage` IdP e
+chiama `handle_spid_anomaly()` genericamente per qualunque codice. Un IdP
+che rifiuta `Purpose=PG` (periodo transitorio, vedi Regolamento 240/2025)
+produce automaticamente questo messaggio già corretto.
 
 ### C — Opt-in client OIDC
 
@@ -129,25 +161,21 @@ invece di un fallimento silenzioso.
   `clients/form.html.j2` (oggi `openid`/`profile`/`email`), salvato in
   `OIDCClient.allowed_scopes` (array già esistente, nessuna migrazione).
 
-### D — Flusso UI (nessun toggle, nessun filtro)
+### D — Flusso end-to-end (nessun toggle UI, nessun filtro IdP)
+
+Non è una fase separata: è la composizione di B+C. Nessuna modifica a
+`disco.html`/`disco_query`/UI — la discovery page resta identica a oggi.
 
 1. Client fa `/authorize?scope=openid profile legal_entity`.
-2. `disco_query(self, context)` (override in `spidsaml2.py`): legge lo
-   scope da `context.state["OIDC"]["oidc_request"]`; se contiene
-   `legal_entity`, aggiunge `legal_entity=1` ai parametri del redirect
-   verso `disco_srv` prima di chiamare `create_discovery_service_request()`.
-3. `disco.html` (statico, nostro): legge `legal_entity` dalla propria
-   querystring; se `1`, aggiunge `&purpose=PG` al redirect finale verso
-   `/spidSaml2/disco?entityID=...` — stessa lista IdP di sempre, nessun
-   filtro.
-4. `authn_request()` (pezzo B) legge `purpose=PG` da `context.request`,
-   costruisce l'estensione.
-5. Se l'IdP scelto non supporta ancora Tipo 4 → errore `nr30`/`nr08`
-   gestito con messaggio chiaro (pezzo B).
-
-L'esposizione dei claim OIDC (`company_name`, `registered_office`,
-`iva_code`) verso l'applicativo client è **già implementata** (PR #23,
-mergiata) — nessun lavoro aggiuntivo su quel fronte.
+2. Utente sceglie un IdP dalla discovery page normale, invariata.
+3. `authn_request()` (pezzo B) rileva lo scope `legal_entity` nella
+   richiesta OIDC originale (stesso meccanismo di `acs_index`, già in
+   produzione) e aggiunge `Purpose=PG` all'`AuthnRequest`, qualunque sia
+   l'IdP scelto.
+4. Se l'IdP supporta Tipo 4 → login riuscito, claim azienda esposti
+   nell'id_token (già implementato, PR #23).
+5. Se l'IdP non supporta ancora (periodo transitorio) → errore `nr30`
+   gestito automaticamente con messaggio chiaro (già esistente, pezzo B).
 
 ## Testing
 
@@ -155,18 +183,22 @@ mergiata) — nessun lavoro aggiuntivo su quel fronte.
   `optional_attributes` presenti/assenti (pezzo A), scope `legal_entity`
   in `allowed_scopes` (pezzo C).
 - Test WebUI pattern `test_eidas.py` per il nuovo pannello (pezzo A).
-- Test d'integrazione satosa (build immagine + pytest nel container, per
-  `satosa/plugins/` — vedi `CLAUDE.md`) per: XML esatto dell'estensione
-  Purpose generata (pezzo B), lettura `context.request` in
-  `authn_request()` dopo `disco_response` (verifica il punto non
-  confermato), redirect `disco_query` con `legal_entity=1` (pezzo D).
+- Unit test isolati (pattern `test_redact_pii_xml_*` in
+  `satosa/tests/test_spidsaml2.py`, nessun SP pysaml2 completo richiesto):
+  `_legal_entity_requested()` con context fittizio (scope con/senza
+  `legal_entity`, oidc_request assente), `_build_purpose_extension()`
+  contro l'XML atteso dall'Avviso 18 (confronto stringa/parsing).
+- Wiring completo in `authn_request()` (l'integrazione dei due pezzi sopra
+  dentro il flusso reale) resta coperto solo dalla suite di integrazione
+  esistente (build immagine + pytest nel container, vedi `CLAUDE.md`) —
+  non richiede nuova fixture, il file `test_spidsaml2.py` dichiara già
+  esplicitamente `authn_request` fuori scope per unit test.
 
 ## Rischi e note aperte
 
-- Nome esatto attributo pysaml2 per `extension_elements` da confermare in
-  coding (TDD contro XML atteso).
-- `context.request.get("purpose")` in `authn_request()` da confermare con
-  test d'integrazione reale (basato su lettura sorgente, non testato a
-  runtime).
 - Attivare il toggle A richiede ri-validazione AgID del metadata SPID —
   comunicare all'operatore, non automatizzabile da questo sistema.
+- La copertura end-to-end di `authn_request()` con `Purpose` reale resta
+  verificabile solo manualmente/in integrazione (nessuna fixture SP
+  completa in questo repo, per scelta preesistente documentata nel file
+  di test).
