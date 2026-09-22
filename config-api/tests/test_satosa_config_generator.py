@@ -131,15 +131,24 @@ async def test_oidc_frontend_yaml_issuer(full_db, tmp_path, monkeypatch):
     assert frontend["issuer"] == "https://proxy.ente.it"
 
 
-async def test_oidc_frontend_profile_scope_includes_legal_entity_claims(full_db, tmp_path, monkeypatch):
+async def test_oidc_frontend_legal_entity_scope_and_claims(full_db, tmp_path, monkeypatch):
     monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
     from app.satosa_config_generator import generate_satosa_config
     await generate_satosa_config(full_db)
     frontend = yaml.safe_load((tmp_path / "oidc_frontend.yaml").read_text())
-    profile_claims = frontend["config"]["provider"]["extra_scopes"]["profile"]
-    assert "company_name" in profile_claims
-    assert "registered_office" in profile_claims
-    assert "iva_code" in profile_claims
+    provider = frontend["config"]["provider"]
+    assert "legal_entity" in provider["scopes_supported"]
+
+    profile_claims = provider["extra_scopes"]["profile"]
+    legal_entity_claims = provider["extra_scopes"]["legal_entity"]
+    assert "company_name" in legal_entity_claims
+    assert "registered_office" in legal_entity_claims
+    assert "iva_code" in legal_entity_claims
+    # Data minimization: company claims must NOT be released for the plain
+    # profile scope, only when the client explicitly requests legal_entity.
+    assert "company_name" not in profile_claims
+    assert "registered_office" not in profile_claims
+    assert "iva_code" not in profile_claims
 
 
 async def test_spid_backend_yaml_has_idp_metadata(full_db, tmp_path, monkeypatch):
@@ -162,15 +171,16 @@ async def test_spid_backend_yaml_has_idp_metadata(full_db, tmp_path, monkeypatch
     assert "remote" not in spid["metadata"]
 
 
-async def test_spid_backend_yaml_no_optional_attributes_by_default(full_db, tmp_path, monkeypatch):
+async def test_spid_backend_yaml_legal_entity_disable_by_default(full_db, tmp_path, monkeypatch):
     monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
     from app.satosa_config_generator import generate_satosa_config
     await generate_satosa_config(full_db)
     spid = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
     assert "optional_attributes" not in spid["config"]["sp_config"]["service"]["sp"]
+    assert spid["config"]["sp_config"]["legal_entity_enable"] is False
 
 
-async def test_spid_backend_yaml_optional_attributes_when_legal_entity_enabled(full_db, tmp_path, monkeypatch):
+async def test_spid_backend_yaml_legal_entity_enable_when_settings_enabled(full_db, tmp_path, monkeypatch):
     from app.models import EnteSettings
     s = (await full_db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one()
     s.legal_entity_enabled = True
@@ -180,8 +190,11 @@ async def test_spid_backend_yaml_optional_attributes_when_legal_entity_enabled(f
     from app.satosa_config_generator import generate_satosa_config
     await generate_satosa_config(full_db)
     spid = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
-    optional = spid["config"]["sp_config"]["service"]["sp"]["optional_attributes"]
-    assert optional == ["companyName", "registeredOffice", "ivaCode"]
+    assert spid["config"]["sp_config"]["legal_entity_enable"] is True
+    # optional_attributes was dead code (discarded by custom_attribute_consuming_services)
+    # and has been removed entirely — the ACS with company attributes is now a
+    # dedicated entry appended to attribute_consuming_service in spidsaml2.py.
+    assert "optional_attributes" not in spid["config"]["sp_config"]["service"]["sp"]
 
 
 async def test_no_generation_without_settings(db_session, tmp_path, monkeypatch):

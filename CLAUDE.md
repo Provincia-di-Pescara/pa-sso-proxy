@@ -165,6 +165,11 @@ Il nodo eIDAS italiano usa lo **stesso backend SAML2** di SPID (`spid_backend`).
 
 URL metadata IdP eIDAS: QA `https://sp-proxy.pre.eid.gov.it/spproxy/idpitmetadata`, Prod `https://sp-proxy.eid.gov.it/spproxy/idpitmetadata`.
 
+### SPID persona giuridica
+Quando un client OIDC chiede lo scope `legal_entity`, il backend SPID (`spidsaml2.py`) aggiunge all'`AuthnRequest` l'estensione `<spid:Purpose>PG</spid:Purpose>` (Avviso AgID n.18 v.2, identità Tipo 3/4 uso professionale) e imposta `attribute_consuming_service_index` sull'ACS dedicato (index `4`) invece del default index 0. Questo ACS dichiara sia gli attributi persona fisica sia quelli azienda (`companyName`, `registeredOffice`, `ivaCode`); è creato in `__create_metadata` quando `legal_entity_enable: true` in `sp_config` (derivato da `ente_settings.legal_entity_enabled`). Lato OIDC, i claim azienda sono rilasciati solo per lo scope `legal_entity` (non per `profile`), per minimizzazione dati — vedi `extra_scopes` in `_oidc_frontend_yaml`.
+
+**Abilitare persona giuridica modifica il metadata SPID** (nuovo ACS) → richiede ri-validazione AgID, stesso avviso già presente per eIDAS.
+
 ### Reload SATOSA
 Il config-api segnala il reload toccando `/satosa-conf/.reload` (volume condiviso). uWSGI nel container satosa è configurato con `--touch-reload /satosa-conf/.reload` e ricarica i worker gracefully senza caduta delle connessioni. Non è necessario il Docker socket.
 

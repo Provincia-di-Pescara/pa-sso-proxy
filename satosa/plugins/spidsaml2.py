@@ -462,6 +462,8 @@ class SpidSAMLBackend(SAMLBackend):
                 value = custom_index
             elif acs_index is not None:
                 value = acs_index
+            elif _legal_entity_requested(context):
+                value = self.config["sp_config"].get("legal_entity_acs_index", "4")
             elif entity_id == self.config["sp_config"].get("ficep_entity_id"):
                 value = self.config["sp_config"]["ficep_default_acs_index"]
             else:
@@ -897,7 +899,24 @@ class SpidSAMLBackend(SAMLBackend):
             ]
             metadata.spsso_descriptor.attribute_consuming_service.append(cie_100)
 
-
+        if self.config["sp_config"].get("legal_entity_enable") is True:
+            # ACS index 4 — SPID Tipo 4 (uso professionale per la persona giuridica).
+            # Contiene sia attributi persona fisica sia attributi azienda, richiesti
+            # insieme quando l'AuthnRequest porta l'estensione Purpose=PG.
+            legal_entity_acs = saml2.md.AttributeConsumingService()
+            legal_entity_acs.index = '4'
+            legal_entity_acs.service_name.append(saml2.md.ServiceName(lang="it", text="Persona giuridica"))
+            legal_entity_acs.requested_attribute = [
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='spidCode'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='name'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='familyName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='fiscalNumber'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='email'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='companyName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='registeredOffice'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='ivaCode'),
+            ]
+            metadata.spsso_descriptor.attribute_consuming_service.append(legal_entity_acs)
 
         # load ContactPerson Extensions
         self._metadata_contact_person(metadata, conf)

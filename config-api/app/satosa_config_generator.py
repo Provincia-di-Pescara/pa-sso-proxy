@@ -126,7 +126,7 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
             "db_uri": redis_db1,
             "provider": {
                 "response_types_supported": ["code"],
-                "scopes_supported": ["openid", "profile", "email"],
+                "scopes_supported": ["openid", "profile", "email", "legal_entity"],
                 "subject_types_supported": ["pairwise", "public"],
                 "id_token_lifetime": 3600,
                 # extra_scopes replaces (not extends) the default oic scope→claims mapping,
@@ -137,11 +137,13 @@ def _oidc_frontend_yaml(hostname: str) -> dict:
                         "profile", "picture", "website", "gender", "birthdate",
                         "zoneinfo", "locale", "updated_at", "preferred_username",
                         "fiscal_number",
-                        # Presenti solo per identita' SPID persona giuridica (fiscal_number
-                        # con prefisso PG:IT-<piva>) - l'IdP non li invia per persona
-                        # fisica, l'applicativo verifica la loro presenza.
-                        "company_name", "registered_office", "iva_code",
                     ],
+                    # Claim azienda rilasciati solo ai client che richiedono
+                    # esplicitamente lo scope legal_entity (minimizzazione dati).
+                    # Presenti solo per identita' SPID persona giuridica (fiscal_number
+                    # con prefisso PG:IT-<piva>) - l'IdP non li invia per persona
+                    # fisica, l'applicativo verifica la loro presenza.
+                    "legal_entity": ["company_name", "registered_office", "iva_code"],
                 },
             },
         },
@@ -252,6 +254,7 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
         ],
         "metadata": metadata_config,
         "ficep_enable": getattr(settings, "eidas_enabled", False) is True,
+        "legal_entity_enable": getattr(settings, "legal_entity_enabled", False) is True,
         # ficep_entity_id: entity ID of the FICEP SP-proxy. Used by spidsaml2 backend
         # to set attribute_consuming_service_index=99 in the AuthnRequest when the
         # selected IdP is the eIDAS FICEP node (instead of the default SPID index 0).
@@ -277,9 +280,6 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
                 "allow_unknown_attributes": True,
                 "allow_unsolicited": True,
                 "required_attributes": ["spidCode", "name", "familyName", "fiscalNumber", "email"],
-                **({"optional_attributes": ["companyName", "registeredOffice", "ivaCode"]}
-                   if getattr(settings, "legal_entity_enabled", False) is True
-                   else {}),
                 "endpoints": {
                     "assertion_consumer_service": [
                         ["<base_url>/<name>/acs/post", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],

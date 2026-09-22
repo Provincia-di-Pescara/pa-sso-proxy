@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -42,7 +44,11 @@ async def test_legal_entity_config_page_loads(auth_client, db_session):
     ))
     await db_session.commit()
 
-    response = await auth_client.get("/admin/legal-entity")
+    with patch(
+        "app.routes.legal_entity.check_company_attributes",
+        new=AsyncMock(return_value={"valid": True, "has_company_attributes": False}),
+    ):
+        response = await auth_client.get("/admin/legal-entity")
     assert response.status_code == 200
     assert "Persona giuridica" in response.text
 

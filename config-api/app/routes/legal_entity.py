@@ -23,7 +23,8 @@ def _auth_check(request: Request):
 
 async def check_company_attributes() -> dict:
     """Verifica se il metadata SP pubblicato dichiara gli attributi
-    opzionali azienda (companyName) nell'AttributeConsumingService index 0."""
+    opzionali azienda (companyName) in un qualsiasi AttributeConsumingService
+    (l'ACS dedicato persona giuridica non è necessariamente index 0)."""
     satosa_url = os.environ.get("SATOSA_INTERNAL_URL", "http://satosa:8080")
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
@@ -36,14 +37,16 @@ async def check_company_attributes() -> dict:
             'md': 'urn:oasis:names:tc:SAML:2.0:metadata',
             'saml2': 'urn:oasis:names:tc:SAML:2.0:assertion',
         }
-        acs0 = root.find('.//md:AttributeConsumingService[@index="0"]', namespaces)
+        acs_list = root.findall('.//md:AttributeConsumingService', namespaces)
         has_company = False
-        if acs0 is not None:
+        for acs in acs_list:
             attr_names = [
                 a.attrib.get('Name')
-                for a in acs0.findall('md:RequestedAttribute', namespaces)
+                for a in acs.findall('md:RequestedAttribute', namespaces)
             ]
-            has_company = 'companyName' in attr_names
+            if 'companyName' in attr_names:
+                has_company = True
+                break
         return {"valid": True, "has_company_attributes": has_company}
     except Exception as e:
         return {"valid": False, "error": f"Errore di connessione a SATOSA: {str(e)}"}
