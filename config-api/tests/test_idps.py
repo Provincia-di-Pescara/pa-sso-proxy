@@ -1,5 +1,6 @@
 import pytest
 import pytest_asyncio
+from datetime import datetime, timezone
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import AsyncMock, patch
 
@@ -196,3 +197,30 @@ async def test_idps_toggle_mutual_exclusion(auth_client, db_session):
     await db_session.refresh(validator)
     assert demo.enabled is True
     assert validator.enabled is False
+
+
+async def test_idps_list_shows_active_cert_not_latest(auth_client, db_session):
+    from app.models import SpidCert
+    old = SpidCert(
+        certificate_pem="-----BEGIN CERTIFICATE-----\nold\n-----END CERTIFICATE-----",
+        private_key_pem="-----BEGIN PRIVATE KEY-----\nold\n-----END PRIVATE KEY-----",
+        not_valid_after=datetime(2036, 1, 1, tzinfo=timezone.utc),
+        subject_dn="CN=old.test.it",
+        is_active=True,
+    )
+    db_session.add(old)
+    await db_session.commit()
+    new = SpidCert(
+        certificate_pem="-----BEGIN CERTIFICATE-----\nnew\n-----END CERTIFICATE-----",
+        private_key_pem="-----BEGIN PRIVATE KEY-----\nnew\n-----END PRIVATE KEY-----",
+        not_valid_after=datetime(2036, 1, 1, tzinfo=timezone.utc),
+        subject_dn="CN=new.test.it",
+        is_active=False,
+    )
+    db_session.add(new)
+    await db_session.commit()
+
+    response = await auth_client.get("/admin/idps")
+    assert response.status_code == 200
+    assert "CN=old.test.it" in response.text
+    assert "CN=new.test.it" not in response.text

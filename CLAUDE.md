@@ -170,6 +170,13 @@ Quando un client OIDC chiede lo scope `legal_entity`, il backend SPID (`spidsaml
 
 **Abilitare persona giuridica modifica il metadata SPID** (nuovo ACS) → richiede ri-validazione AgID, stesso avviso già presente per eIDAS.
 
+### Storico certificati e metadata SPID/eIDAS
+`SpidCert.is_active` (un solo `True` alla volta, applicativo non DB) sostituisce la selezione "ultimo per data" in tutti i punti che leggono il cert attivo (`idps.py`, `dashboard.py`, `eidas.py`, `backup.py`). Storico consultabile in `/admin/certs`: export cert/chiave, riattivazione, eliminazione dei non-attivi.
+
+`spid_metadata_version` storicizza ogni XML di metadata generato da SATOSA: `spidsaml2.py` invia uno snapshot fire-and-forget a `POST /internal/spid-metadata-snapshot` dopo ogni `__create_metadata`. Un admin può "esporre" (rollback non distruttivo) una versione storica: `config-api` scrive/rimuove `/satosa-conf/spid_sp_metadata_override.xml`, che `_metadata_endpoint` serve al posto del metadata dinamico se presente (nessun reload necessario, letto ad ogni richiesta). Il file è rifiutato se è un symlink (`os.open(..., O_NOFOLLOW)`) — endpoint pubblico, stessa directory della chiave privata SPID.
+
+**Gotcha:** pysaml2 firma il metadata con un ID XML casuale (`sign_entity_descriptor(metadata, None, secc, ...)` → `ident=None` → `sid()`), quindi hash/firma cambiano ad **ogni reload SATOSA**, anche a configurazione invariata — il dedup su `content_hash` in `internal.py` funziona solo per snapshot letteralmente identici (es. race tra i 2 worker uWSGI), non per "stesso config, reload diverso". Storico più verboso del previsto per design — eliminazione manuale delle versioni non necessarie è l'unica leva.
+
 ### Reload SATOSA
 Il config-api segnala il reload toccando `/satosa-conf/.reload` (volume condiviso). uWSGI nel container satosa è configurato con `--touch-reload /satosa-conf/.reload` e ricarica i worker gracefully senza caduta delle connessioni. Non è necessario il Docker socket.
 
@@ -194,7 +201,11 @@ Pagina pubblica (no login admin) per validazione AgID. Gate: 404 se nessun IdP c
 
 Unico modo per testarli davvero: build dell'immagine satosa e pytest dentro il container (`docker build -t satosa-test -f satosa/Dockerfile satosa/`, poi `docker run --entrypoint sh satosa-test -c "... PYTHONPATH=/satosa_proxy pytest ..."`, import tipo `from backends.spidsaml2 import ...`). Vedi `.github/workflows/satosa-tests.yml` job `test-satosa-plugins-docker`.
 
+Comando reale che funziona (quello sopra fallisce con `pytest: not found` — niente venv su PATH): `docker run --rm -v "<repo>/satosa/tests:/tests" --entrypoint sh satosa-test -c ". /.venv/bin/activate && pip install -q -r /tests/requirements-test.txt && cd /satosa_proxy && PYTHONPATH=/satosa_proxy pytest /tests/test_spidsaml2.py -v"` — venv del pacchetto fork attivato esplicitamente, test montati da `/tests` (non `/satosa_proxy/tests`), dipendenze installate da `requirements-test.txt`.
+
 Su Windows/Git Bash, `-v "$PWD/...":...` nel `docker run` non risolve il path — usa `MSYS_NO_PATHCONV=1` e path assoluto `/c/Users/...`.
+
+**Parsing XML da input non fidato (upload admin, ecc.)**: usare sempre `defusedxml.ElementTree`, mai `xml.etree.ElementTree` stdlib (XXE/billion-laughs anche da utente autenticato). Dipendenza già in `config-api/requirements.txt`.
 
 ### CI/CD
 `docker/metadata-action` con `tags:` custom deve includere `type=ref,event=pr`, altrimenti su evento PR i tag sono vuoti (rompe step che dipendono da `steps.meta.outputs.tags`, es. scan Trivy).

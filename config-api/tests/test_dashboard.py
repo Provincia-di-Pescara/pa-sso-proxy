@@ -59,6 +59,38 @@ async def test_health_endpoint(app_env):
     assert response.json()["status"] == "ok"
 
 
+async def test_dashboard_shows_active_cert_not_latest(auth_client, db_session):
+    from datetime import datetime, timezone
+    from app.models import SpidCert
+
+    old = SpidCert(
+        certificate_pem="-----BEGIN CERTIFICATE-----\nold\n-----END CERTIFICATE-----",
+        private_key_pem="-----BEGIN PRIVATE KEY-----\nold\n-----END PRIVATE KEY-----",
+        not_valid_after=datetime(2036, 1, 1, tzinfo=timezone.utc),
+        subject_dn="CN=old.test.it",
+        is_active=True,
+    )
+    db_session.add(old)
+    await db_session.commit()
+    # Newer row (higher created_at / id), but not active — must NOT be shown.
+    new = SpidCert(
+        certificate_pem="-----BEGIN CERTIFICATE-----\nnew\n-----END CERTIFICATE-----",
+        private_key_pem="-----BEGIN PRIVATE KEY-----\nnew\n-----END PRIVATE KEY-----",
+        not_valid_after=datetime(2099, 12, 31, tzinfo=timezone.utc),
+        subject_dn="CN=new.test.it",
+        is_active=False,
+    )
+    db_session.add(new)
+    await db_session.commit()
+
+    response = await auth_client.get("/admin/")
+    assert response.status_code == 200
+    # The active (old) cert's expiry date is rendered...
+    assert "2036-01-01" in response.text
+    # ...while the newer, inactive cert's expiry date is not.
+    assert "2099-12-31" not in response.text
+
+
 @pytest.mark.asyncio
 async def test_satosa_status_running():
     from unittest.mock import AsyncMock, MagicMock, patch

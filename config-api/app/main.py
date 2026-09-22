@@ -19,7 +19,7 @@ from app.database import AsyncSessionLocal, engine, get_db
 from app.models import EnteSettings
 from app.rate_limiter import is_ip_banned, record_failed_attempt, clear_attempts
 from app.metadata_watcher import run_metadata_watcher, run_retention, fetch_spid_aggregate
-from app.routes import dashboard, clients, idps, settings, certs, cie, eidas, legal_entity, test_client, backup, access_log, internal, placeholders, verifica
+from app.routes import dashboard, clients, idps, settings, certs, cie, eidas, legal_entity, test_client, backup, access_log, internal, placeholders, verifica, metadata
 from app.satosa_generator import generate_and_write
 from app.spid_seeder import seed_spid_idps
 from app.trust_mark_fetcher import fetch_trust_mark
@@ -222,6 +222,7 @@ app.include_router(clients.router, prefix="/admin")
 app.include_router(idps.router, prefix="/admin")
 app.include_router(settings.router, prefix="/admin")
 app.include_router(certs.router, prefix="/admin")
+app.include_router(metadata.router, prefix="/admin")
 app.include_router(cie.router, prefix="/admin")
 app.include_router(test_client.router, prefix="/admin")
 app.include_router(backup.router, prefix="/admin")

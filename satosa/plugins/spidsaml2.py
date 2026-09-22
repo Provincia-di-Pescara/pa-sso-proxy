@@ -1,8 +1,10 @@
 import inspect
 import json
 import logging
+import os
 import re
 import urllib.parse
+import urllib.request
 
 import saml2
 import satosa.util as util
@@ -46,6 +48,49 @@ def _redact_pii_xml(raw_b64):
         )
     except Exception:
         return "[REDACTED: impossibile decodificare/redigere SAMLResponse per forensics]"
+
+
+def _report_metadata_snapshot(xml_text):
+    """
+    Invia in modo fire-and-forget il metadata SP generato a config-api, che lo
+    storicizza per permettere rollback non distruttivi. Errori/timeout non devono
+    mai bloccare l'inizializzazione del backend.
+    """
+    config_api_url = os.environ.get("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
+    url = f"{config_api_url}/internal/spid-metadata-snapshot"
+    try:
+        payload = json.dumps({"xml_content": xml_text}).encode("utf-8")
+        req = urllib.request.Request(
+            url, data=payload, headers={"Content-Type": "application/json"}, method="POST"
+        )
+        urllib.request.urlopen(req, timeout=2)
+    except Exception:
+        logger.warning("Failed to report metadata snapshot to config-api", exc_info=True)
+
+
+def _read_metadata_override():
+    """
+    Se un admin ha esposto (rollback) una versione di metadata storicizzata
+    diversa da quella corrente, config-api scrive il suo contenuto qui.
+    Ritorna None se nessun override è attivo (comportamento dinamico invariato).
+
+    L'endpoint /spidSaml2/metadata è pubblico e non autenticato: qualunque
+    fallimento nella lettura del file (assente, permessi, rimosso in una
+    race, o un attaccante con accesso in scrittura al volume condiviso che
+    lo rimpiazza con un symlink, es. verso spid_sp_key.pem) deve tradursi in
+    "nessun override" (fallback dinamico), mai in una 500 sull'endpoint
+    pubblico. os.O_NOFOLLOW rende il rifiuto del symlink atomico rispetto
+    all'apertura del file, chiudendo la finestra TOCTOU di un controllo
+    separato os.path.islink() prima dell'open.
+    """
+    conf_dir = os.environ.get("SATOSA_CONF_DIR", "/satosa-conf")
+    override_path = os.path.join(conf_dir, "spid_sp_metadata_override.xml")
+    try:
+        fd = os.open(override_path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd, "rb") as f:
+            return f.read()
+    except Exception:
+        return None
 
 
 def _post_access_log(provider_type, client_id, result, error_code=None):
@@ -176,6 +221,7 @@ class SpidSAMLBackend(SAMLBackend):
         logger.debug("inizializing metadata xmldoc")
         self.saml_base = saml2.md.SamlBase()
         self.xmldoc = self.__create_metadata(self.sp.config)
+        _report_metadata_snapshot(text_type(self.xmldoc))
 
     def _metadata_contact_person(self, metadata, conf):
         logger.debug(
@@ -326,6 +372,9 @@ class SpidSAMLBackend(SAMLBackend):
         :return: response with metadata
         """
         logger.debug("Sending metadata response")
+        override = _read_metadata_override()
+        if override is not None:
+            return Response(override, content="text/xml; charset=utf8")
         return Response(
             text_type(self.xmldoc).encode("utf-8"), content="text/xml; charset=utf8"
         )
