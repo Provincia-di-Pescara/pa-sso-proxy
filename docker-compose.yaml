@@ -94,8 +94,13 @@ services:
     depends_on:
       config-api:
         condition: service_healthy
+      # NON service_healthy: su volumi vuoti satosa parte unhealthy finché
+      # config-api non ha ripristinato cert/chiavi via /admin/backup/import
+      # (che passa PROPRIO da nginx). service_healthy qui crea un deadlock
+      # che richiede accesso console per sbloccare (docker start manuale) —
+      # vedi CLAUDE.md "Disaster recovery".
       satosa:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "${PROXY_HOST_PORT:-127.0.0.1:18080}:80"
     networks:
