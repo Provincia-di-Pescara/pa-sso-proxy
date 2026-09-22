@@ -139,3 +139,31 @@ async def test_certs_activate_switches_active_flag(auth_client, db_session):
     await db_session.refresh(new)
     assert old.is_active is False
     assert new.is_active is True
+
+
+async def test_certs_delete_active_is_blocked(auth_client, db_session):
+    from app.models import SpidCert
+    from sqlalchemy import select
+
+    cert = await _add_cert(db_session, "CN=active.test.it", is_active=True)
+
+    response = await auth_client.post(f"/admin/certs/{cert.id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+    assert "cert_error" in response.headers["location"]
+
+    result = await db_session.execute(select(SpidCert).where(SpidCert.id == cert.id))
+    assert result.scalar_one_or_none() is not None
+
+
+async def test_certs_delete_inactive_succeeds(auth_client, db_session):
+    from app.models import SpidCert
+    from sqlalchemy import select
+
+    cert = await _add_cert(db_session, "CN=inactive.test.it", is_active=False)
+
+    response = await auth_client.post(f"/admin/certs/{cert.id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/certs"
+
+    result = await db_session.execute(select(SpidCert).where(SpidCert.id == cert.id))
+    assert result.scalar_one_or_none() is None
