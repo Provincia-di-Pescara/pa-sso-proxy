@@ -2,8 +2,8 @@ publiccodeYmlVersion: "0"
 name: pa-sso-proxy
 url: "https://github.com/Provincia-di-Pescara/pa-sso-proxy"
 landingURL: "https://github.com/Provincia-di-Pescara/pa-sso-proxy"
-softwareVersion: "0.8.41"
-releaseDate: "2026-08-26"
+softwareVersion: "0.9.1"
+releaseDate: "2026-09-22"
 developmentStatus: "stable"
 softwareType: "standalone/web"
 platforms:

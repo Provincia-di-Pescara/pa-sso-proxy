@@ -2,6 +2,7 @@ import inspect
 import json
 import logging
 import re
+import urllib.parse
 
 import saml2
 import satosa.util as util
@@ -103,6 +104,32 @@ SPID_ANOMALIES = {
         ),
     },
 }
+
+def _legal_entity_requested(context) -> bool:
+    """True se la richiesta OIDC originale include lo scope 'legal_entity'."""
+    for v in context.state.values():
+        if isinstance(v, dict) and "oidc_request" in v:
+            oidc_request = v["oidc_request"]
+            if not oidc_request:
+                return False
+            try:
+                params = urllib.parse.parse_qs(oidc_request)
+            except Exception as e:
+                logger.warning(f"Failed to parse oidc_request query params: {e}")
+                return False
+            scopes = params.get("scope", [""])[0].split()
+            return "legal_entity" in scopes
+    return False
+
+
+def _build_purpose_extension(purpose: str) -> "saml2.samlp.Extensions":
+    """Costruisce <samlp:Extensions><spid:Purpose>PURPOSE</spid:Purpose></samlp:Extensions>
+    come da Avviso AgID n.18 v.2 (identita' Tipo 3/4 uso professionale)."""
+    ext = saml2.ExtensionElement(
+        "Purpose", namespace="https://spid.gov.it/saml-extensions", text=purpose
+    )
+    return saml2.samlp.Extensions(extension_elements=[ext])
+
 
 _TROUBLESHOOT_MSG = (
     "È stato riscontrato un problema di validazione "
@@ -435,6 +462,8 @@ class SpidSAMLBackend(SAMLBackend):
                 value = custom_index
             elif acs_index is not None:
                 value = acs_index
+            elif _legal_entity_requested(context):
+                value = self.config["sp_config"].get("legal_entity_acs_index", "4")
             elif entity_id == self.config["sp_config"].get("ficep_entity_id"):
                 value = self.config["sp_config"]["ficep_default_acs_index"]
             else:
@@ -460,6 +489,8 @@ class SpidSAMLBackend(SAMLBackend):
 
             # TODO: use a parameter instead
             authn_req.requested_authn_context = req_authn_context
+            if _legal_entity_requested(context):
+                authn_req.extensions = _build_purpose_extension("PG")
             authn_req.protocol_binding = binding
 
             assertion_consumer_service_url = client.config._sp_endpoints[
@@ -868,7 +899,24 @@ class SpidSAMLBackend(SAMLBackend):
             ]
             metadata.spsso_descriptor.attribute_consuming_service.append(cie_100)
 
-
+        if self.config["sp_config"].get("legal_entity_enable") is True:
+            # ACS index 4 — SPID Tipo 4 (uso professionale per la persona giuridica).
+            # Contiene sia attributi persona fisica sia attributi azienda, richiesti
+            # insieme quando l'AuthnRequest porta l'estensione Purpose=PG.
+            legal_entity_acs = saml2.md.AttributeConsumingService()
+            legal_entity_acs.index = '4'
+            legal_entity_acs.service_name.append(saml2.md.ServiceName(lang="it", text="Persona giuridica"))
+            legal_entity_acs.requested_attribute = [
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='spidCode'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='name'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='familyName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='fiscalNumber'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='email'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='companyName'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='registeredOffice'),
+                saml2.md.RequestedAttribute(is_required='true', name_format=None, name='ivaCode'),
+            ]
+            metadata.spsso_descriptor.attribute_consuming_service.append(legal_entity_acs)
 
         # load ContactPerson Extensions
         self._metadata_contact_person(metadata, conf)

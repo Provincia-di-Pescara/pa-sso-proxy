@@ -203,3 +203,29 @@ async def test_client_edit_updates_record(auth_client, db_session):
     assert c.name == "New Name"
     assert c.redirect_uris == ["https://new.test/cb"]
     assert "email" in c.allowed_scopes
+
+
+async def test_client_form_shows_legal_entity_scope_option(auth_client):
+    response = await auth_client.get("/admin/clients/new")
+    assert response.status_code == 200
+    assert 'value="legal_entity"' in response.text
+
+
+async def test_client_create_with_legal_entity_scope(auth_client, db_session):
+    from sqlalchemy import select
+
+    with patch("app.routes.clients.generate_and_write", new_callable=AsyncMock), \
+         patch("app.routes.clients.reload_satosa", return_value=True):
+        response = await auth_client.post(
+            "/admin/clients/new",
+            data={
+                "name": "App Aziende",
+                "redirect_uris": "https://app.test.it/callback",
+                "scopes": ["openid", "profile", "legal_entity"],
+            },
+            follow_redirects=False,
+        )
+    assert response.status_code == 302
+
+    client = (await db_session.execute(select(OIDCClient).where(OIDCClient.name == "App Aziende"))).scalar_one()
+    assert "legal_entity" in client.allowed_scopes
