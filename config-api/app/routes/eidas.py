@@ -2,16 +2,14 @@ import asyncio
 import os
 import xml.etree.ElementTree as ET
 import httpx
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.jinja_templates import templates
-from app.models import EnteSettings, SpidIdP, SpidCert
+from app.models import EnteSettings, SpidIdP
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 
@@ -54,34 +52,10 @@ async def check_sp_metadata() -> dict:
         return {"valid": False, "error": f"Errore di connessione a SATOSA: {str(e)}"}
 
 
-@router.get("/eidas", response_class=HTMLResponse)
-async def eidas_config_page(request: Request, db: AsyncSession = Depends(get_db)):
-    if not _auth_check(request):
-        return RedirectResponse("/admin/login", status_code=302)
-
-    s = (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
-    proxy_hostname = s.proxy_hostname if s else "localhost"
-    
-    cert_result = await db.execute(select(SpidCert).where(SpidCert.is_active == True).limit(1))
-    cert = cert_result.scalar_one_or_none()
-    
-    saved = request.query_params.get("saved") == "1"
-    # Skip metadata check immediately after save: SATOSA may still be reloading.
-    metadata_status = None if saved else await check_sp_metadata()
-
-    return templates.TemplateResponse(
-        request,
-        "eidas/config.html.j2",
-        {
-            "s": s,
-            "proxy_hostname": proxy_hostname,
-            "metadata_status": metadata_status,
-            "cert": cert,
-            "cert_error": request.query_params.get("cert_error"),
-            "saved": saved,
-            "now": datetime.now(timezone.utc),
-        },
-    )
+@router.get("/eidas")
+async def eidas_config_page_redirect(request: Request):
+    """Pagina dedicata rimossa: eIDAS ora vive come sezione di /admin/idps."""
+    return RedirectResponse("/admin/idps#eidas", status_code=301)
 
 
 @router.post("/eidas/toggle")
@@ -98,7 +72,7 @@ async def eidas_toggle(
 
     s = (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
     if s is None:
-        return RedirectResponse("/admin/eidas", status_code=302)
+        return RedirectResponse("/admin/idps#eidas", status_code=302)
 
     if action is None:
         # New switch form: eidas_enabled checkbox present => enable, absent => disable
@@ -108,7 +82,7 @@ async def eidas_toggle(
         enable = action == "enable"
 
     if enable and confirmed != "yes":
-        return RedirectResponse("/admin/eidas?eidas_warning=1", status_code=302)
+        return RedirectResponse("/admin/idps?eidas_warning=1#eidas", status_code=302)
 
     s.eidas_enabled = enable
     s.eidas_environment = environment
@@ -130,4 +104,4 @@ async def eidas_toggle(
     except Exception:
         pass
 
-    return RedirectResponse("/admin/eidas?saved=1", status_code=302)
+    return RedirectResponse("/admin/idps?saved=1#eidas", status_code=302)

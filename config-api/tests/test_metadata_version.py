@@ -49,19 +49,21 @@ async def test_spid_metadata_version_defaults(db_session):
     assert row.cert_id is None
 
 
-async def test_metadata_history_page_loads_empty(auth_client):
-    response = await auth_client.get("/admin/metadata")
-    assert response.status_code == 200
-    assert "Nessuna versione" in response.text
+async def test_metadata_get_page_redirects_to_idps(auth_client):
+    """La pagina dedicata /admin/metadata non esiste più: è il tab 'Gestione metadata' di /admin/idps."""
+    response = await auth_client.get("/admin/metadata", follow_redirects=False)
+    assert response.status_code == 301
+    assert response.headers["location"] == "/admin/idps#gestione-metadata"
 
 
-async def test_metadata_history_page_lists_versions(auth_client, db_session):
+async def test_idps_page_lists_metadata_versions_in_gestione_tab(auth_client, db_session):
     db_session.add(SpidMetadataVersion(
         source="generated", xml_content="<A/>", content_hash="h1abcdef0123", is_exposed=True,
     ))
     await db_session.commit()
-    response = await auth_client.get("/admin/metadata")
+    response = await auth_client.get("/admin/idps")
     assert response.status_code == 200
+    assert 'id="gestione-metadata"' in response.text
     assert "h1abcdef0123" in response.text
     assert "Esposto" in response.text
 
@@ -123,7 +125,7 @@ async def test_expose_warns_when_cert_mismatch(auth_client, db_session, tmp_path
 
     response = await auth_client.post(f"/admin/metadata/{older.id}/expose", follow_redirects=False)
     assert response.status_code == 303
-    assert "warning=" in response.headers["location"]
+    assert "metadata_warning=" in response.headers["location"]
 
 
 async def test_validate_switches_flag(auth_client, db_session):
@@ -150,7 +152,7 @@ async def test_upload_valid_xml_creates_uploaded_row(auth_client, db_session):
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert "error=" not in response.headers["location"]
+    assert "metadata_error=" not in response.headers["location"]
 
     result = await db_session.execute(select(SpidMetadataVersion))
     rows = result.scalars().all()
@@ -167,7 +169,7 @@ async def test_upload_invalid_xml_rejected(auth_client, db_session):
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert "error=" in response.headers["location"]
+    assert "metadata_error=" in response.headers["location"]
 
     result = await db_session.execute(select(SpidMetadataVersion))
     assert result.scalars().all() == []
@@ -192,7 +194,7 @@ async def test_delete_blocked_if_exposed(auth_client, db_session):
 
     response = await auth_client.post(f"/admin/metadata/{v.id}/delete", follow_redirects=False)
     assert response.status_code == 303
-    assert "error=" in response.headers["location"]
+    assert "metadata_error=" in response.headers["location"]
 
     result = await db_session.execute(select(SpidMetadataVersion).where(SpidMetadataVersion.id == v.id))
     assert result.scalar_one_or_none() is not None
@@ -209,3 +211,33 @@ async def test_delete_removes_unexposed_unvalidated_row(auth_client, db_session)
 
     result = await db_session.execute(select(SpidMetadataVersion).where(SpidMetadataVersion.id == v.id))
     assert result.scalar_one_or_none() is None
+
+
+async def test_regenerate_metadata_triggers_reload_and_redirects(auth_client, db_session):
+    from unittest.mock import AsyncMock, patch
+
+    with patch("app.routes.metadata.generate_and_write", new=AsyncMock()) as mock_gen, \
+         patch("app.routes.metadata.reload_satosa") as mock_reload:
+        response = await auth_client.post("/admin/metadata/regenerate", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/idps#gestione-metadata"
+    mock_gen.assert_awaited_once()
+    mock_reload.assert_called_once()
+
+
+async def test_regenerate_metadata_requires_auth(db_session, app_env):
+    from httpx import AsyncClient, ASGITransport
+    from app.database import get_db
+
+    async def override_get_db():
+        yield db_session
+
+    from app.main import app
+    app.dependency_overrides[get_db] = override_get_db
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/admin/metadata/regenerate", follow_redirects=False)
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/admin/login"

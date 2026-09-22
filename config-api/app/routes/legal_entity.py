@@ -4,12 +4,11 @@ import xml.etree.ElementTree as ET
 import httpx
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.jinja_templates import templates
 from app.models import EnteSettings
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
@@ -52,25 +51,10 @@ async def check_company_attributes() -> dict:
         return {"valid": False, "error": f"Errore di connessione a SATOSA: {str(e)}"}
 
 
-@router.get("/legal-entity", response_class=HTMLResponse)
-async def legal_entity_config_page(request: Request, db: AsyncSession = Depends(get_db)):
-    if not _auth_check(request):
-        return RedirectResponse("/admin/login", status_code=302)
-
-    s = (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
-
-    saved = request.query_params.get("saved") == "1"
-    metadata_status = None if saved else await check_company_attributes()
-
-    return templates.TemplateResponse(
-        request,
-        "legal_entity/config.html.j2",
-        {
-            "s": s,
-            "saved": saved,
-            "metadata_status": metadata_status,
-        },
-    )
+@router.get("/legal-entity")
+async def legal_entity_config_page_redirect(request: Request):
+    """Pagina dedicata rimossa: persona giuridica ora vive come sezione di /admin/idps."""
+    return RedirectResponse("/admin/idps#persona-giuridica", status_code=301)
 
 
 @router.post("/legal-entity/toggle")
@@ -85,12 +69,12 @@ async def legal_entity_toggle(
 
     s = (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
     if s is None:
-        return RedirectResponse("/admin/legal-entity", status_code=302)
+        return RedirectResponse("/admin/idps#persona-giuridica", status_code=302)
 
     enable = legal_entity_enabled in ("yes", "on", "true", "1")
 
     if enable and confirmed != "yes":
-        return RedirectResponse("/admin/legal-entity?warning=1", status_code=302)
+        return RedirectResponse("/admin/idps?legal_entity_warning=1#persona-giuridica", status_code=302)
 
     s.legal_entity_enabled = enable
     await db.commit()
@@ -101,4 +85,4 @@ async def legal_entity_toggle(
     except Exception:
         pass
 
-    return RedirectResponse("/admin/legal-entity?saved=1", status_code=302)
+    return RedirectResponse("/admin/idps?saved=1#persona-giuridica", status_code=302)

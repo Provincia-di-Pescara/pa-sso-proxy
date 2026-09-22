@@ -12,11 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.metadata_watcher import fetch_idp_metadata, fetch_spid_aggregate
-from app.models import SpidIdP, EnteSettings, SpidCert
+from app.models import SpidIdP, EnteSettings, SpidCert, SpidMetadataVersion
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_seeder import sync_spid_idps_from_registry
 from app.routes.eidas import check_sp_metadata
+from app.routes.legal_entity import check_company_attributes
 
 router = APIRouter()
 
@@ -152,13 +153,40 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     cert = cert_result.scalar_one_or_none()
     cert_error = request.query_params.get("cert_error")
 
-    metadata_status = await check_sp_metadata()
+    saved = request.query_params.get("saved") == "1"
+    # Skip metadata check immediately after save: SATOSA may still be reloading.
+    if saved:
+        metadata_status = None
+        legal_entity_metadata_status = None
+    else:
+        metadata_status = await check_sp_metadata()
+        legal_entity_metadata_status = await check_company_attributes()
+
+    test_provider_enabled = bool(
+        (demo_idp and demo_idp.enabled) or (validator_idp and validator_idp.enabled)
+    )
+    registry_provider_enabled = any(item.enabled for item in idps)
+
+    metadata_versions_result = await db.execute(
+        select(SpidMetadataVersion).order_by(SpidMetadataVersion.created_at.desc())
+    )
+    metadata_versions = metadata_versions_result.scalars().all()
+    metadata_exposed_mismatch = any(
+        v.is_exposed and v.cert_id is not None and (cert is None or v.cert_id != cert.id)
+        for v in metadata_versions
+    )
 
     return templates.TemplateResponse(
         request,
         "idps/list.html.j2",
         {
             "idps": idps,
+            "test_provider_enabled": test_provider_enabled,
+            "registry_provider_enabled": registry_provider_enabled,
+            "metadata_versions": metadata_versions,
+            "metadata_exposed_mismatch": metadata_exposed_mismatch,
+            "metadata_error": request.query_params.get("metadata_error"),
+            "metadata_warning": request.query_params.get("metadata_warning"),
             "sync_status": sync_status,
             "sync_inserted": sync_inserted,
             "sync_error": sync_error,
@@ -166,10 +194,15 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
             "demo_idp": demo_idp,
             "validator_idp": validator_idp,
             "proxy_hostname": proxy_hostname,
+            "s": settings,
             "cert": cert,
             "cert_error": cert_error,
             "now": datetime.now(timezone.utc),
             "metadata_status": metadata_status,
+            "legal_entity_metadata_status": legal_entity_metadata_status,
+            "saved": saved,
+            "eidas_warning": request.query_params.get("eidas_warning"),
+            "legal_entity_warning": request.query_params.get("legal_entity_warning"),
         },
     )
 

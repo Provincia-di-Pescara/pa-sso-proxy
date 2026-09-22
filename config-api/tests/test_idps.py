@@ -224,3 +224,24 @@ async def test_idps_list_shows_active_cert_not_latest(auth_client, db_session):
     assert response.status_code == 200
     assert "CN=old.test.it" in response.text
     assert "CN=new.test.it" not in response.text
+
+
+async def test_idps_page_shows_eidas_and_legal_entity_sections(auth_client, db_session):
+    """/admin/idps ora riunifica SPID + eIDAS + persona giuridica in un'unica pagina."""
+    from app.models import EnteSettings
+
+    db_session.add(EnteSettings(
+        id=1, org_display_name="Test Ente", org_name="Test Ente",
+        org_url="https://test.it", proxy_hostname="sso.test.it",
+        ipa_code="TEST", contact_email="test@test.it", contact_phone="+39",
+        org_city="Pescara",
+    ))
+    await db_session.commit()
+
+    response = await auth_client.get("/admin/idps")
+    assert response.status_code == 200
+    assert 'id="spid"' in response.text
+    assert 'id="eidas"' in response.text
+    assert 'id="persona-giuridica"' in response.text
+    assert "Integrazione eIDAS" in response.text
+    assert "Accesso SPID persona giuridica" in response.text
