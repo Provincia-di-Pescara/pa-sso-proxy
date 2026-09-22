@@ -30,7 +30,11 @@ async def certs_history(request: Request, db: AsyncSession = Depends(get_db)):
     return templates.TemplateResponse(
         request,
         "certs/status.html.j2",
-        {"certs": certs, "now": datetime.now(timezone.utc)},
+        {
+            "certs": certs,
+            "now": datetime.now(timezone.utc),
+            "cert_error": request.query_params.get("cert_error"),
+        },
     )
 
 

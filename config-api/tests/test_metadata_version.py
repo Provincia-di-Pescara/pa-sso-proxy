@@ -57,12 +57,13 @@ async def test_metadata_history_page_loads_empty(auth_client):
 
 async def test_metadata_history_page_lists_versions(auth_client, db_session):
     db_session.add(SpidMetadataVersion(
-        source="generated", xml_content="<A/>", content_hash="h1", is_exposed=True,
+        source="generated", xml_content="<A/>", content_hash="h1abcdef0123", is_exposed=True,
     ))
     await db_session.commit()
     response = await auth_client.get("/admin/metadata")
     assert response.status_code == 200
-    assert "generated" in response.text or "Generato" in response.text
+    assert "h1abcdef0123" in response.text
+    assert "Esposto" in response.text
 
 
 async def test_expose_non_latest_writes_override_file(auth_client, db_session, tmp_path, monkeypatch):

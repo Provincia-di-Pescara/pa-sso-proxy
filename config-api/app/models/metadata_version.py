@@ -1,12 +1,15 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
 
 
 class SpidMetadataVersion(Base):
     __tablename__ = "spid_metadata_version"
+    __table_args__ = (
+        UniqueConstraint("source", "content_hash", name="uq_spid_metadata_version_source_content_hash"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source: Mapped[str] = mapped_column(String(16), nullable=False)  # "generated" | "uploaded"

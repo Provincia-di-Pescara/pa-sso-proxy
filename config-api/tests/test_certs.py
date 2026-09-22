@@ -155,6 +155,19 @@ async def test_certs_delete_active_is_blocked(auth_client, db_session):
     assert result.scalar_one_or_none() is not None
 
 
+async def test_certs_history_renders_cert_error_from_query_param(auth_client, db_session):
+    cert = await _add_cert(db_session, "CN=active.test.it", is_active=True)
+
+    delete_resp = await auth_client.post(f"/admin/certs/{cert.id}/delete", follow_redirects=False)
+    assert delete_resp.status_code == 303
+    location = delete_resp.headers["location"]
+    assert "cert_error" in location
+
+    follow_resp = await auth_client.get(location)
+    assert follow_resp.status_code == 200
+    assert "Impossibile eliminare il certificato attivo." in follow_resp.text
+
+
 async def test_certs_delete_inactive_succeeds(auth_client, db_session):
     from app.models import SpidCert
     from sqlalchemy import select

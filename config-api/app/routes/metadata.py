@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from app.jinja_templates import templates
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -77,8 +78,14 @@ async def metadata_expose(version_id: int, request: Request, db: AsyncSession = 
             os.remove(override_path)
     else:
         os.makedirs(os.path.dirname(override_path), exist_ok=True)
-        with open(override_path, "w", encoding="utf-8") as f:
+        # Atomic write: write to a temp file in the same directory then
+        # os.replace() (atomic on POSIX) into place, so a concurrent public
+        # request to /spidSaml2/metadata never observes a truncated/partial
+        # file (this repo only runs on Linux containers for SATOSA/config-api).
+        tmp_path = override_path + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
             f.write(version.xml_content)
+        os.replace(tmp_path, override_path)
 
     warning = None
     if version.cert_id is not None:
@@ -134,7 +141,14 @@ async def metadata_upload(request: Request, db: AsyncSession = Depends(get_db), 
     content_hash = hashlib.sha256(xml_text.encode("utf-8")).hexdigest()
     row = SpidMetadataVersion(source="uploaded", xml_content=xml_text, content_hash=content_hash, is_exposed=False)
     db.add(row)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return RedirectResponse(
+            f"/admin/metadata?error={quote('Questa versione di metadata è già stata caricata in precedenza.')}",
+            status_code=303,
+        )
     return RedirectResponse("/admin/metadata", status_code=303)
 
 
