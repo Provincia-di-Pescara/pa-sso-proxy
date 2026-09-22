@@ -133,3 +133,15 @@ def test_report_metadata_snapshot_swallows_errors(monkeypatch):
 
     monkeypatch.setattr("backends.spidsaml2.urllib.request.urlopen", fake_urlopen)
     spidsaml2._report_metadata_snapshot("<EntityDescriptor/>")  # non deve sollevare
+
+
+def test_read_metadata_override_returns_none_if_missing(monkeypatch, tmp_path):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    assert spidsaml2._read_metadata_override() is None
+
+
+def test_read_metadata_override_returns_bytes_if_present(monkeypatch, tmp_path):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    override_path = tmp_path / "spid_sp_metadata_override.xml"
+    override_path.write_text("<Overridden/>")
+    assert spidsaml2._read_metadata_override() == b"<Overridden/>"

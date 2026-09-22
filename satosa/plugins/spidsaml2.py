@@ -68,6 +68,20 @@ def _report_metadata_snapshot(xml_text):
         logger.warning("Failed to report metadata snapshot to config-api", exc_info=True)
 
 
+def _read_metadata_override():
+    """
+    Se un admin ha esposto (rollback) una versione di metadata storicizzata
+    diversa da quella corrente, config-api scrive il suo contenuto qui.
+    Ritorna None se nessun override è attivo (comportamento dinamico invariato).
+    """
+    conf_dir = os.environ.get("SATOSA_CONF_DIR", "/satosa-conf")
+    override_path = os.path.join(conf_dir, "spid_sp_metadata_override.xml")
+    if not os.path.exists(override_path):
+        return None
+    with open(override_path, "rb") as f:
+        return f.read()
+
+
 def _post_access_log(provider_type, client_id, result, error_code=None):
     try:
         import json as _json
@@ -347,6 +361,9 @@ class SpidSAMLBackend(SAMLBackend):
         :return: response with metadata
         """
         logger.debug("Sending metadata response")
+        override = _read_metadata_override()
+        if override is not None:
+            return Response(override, content="text/xml; charset=utf8")
         return Response(
             text_type(self.xmldoc).encode("utf-8"), content="text/xml; charset=utf8"
         )
