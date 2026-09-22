@@ -2,6 +2,7 @@ import inspect
 import json
 import logging
 import re
+import urllib.parse
 
 import saml2
 import satosa.util as util
@@ -103,6 +104,32 @@ SPID_ANOMALIES = {
         ),
     },
 }
+
+def _legal_entity_requested(context) -> bool:
+    """True se la richiesta OIDC originale include lo scope 'legal_entity'."""
+    for v in context.state.values():
+        if isinstance(v, dict) and "oidc_request" in v:
+            oidc_request = v["oidc_request"]
+            if not oidc_request:
+                return False
+            try:
+                params = urllib.parse.parse_qs(oidc_request)
+            except Exception as e:
+                logger.warning(f"Failed to parse oidc_request query params: {e}")
+                return False
+            scopes = params.get("scope", [""])[0].split()
+            return "legal_entity" in scopes
+    return False
+
+
+def _build_purpose_extension(purpose: str) -> "saml2.samlp.Extensions":
+    """Costruisce <samlp:Extensions><spid:Purpose>PURPOSE</spid:Purpose></samlp:Extensions>
+    come da Avviso AgID n.18 v.2 (identita' Tipo 3/4 uso professionale)."""
+    ext = saml2.ExtensionElement(
+        "Purpose", namespace="https://spid.gov.it/saml-extensions", text=purpose
+    )
+    return saml2.samlp.Extensions(extension_elements=[ext])
+
 
 _TROUBLESHOOT_MSG = (
     "È stato riscontrato un problema di validazione "
@@ -460,6 +487,8 @@ class SpidSAMLBackend(SAMLBackend):
 
             # TODO: use a parameter instead
             authn_req.requested_authn_context = req_authn_context
+            if _legal_entity_requested(context):
+                authn_req.extensions = _build_purpose_extension("PG")
             authn_req.protocol_binding = binding
 
             assertion_consumer_service_url = client.config._sp_endpoints[

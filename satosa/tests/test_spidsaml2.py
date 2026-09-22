@@ -74,3 +74,36 @@ def test_post_access_log_swallows_network_errors(mock_urlopen):
     # Fire-and-forget: un errore di rete verso config-api non deve mai
     # propagare e rompere il flusso di autenticazione SPID.
     spidsaml2._post_access_log("spid", "client123", "failure", "19")
+
+
+class _FakeContext:
+    def __init__(self, state):
+        self.state = state
+
+
+def test_legal_entity_requested_true_when_scope_present():
+    ctx = _FakeContext({"OIDC": {"oidc_request": "client_id=x&scope=openid+profile+legal_entity&state=y"}})
+    assert spidsaml2._legal_entity_requested(ctx) is True
+
+
+def test_legal_entity_requested_false_when_scope_absent():
+    ctx = _FakeContext({"OIDC": {"oidc_request": "client_id=x&scope=openid+profile&state=y"}})
+    assert spidsaml2._legal_entity_requested(ctx) is False
+
+
+def test_legal_entity_requested_false_when_no_oidc_request():
+    ctx = _FakeContext({"OIDC": {"oidc_request": None}})
+    assert spidsaml2._legal_entity_requested(ctx) is False
+
+
+def test_legal_entity_requested_false_when_state_has_no_oidc_key():
+    ctx = _FakeContext({"some_other_key": {"foo": "bar"}})
+    assert spidsaml2._legal_entity_requested(ctx) is False
+
+
+def test_build_purpose_extension_produces_expected_xml():
+    ext = spidsaml2._build_purpose_extension("PG")
+    xml = ext.to_string().decode("utf-8") if isinstance(ext.to_string(), bytes) else ext.to_string()
+    assert 'https://spid.gov.it/saml-extensions' in xml
+    assert '<spid:Purpose' in xml or ':Purpose' in xml
+    assert '>PG<' in xml
