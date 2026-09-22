@@ -149,9 +149,43 @@ def test_read_metadata_override_returns_bytes_if_present(monkeypatch, tmp_path):
 
 
 def test_read_metadata_override_returns_none_if_symlink(monkeypatch, tmp_path):
+    # os.O_NOFOLLOW makes the open() itself refuse a symlinked override file
+    # atomically (no separate os.path.islink() TOCTOU window). This exercises
+    # the ELOOP path of the single try/except in _read_metadata_override.
     monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
     secret_path = tmp_path / "spid_sp_key.pem"
     secret_path.write_text("-----BEGIN PRIVATE KEY-----\nSECRET\n-----END PRIVATE KEY-----")
     override_path = tmp_path / "spid_sp_metadata_override.xml"
     os.symlink(secret_path, override_path)
     assert spidsaml2._read_metadata_override() is None
+
+
+def test_read_metadata_override_returns_none_if_unreadable(monkeypatch, tmp_path):
+    # A permission error (or any other OSError raised by os.open — file
+    # removed mid-request in a race, etc.) is caught by the same broad
+    # `except Exception` branch as the symlink case above: any failure to
+    # open falls back to None (dynamic metadata) instead of raising and
+    # 500-ing the public /spidSaml2/metadata endpoint.
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    override_path = tmp_path / "spid_sp_metadata_override.xml"
+    override_path.write_text("<Overridden/>")
+
+    def fake_open(path, flags):
+        raise PermissionError("Permission denied")
+
+    monkeypatch.setattr("backends.spidsaml2.os.open", fake_open)
+    assert spidsaml2._read_metadata_override() is None
+
+
+def test_read_metadata_override_round_trips_atomic_write(monkeypatch, tmp_path):
+    # Mirrors the write side in config-api/app/routes/metadata.py: write to
+    # a temp file then os.replace() into place. The read side must still
+    # see the final content after that atomic swap.
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    override_path = tmp_path / "spid_sp_metadata_override.xml"
+    tmp_write_path = str(override_path) + ".tmp"
+    with open(tmp_write_path, "w", encoding="utf-8") as f:
+        f.write("<AtomicallyWritten/>")
+    os.replace(tmp_write_path, str(override_path))
+
+    assert spidsaml2._read_metadata_override() == b"<AtomicallyWritten/>"

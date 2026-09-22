@@ -73,22 +73,24 @@ def _read_metadata_override():
     Se un admin ha esposto (rollback) una versione di metadata storicizzata
     diversa da quella corrente, config-api scrive il suo contenuto qui.
     Ritorna None se nessun override è attivo (comportamento dinamico invariato).
+
+    L'endpoint /spidSaml2/metadata è pubblico e non autenticato: qualunque
+    fallimento nella lettura del file (assente, permessi, rimosso in una
+    race, o un attaccante con accesso in scrittura al volume condiviso che
+    lo rimpiazza con un symlink, es. verso spid_sp_key.pem) deve tradursi in
+    "nessun override" (fallback dinamico), mai in una 500 sull'endpoint
+    pubblico. os.O_NOFOLLOW rende il rifiuto del symlink atomico rispetto
+    all'apertura del file, chiudendo la finestra TOCTOU di un controllo
+    separato os.path.islink() prima dell'open.
     """
     conf_dir = os.environ.get("SATOSA_CONF_DIR", "/satosa-conf")
     override_path = os.path.join(conf_dir, "spid_sp_metadata_override.xml")
-    if not os.path.exists(override_path):
+    try:
+        fd = os.open(override_path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd, "rb") as f:
+            return f.read()
+    except Exception:
         return None
-    if os.path.islink(override_path):
-        # L'endpoint /spidSaml2/metadata è pubblico e non autenticato: se un
-        # attaccante con accesso in scrittura al volume condiviso rimpiazza
-        # questo file con un symlink (es. verso spid_sp_key.pem), non deve
-        # essere servito. Trattalo come "nessun override" (fallback dinamico).
-        logger.warning(
-            "spid_sp_metadata_override.xml è un symlink: ignorato per sicurezza"
-        )
-        return None
-    with open(override_path, "rb") as f:
-        return f.read()
 
 
 def _post_access_log(provider_type, client_id, result, error_code=None):
