@@ -10,7 +10,7 @@ richiederebbe una configurazione SPID SP completa fuori scope per unit test
 per fixture analoghe se in futuro si vuole coprire anche questo.
 """
 import base64
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import backends.spidsaml2 as spidsaml2
 
@@ -107,3 +107,29 @@ def test_build_purpose_extension_produces_expected_xml():
     assert 'https://spid.gov.it/saml-extensions' in xml
     assert '<spid:Purpose' in xml or ':Purpose' in xml
     assert '>PG<' in xml
+
+
+def test_report_metadata_snapshot_posts_xml(monkeypatch):
+    monkeypatch.setenv("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
+    captured = {}
+
+    def fake_urlopen(req, timeout):
+        captured["url"] = req.full_url
+        captured["data"] = req.data
+        captured["method"] = req.get_method()
+        return MagicMock()
+
+    monkeypatch.setattr("backends.spidsaml2.urllib.request.urlopen", fake_urlopen)
+    spidsaml2._report_metadata_snapshot("<EntityDescriptor/>")
+
+    assert captured["url"] == "http://config-api:8000/internal/spid-metadata-snapshot"
+    assert captured["method"] == "POST"
+    assert b"EntityDescriptor" in captured["data"]
+
+
+def test_report_metadata_snapshot_swallows_errors(monkeypatch):
+    def fake_urlopen(req, timeout):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr("backends.spidsaml2.urllib.request.urlopen", fake_urlopen)
+    spidsaml2._report_metadata_snapshot("<EntityDescriptor/>")  # non deve sollevare

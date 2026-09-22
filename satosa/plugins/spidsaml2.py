@@ -1,8 +1,10 @@
 import inspect
 import json
 import logging
+import os
 import re
 import urllib.parse
+import urllib.request
 
 import saml2
 import satosa.util as util
@@ -46,6 +48,24 @@ def _redact_pii_xml(raw_b64):
         )
     except Exception:
         return "[REDACTED: impossibile decodificare/redigere SAMLResponse per forensics]"
+
+
+def _report_metadata_snapshot(xml_text):
+    """
+    Invia in modo fire-and-forget il metadata SP generato a config-api, che lo
+    storicizza per permettere rollback non distruttivi. Errori/timeout non devono
+    mai bloccare l'inizializzazione del backend.
+    """
+    config_api_url = os.environ.get("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
+    url = f"{config_api_url}/internal/spid-metadata-snapshot"
+    try:
+        payload = json.dumps({"xml_content": xml_text}).encode("utf-8")
+        req = urllib.request.Request(
+            url, data=payload, headers={"Content-Type": "application/json"}, method="POST"
+        )
+        urllib.request.urlopen(req, timeout=2)
+    except Exception:
+        logger.warning("Failed to report metadata snapshot to config-api", exc_info=True)
 
 
 def _post_access_log(provider_type, client_id, result, error_code=None):
@@ -176,6 +196,7 @@ class SpidSAMLBackend(SAMLBackend):
         logger.debug("inizializing metadata xmldoc")
         self.saml_base = saml2.md.SamlBase()
         self.xmldoc = self.__create_metadata(self.sp.config)
+        _report_metadata_snapshot(text_type(self.xmldoc))
 
     def _metadata_contact_person(self, metadata, conf):
         logger.debug(
