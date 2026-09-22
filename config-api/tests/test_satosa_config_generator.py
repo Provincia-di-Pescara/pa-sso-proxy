@@ -2,6 +2,7 @@ import pytest
 import pytest_asyncio
 import yaml
 
+from sqlalchemy import select
 from app.models import CieConfig, EnteSettings, JwkKey, SpidIdP
 
 
@@ -160,6 +161,27 @@ async def test_spid_backend_yaml_has_idp_metadata(full_db, tmp_path, monkeypatch
     assert any("spid-demo" in p for p in local_paths)
     assert "remote" not in spid["metadata"]
 
+
+async def test_spid_backend_yaml_no_optional_attributes_by_default(full_db, tmp_path, monkeypatch):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+    spid = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
+    assert "optional_attributes" not in spid["config"]["sp_config"]["service"]["sp"]
+
+
+async def test_spid_backend_yaml_optional_attributes_when_legal_entity_enabled(full_db, tmp_path, monkeypatch):
+    from app.models import EnteSettings
+    s = (await full_db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one()
+    s.legal_entity_enabled = True
+    await full_db.commit()
+
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+    spid = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
+    optional = spid["config"]["sp_config"]["service"]["sp"]["optional_attributes"]
+    assert optional == ["companyName", "registeredOffice", "ivaCode"]
 
 
 async def test_no_generation_without_settings(db_session, tmp_path, monkeypatch):

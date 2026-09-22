@@ -277,6 +277,9 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
                 "allow_unknown_attributes": True,
                 "allow_unsolicited": True,
                 "required_attributes": ["spidCode", "name", "familyName", "fiscalNumber", "email"],
+                **({"optional_attributes": ["companyName", "registeredOffice", "ivaCode"]}
+                   if getattr(settings, "legal_entity_enabled", False) is True
+                   else {}),
                 "endpoints": {
                     "assertion_consumer_service": [
                         ["<base_url>/<name>/acs/post", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"],
