@@ -286,6 +286,9 @@ Crea `config-api/app/routes/legal_entity.py`:
 
 ```python
 import asyncio
+import os
+import xml.etree.ElementTree as ET
+import httpx
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -305,6 +308,34 @@ def _auth_check(request: Request):
     return request.session.get("user")
 
 
+async def check_company_attributes() -> dict:
+    """Verifica se il metadata SP pubblicato dichiara gli attributi
+    opzionali azienda (companyName) nell'AttributeConsumingService index 0."""
+    satosa_url = os.environ.get("SATOSA_INTERNAL_URL", "http://satosa:8080")
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            resp = await client.get(f"{satosa_url}/spidSaml2/metadata")
+        if resp.status_code != 200:
+            return {"valid": False, "error": f"HTTP {resp.status_code} dal server SATOSA"}
+
+        root = ET.fromstring(resp.content)
+        namespaces = {
+            'md': 'urn:oasis:names:tc:SAML:2.0:metadata',
+            'saml2': 'urn:oasis:names:tc:SAML:2.0:assertion',
+        }
+        acs0 = root.find('.//md:AttributeConsumingService[@index="0"]', namespaces)
+        has_company = False
+        if acs0 is not None:
+            attr_names = [
+                a.attrib.get('Name')
+                for a in acs0.findall('md:RequestedAttribute', namespaces)
+            ]
+            has_company = 'companyName' in attr_names
+        return {"valid": True, "has_company_attributes": has_company}
+    except Exception as e:
+        return {"valid": False, "error": f"Errore di connessione a SATOSA: {str(e)}"}
+
+
 @router.get("/legal-entity", response_class=HTMLResponse)
 async def legal_entity_config_page(request: Request, db: AsyncSession = Depends(get_db)):
     if not _auth_check(request):
@@ -312,12 +343,16 @@ async def legal_entity_config_page(request: Request, db: AsyncSession = Depends(
 
     s = (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
 
+    saved = request.query_params.get("saved") == "1"
+    metadata_status = None if saved else await check_company_attributes()
+
     return templates.TemplateResponse(
         request,
         "legal_entity/config.html.j2",
         {
             "s": s,
-            "saved": request.query_params.get("saved") == "1",
+            "saved": saved,
+            "metadata_status": metadata_status,
         },
     )
 
@@ -400,6 +435,30 @@ Crea `config-api/app/templates/legal_entity/config.html.j2`:
           <button type="submit" class="a-btn a-btn-primary">Salva configurazione</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">Stato Metadata SAML (attributi azienda)</div>
+    <div class="a-card-body">
+      {% if metadata_status %}
+        {% if metadata_status.valid %}
+          {% if metadata_status.has_company_attributes %}
+            <span class="a-badge a-badge-success">Attributi azienda dichiarati</span>
+          {% else %}
+            <span class="a-badge a-badge-neutral">Non dichiarati</span>
+          {% endif %}
+          {% if s and s.legal_entity_enabled and not metadata_status.has_company_attributes %}
+            <div class="a-alert a-alert-warning" style="margin-top:14px;">
+              <strong>Attenzione:</strong> l'accesso persona giuridica e' abilitato ma il metadata pubblicato non contiene ancora gli attributi azienda. Verifica che SATOSA sia stato ricaricato correttamente.
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="a-alert a-alert-danger"><strong>Impossibile verificare lo stato del metadata:</strong> {{ metadata_status.error }}</div>
+        {% endif %}
+      {% else %}
+        <div class="a-muted" style="font-size:12px;">Verifica in corso...</div>
+      {% endif %}
     </div>
   </div>
 </div>
