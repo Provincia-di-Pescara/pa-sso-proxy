@@ -5,6 +5,7 @@ GET  /admin/backup          → pagina HTML
 GET  /admin/backup/export   → scarica bundle JSON con tutta la configurazione
 POST /admin/backup/import   → carica bundle JSON e ripristina la configurazione
 """
+import asyncio
 import io
 import json
 import logging
@@ -15,11 +16,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.cie_jwks_writer import write_jwks_files
 from app.database import get_db
 from app.jinja_templates import templates
 from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidCert, SpidIdP
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
+from app.spid_cert_writer import write_spid_cert
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +237,22 @@ async def backup_import(
         logger.error("Errore durante il restore backup: %s", e, exc_info=True)
         request.session["backup_err"] = f"Ripristino fallito: {e}"
         return RedirectResponse("/admin/backup", status_code=302)
+
+    # Disaster recovery: il restore ripristina solo il DB. Su volumi azzerati
+    # SATOSA non troverebbe i file cert/chiave su /satosa-conf/ senza questo
+    # passaggio esplicito (generate_and_write NON li scrive — vedi CLAUDE.md).
+    try:
+        cert_result = await db.execute(select(SpidCert).where(SpidCert.is_active == True).limit(1))
+        active_cert = cert_result.scalar_one_or_none()
+        if active_cert:
+            await asyncio.to_thread(write_spid_cert, active_cert)
+
+        jwk_result = await db.execute(select(JwkKey))
+        jwk_keys = list(jwk_result.scalars().all())
+        if jwk_keys:
+            await asyncio.to_thread(write_jwks_files, jwk_keys)
+    except Exception as e:
+        logger.warning("Scrittura file cert/JWK post-restore fallita: %s", e, exc_info=True)
 
     # Rigenera config SATOSA e triggera reload
     try:
