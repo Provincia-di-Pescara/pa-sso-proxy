@@ -162,18 +162,18 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
         metadata_status = await check_sp_metadata()
         legal_entity_metadata_status = await check_company_attributes()
 
-    any_provider_enabled = bool(
-        (demo_idp and demo_idp.enabled)
-        or (validator_idp and validator_idp.enabled)
-        or any(item.enabled for item in idps)
+    test_provider_enabled = bool(
+        (demo_idp and demo_idp.enabled) or (validator_idp and validator_idp.enabled)
     )
+    registry_provider_enabled = any(item.enabled for item in idps)
 
     return templates.TemplateResponse(
         request,
         "idps/list.html.j2",
         {
             "idps": idps,
-            "any_provider_enabled": any_provider_enabled,
+            "test_provider_enabled": test_provider_enabled,
+            "registry_provider_enabled": registry_provider_enabled,
             "sync_status": sync_status,
             "sync_inserted": sync_inserted,
             "sync_error": sync_error,

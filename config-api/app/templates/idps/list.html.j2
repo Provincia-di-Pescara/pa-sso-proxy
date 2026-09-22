@@ -27,8 +27,12 @@
     <span class="a-tab-dot" style="background:{% if cert %}{% if (cert.not_valid_after - now).days < 30 %}var(--danger){% else %}var(--success){% endif %}{% else %}var(--danger){% endif %};"></span>
     SPID
   </button>
+  <button type="button" class="a-tab" data-tab="test" role="tab">
+    <span class="a-tab-dot" style="background:{% if test_provider_enabled %}var(--success){% else %}var(--fg-muted){% endif %};"></span>
+    Test/Validazione
+  </button>
   <button type="button" class="a-tab" data-tab="provider" role="tab">
-    <span class="a-tab-dot" style="background:{% if any_provider_enabled %}var(--success){% else %}var(--fg-muted){% endif %};"></span>
+    <span class="a-tab-dot" style="background:{% if registry_provider_enabled %}var(--success){% else %}var(--fg-muted){% endif %};"></span>
     Provider
   </button>
   <button type="button" class="a-tab" data-tab="eidas" role="tab">
@@ -148,9 +152,9 @@
 </div>
 </section>
 
-<section id="provider" class="a-tab-panel" hidden>
+<section id="test" class="a-tab-panel" hidden>
 {# Test/Validation providers #}
-<div class="a-card" style="margin-bottom:14px;">
+<div class="a-card">
   <div class="a-card-header">
     Ambiente di Test / Validazione
     <span class="a-badge-spid">SPID SAML</span>
@@ -219,7 +223,9 @@
     </div>
   </div>
 </div>
+</section>
 
+<section id="provider" class="a-tab-panel" hidden>
 {# Registry sync + IdP table #}
 <div class="a-card">
   <div class="a-card-header">
