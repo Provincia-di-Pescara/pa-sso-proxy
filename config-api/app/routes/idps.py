@@ -148,7 +148,7 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     settings = settings_result.scalar_one_or_none()
     proxy_hostname = settings.proxy_hostname if settings and settings.proxy_hostname else ""
 
-    cert_result = await db.execute(select(SpidCert).order_by(SpidCert.created_at.desc()).limit(1))
+    cert_result = await db.execute(select(SpidCert).where(SpidCert.is_active == True).limit(1))
     cert = cert_result.scalar_one_or_none()
     cert_error = request.query_params.get("cert_error")
 
