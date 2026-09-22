@@ -69,3 +69,16 @@ async def test_certs_generate_with_settings_creates_cert(auth_client, db_session
 
     assert response.status_code == 303
     assert "/admin/idps" in response.headers["location"]
+
+
+async def test_spid_cert_is_active_defaults_false(db_session):
+    cert = SpidCert(
+        certificate_pem="-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+        private_key_pem="-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----",
+        not_valid_after=datetime(2036, 1, 1, tzinfo=timezone.utc),
+        subject_dn="CN=sso.test.it",
+    )
+    db_session.add(cert)
+    await db_session.commit()
+    await db_session.refresh(cert)
+    assert cert.is_active is False
