@@ -198,19 +198,19 @@
         {% if company %}
           <tr>
             <td class="label-col">Ragione sociale</td>
-            <td>{{ company }}</td>
+            <td>{% if company is string %}{{ company }}{% else %}{{ company | join(', ') }}{% endif %}</td>
           </tr>
         {% endif %}
         {% if iva %}
           <tr>
             <td class="label-col">Partita IVA</td>
-            <td><code>{{ iva }}</code></td>
+            <td><code>{% if iva is string %}{{ iva }}{% else %}{{ iva | join(', ') }}{% endif %}</code></td>
           </tr>
         {% endif %}
         {% if sede %}
           <tr>
             <td class="label-col">Sede legale</td>
-            <td>{{ sede }}</td>
+            <td>{% if sede is string %}{{ sede }}{% else %}{{ sede | join(', ') }}{% endif %}</td>
           </tr>
         {% endif %}
       </table>

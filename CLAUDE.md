@@ -215,6 +215,8 @@ Ogni auth SATOSA completata (successo o errore) → `POST http://config-api:8000
 
 Colonne tabella `access_log`: `provider_type`, `client_id`, `result`, `error_code`, `idp_entity_id`, `user_type` (PF/PG), `fiscal_number_hash` (HMAC-SHA256 del CF — pseudonimizzazione GDPR). Retention 24 mesi: cron 1° del mese aggrega in `access_stats_monthly` (UNIQUE su year/month/idp/provider/user_type/client), poi cancella righe vecchie. `access_stats_monthly` è forever, no PII.
 
+`user_type` (in `_detect_user_type` del reporter generato): PG se ci sono attributi azienda (`companyName`/`ivaCode`) — con SPID Tipo 4 (`Purpose=PG`) `fiscalNumber` è il CF della **persona fisica** che opera, non la P.IVA. Il vecchio criterio "fiscal number di 11 cifre" resta solo come fallback. Gli attributi SPID (anche `companyName`/`ivaCode`/`fiscal_number`) arrivano come **liste** a un elemento: template e client devono gestire sia stringa sia lista. Test del reporter: `tests/test_access_log_reporter.py` carica il sorgente generato stubbando `satosa` in `sys.modules`.
+
 ### Pagina /verifica
 Pagina pubblica (no login admin) per validazione AgID. Gate: 404 se nessun IdP con alias `spid-demo` o `spid-validator` è abilitato. Flusso PKCE completo via `__spid_verifica__` client. URL: `https://<hostname>/verifica`. Mandare questo link ad AgID per la sessione di validazione.
 

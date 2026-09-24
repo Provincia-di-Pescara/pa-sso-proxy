@@ -778,6 +778,28 @@ def _post_access_log(report_url, provider_type, client_id, result, error_code=No
         pass
 
 
+def _first_value(attrs, keys):
+    for key in keys:
+        val = attrs.get(key)
+        if val:
+            return val[0] if isinstance(val, list) else val
+    return None
+
+
+def _detect_user_type(attrs, fiscal_no):
+    """PG se l identita SPID porta attributi azienda (Tipo 3/4, Purpose=PG):
+    in quel caso fiscal_number resta il CF della persona fisica che opera.
+    Fallback storico: fiscal number di 11 cifre = partita IVA."""
+    if _first_value(attrs, ["companyName", "ivaCode", "company_name", "iva_code"]):
+        return "PG"
+    if not fiscal_no:
+        return None
+    clean_fn = str(fiscal_no).upper()
+    if clean_fn.startswith("TINIT-"):
+        clean_fn = clean_fn[6:]
+    return "PG" if len(clean_fn) == 11 and clean_fn.isdigit() else "PF"
+
+
 class AccessLogReporter(ResponseMicroService):
     def __init__(self, config, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -801,25 +823,11 @@ class AccessLogReporter(ResponseMicroService):
             pass
 
         user_type = None
+        fiscal_no = None
         try:
             attrs = getattr(internal_data, "attributes", {}) or {}
-            fiscal_no = None
-            for key in ["fiscal_number", "fiscalNumber", "schacpersonaluniqueid", "fiscalnumber"]:
-                val = attrs.get(key)
-                if val:
-                    if isinstance(val, list):
-                        fiscal_no = val[0]
-                    else:
-                        fiscal_no = val
-                    break
-            if fiscal_no:
-                clean_fn = str(fiscal_no).upper()
-                if clean_fn.startswith("TINIT-"):
-                    clean_fn = clean_fn[6:]
-                if len(clean_fn) == 11 and clean_fn.isdigit():
-                    user_type = "PG"
-                else:
-                    user_type = "PF"
+            fiscal_no = _first_value(attrs, ["fiscal_number", "fiscalNumber", "schacpersonaluniqueid", "fiscalnumber"])
+            user_type = _detect_user_type(attrs, fiscal_no)
         except Exception:
             pass
 
