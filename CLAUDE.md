@@ -218,6 +218,8 @@ Colonne tabella `access_log`: `provider_type`, `client_id`, `result`, `error_cod
 ### Pagina /verifica
 Pagina pubblica (no login admin) per validazione AgID. Gate: 404 se nessun IdP con alias `spid-demo` o `spid-validator` è abilitato. Flusso PKCE completo via `__spid_verifica__` client. URL: `https://<hostname>/verifica`. Mandare questo link ad AgID per la sessione di validazione.
 
+Selettore persona fisica/giuridica su `/verifica` visibile solo con `legal_entity_enabled`: `subject=pg` aggiunge scope `legal_entity` + claim aziendali richiesti; il generatore dà lo scope `legal_entity` a `__spid_verifica__` solo in quel caso (senza ACS 4 nel metadata il login PG fallirebbe). `subject=pg` con persona giuridica disattivata → ricade silenziosamente su persona fisica.
+
 ### Test satosa/plugins/
 `satosa`/`pysaml2` da PyPI sono pacchetti sbagliati: il Dockerfile usa fork pinnati (`peppelinux/pysaml2`, `peppelinux/SATOSA`) via immagine base `ghcr.io/italia/iam-proxy-italia:latest`. `pyeudiw` ha un bug di packaging upstream (sottopacchetti `federation`/`trust`/ecc. assenti dal pacchetto installato). I file in `satosa/plugins/` sono override (`COPY` nel Dockerfile) sopra l'albero upstream clonato a build-time — non moduli autosufficienti.
 

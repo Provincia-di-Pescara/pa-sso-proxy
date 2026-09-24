@@ -189,6 +189,33 @@
       {% set nome = userinfo.get('given_name') or claims.get('given_name') %}
       {% set cognome = userinfo.get('family_name') or claims.get('family_name') %}
 
+      {% set company = userinfo.get('company_name') or claims.get('company_name') %}
+      {% set iva = userinfo.get('iva_code') or claims.get('iva_code') %}
+      {% set sede = userinfo.get('registered_office') or claims.get('registered_office') %}
+      {% if company or iva %}
+      <div class="section-title">Persona Giuridica</div>
+      <table class="claim-table">
+        {% if company %}
+          <tr>
+            <td class="label-col">Ragione sociale</td>
+            <td>{{ company }}</td>
+          </tr>
+        {% endif %}
+        {% if iva %}
+          <tr>
+            <td class="label-col">Partita IVA</td>
+            <td><code>{{ iva }}</code></td>
+          </tr>
+        {% endif %}
+        {% if sede %}
+          <tr>
+            <td class="label-col">Sede legale</td>
+            <td>{{ sede }}</td>
+          </tr>
+        {% endif %}
+      </table>
+      {% endif %}
+
       <div class="section-title">Attributi Utente Ricevuti</div>
       <table class="claim-table">
         {% if nome %}
