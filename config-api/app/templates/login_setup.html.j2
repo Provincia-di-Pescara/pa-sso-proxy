@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Attivazione 2FA — PA SSO Proxy</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css">
+</head>
+<body>
+<div class="a-login-page">
+  <div class="a-login-card">
+    <div class="a-login-kicker">PA SSO Proxy</div>
+    <h1>Attiva la verifica in due passaggi</h1>
+    {% if error %}
+    <div class="a-alert a-alert-danger">{{ error }}</div>
+    {% endif %}
+    <p>La verifica in due passaggi è obbligatoria. Scansiona il QR code con un'app di autenticazione (es. FreeOTP, Aegis, Google Authenticator), poi inserisci il codice a 6 cifre generato.</p>
+    <div style="display:flex;justify-content:center;margin:16px 0;background:#fff;padding:8px;">{{ qr_svg | safe }}</div>
+    <p>Oppure inserisci manualmente la chiave:</p>
+    <p style="font-family:monospace;font-size:1.05em;text-align:center;word-break:break-all;">{{ secret_display }}</p>
+    <form method="post" action="/admin/login/setup">
+      <div class="a-form-group">
+        <label class="a-label" for="code">Codice</label>
+        <input type="text" id="code" name="code" class="a-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" autofocus required {% if banned %}disabled{% endif %}>
+      </div>
+      <button type="submit" class="a-btn a-btn-primary" style="width:100%;justify-content:center;" {% if banned %}disabled{% endif %}>Attiva e accedi</button>
+    </form>
+    <p style="margin-top:16px;text-align:center;"><a href="/admin/login">Torna al login</a></p>
+  </div>
+</div>
+</body>
+</html>

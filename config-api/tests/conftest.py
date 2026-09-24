@@ -13,6 +13,13 @@ pg_dialect.JSONB = JSON
 from app.models import Base
 
 
+@pytest.fixture(autouse=True)
+def _admin_2fa_disabled_by_default(monkeypatch):
+    """I test esistenti fanno login con sola password: 2FA off salvo override esplicito."""
+    monkeypatch.setenv("ADMIN_2FA_ENABLED", "false")
+    monkeypatch.delenv("ADMIN_2FA_RESET", raising=False)
+
+
 @pytest_asyncio.fixture(scope="function")
 async def db_session():
     engine = create_async_engine(TEST_DATABASE_URL)
