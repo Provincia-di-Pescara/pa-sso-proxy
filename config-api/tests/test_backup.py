@@ -425,3 +425,23 @@ async def test_backup_restore_writes_cert_and_jwk_files_to_disk(db_session, app_
 
     assert (tmp_path / "cie_jwks_public.json").exists()
     assert (tmp_path / "cie_jwks_private.json").exists()
+
+
+async def test_export_excludes_admin_totp(db_session, app_env):
+    from datetime import datetime, timezone
+    from app import admin_2fa
+    from app.models import AdminTotp
+
+    enc = admin_2fa.encrypt_secret("JBSWY3DPEHPK3PXP")
+    db_session.add(AdminTotp(id=1, secret_enc=enc, confirmed_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+
+    app = await _make_auth_client(db_session, app_env)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        await _login(c)
+        resp = await c.get("/admin/backup/export")
+    app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    assert "admin_totp" not in resp.text
+    assert enc not in resp.text

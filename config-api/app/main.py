@@ -147,6 +147,7 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("SPID aggregate download failed at startup", exc_info=True)
     async with AsyncSessionLocal() as session:
+        await apply_startup_flags(session)
         await seed_spid_idps(session)
         await _try_fetch_trust_mark(session)
         try:

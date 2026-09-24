@@ -217,3 +217,37 @@ async def test_disabled_password_only_and_routes_redirect(app_2fa, db_session, m
         for path in ("/admin/login/2fa", "/admin/login/setup"):
             r = await c.get(path, follow_redirects=False)
             assert r.headers["location"] == "/admin/login"
+
+
+# --- banner -----------------------------------------------------------------
+
+BANNER_DISABLED = "2FA disattivato (ADMIN_2FA_ENABLED=false)"
+BANNER_RESET = "ADMIN_2FA_RESET attivo"
+
+
+async def test_banner_when_2fa_disabled(app_2fa, monkeypatch):
+    monkeypatch.setenv("ADMIN_2FA_ENABLED", "false")
+    async with _client(app_2fa) as c:
+        await _password_login(c)
+        page = await c.get("/admin/")
+    assert BANNER_DISABLED in page.text
+
+
+async def test_banner_when_reset_env_active(app_2fa, monkeypatch):
+    monkeypatch.setenv("ADMIN_2FA_ENABLED", "false")
+    monkeypatch.setenv("ADMIN_2FA_RESET", "true")
+    async with _client(app_2fa) as c:
+        await _password_login(c)
+        page = await c.get("/admin/")
+    assert BANNER_RESET in page.text
+
+
+async def test_no_banner_when_2fa_enabled(app_2fa, db_session):
+    secret = await _enroll(db_session)
+    async with _client(app_2fa) as c:
+        await _password_login(c)
+        await c.post("/admin/login/2fa", data={"code": pyotp.TOTP(secret).now()})
+        page = await c.get("/admin/")
+    assert page.status_code == 200
+    assert BANNER_DISABLED not in page.text
+    assert BANNER_RESET not in page.text
