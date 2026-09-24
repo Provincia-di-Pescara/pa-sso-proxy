@@ -100,3 +100,20 @@ def test_result_without_company_has_no_block():
         success=True, claims={}, settings=None, userinfo={"fiscal_number": "TINIT-RSSMRA80A01H501U"},
     )
     assert "Persona Giuridica" not in html
+
+
+def test_result_company_block_unwraps_list_values():
+    # Valori reali da login SPID Tipo 4: gli attributi azienda arrivano come liste.
+    from app.jinja_templates import templates
+    html = templates.env.get_template("verifica/result.html.j2").render(
+        success=True, claims={}, settings=None,
+        userinfo={"fiscal_number": ["TINIT-MNTMRA03M71C615V"],
+                  "company_name": ["Scuola magistrale Montessori"],
+                  "iva_code": ["12345678987"],
+                  "registered_office": ["Via Listz 21 00144 Roma"]},
+    )
+    block = html.split("Persona Giuridica", 1)[1].split("Attributi Utente Ricevuti", 1)[0]
+    assert "Scuola magistrale Montessori" in block
+    assert "12345678987" in block
+    assert "Via Listz 21 00144 Roma" in block
+    assert "[" not in block and "&#39;" not in block
