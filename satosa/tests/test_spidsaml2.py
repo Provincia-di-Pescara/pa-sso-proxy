@@ -10,6 +10,7 @@ richiederebbe una configurazione SPID SP completa fuori scope per unit test
 per fixture analoghe se in futuro si vuole coprire anche questo.
 """
 import base64
+import json
 import os
 from unittest.mock import MagicMock, patch
 
@@ -126,6 +127,37 @@ def test_report_metadata_snapshot_posts_xml(monkeypatch):
     assert captured["url"] == "http://config-api:8000/internal/spid-metadata-snapshot"
     assert captured["method"] == "POST"
     assert b"EntityDescriptor" in captured["data"]
+
+
+def test_report_metadata_snapshot_includes_semantic_hash_when_given(monkeypatch):
+    monkeypatch.setenv("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
+    captured = {}
+
+    def fake_urlopen(req, timeout):
+        captured["data"] = req.data
+        return MagicMock()
+
+    monkeypatch.setattr("backends.spidsaml2.urllib.request.urlopen", fake_urlopen)
+    spidsaml2._report_metadata_snapshot("<EntityDescriptor/>", "deadbeef" * 8)
+
+    payload = json.loads(captured["data"])
+    assert payload["semantic_hash"] == "deadbeef" * 8
+    assert payload["xml_content"] == "<EntityDescriptor/>"
+
+
+def test_report_metadata_snapshot_omits_semantic_hash_when_none(monkeypatch):
+    monkeypatch.setenv("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
+    captured = {}
+
+    def fake_urlopen(req, timeout):
+        captured["data"] = req.data
+        return MagicMock()
+
+    monkeypatch.setattr("backends.spidsaml2.urllib.request.urlopen", fake_urlopen)
+    spidsaml2._report_metadata_snapshot("<EntityDescriptor/>")
+
+    payload = json.loads(captured["data"])
+    assert "semantic_hash" not in payload
 
 
 def test_report_metadata_snapshot_swallows_errors(monkeypatch):
