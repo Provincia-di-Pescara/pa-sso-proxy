@@ -10,6 +10,8 @@ richiederebbe una configurazione SPID SP completa fuori scope per unit test
 per fixture analoghe se in futuro si vuole coprire anche questo.
 """
 import base64
+
+import pytest
 import json
 import os
 from unittest.mock import MagicMock, patch
@@ -221,3 +223,89 @@ def test_read_metadata_override_round_trips_atomic_write(monkeypatch, tmp_path):
     os.replace(tmp_write_path, str(override_path))
 
     assert spidsaml2._read_metadata_override() == b"<AtomicallyWritten/>"
+
+
+# --- Persona giuridica: solo SPID (CIE/eIDAS esclusi) ------------------------
+
+_LEGAL_ENTITY_STATE = {"OIDC": {"oidc_request": "client_id=x&scope=openid+legal_entity&state=y"}}
+_CITIZEN_STATE = {"OIDC": {"oidc_request": "client_id=x&scope=openid+profile&state=y"}}
+_FICEP_ID = "https://sp-proxy.eid.gov.it/spproxy/idpitmetadata"
+
+
+def test_legal_entity_requested_false_when_state_is_none():
+    assert spidsaml2._legal_entity_requested(_FakeContext(None)) is False
+
+
+def test_add_legal_entity_disco_param_without_query():
+    url = spidsaml2._add_legal_entity_disco_param("https://sso.example.org/static/disco.html")
+    assert url == "https://sso.example.org/static/disco.html?legal_entity=1"
+
+
+def test_add_legal_entity_disco_param_keeps_existing_query():
+    url = spidsaml2._add_legal_entity_disco_param(
+        "https://sso.example.org/static/disco.html?entityID=sp&return=https%3A%2F%2Fsso%2Fdisco"
+    )
+    assert url.startswith("https://sso.example.org/static/disco.html?")
+    assert "entityID=sp" in url
+    assert "return=https%3A%2F%2Fsso%2Fdisco" in url
+    assert url.endswith("&legal_entity=1")
+
+
+def _disco_location(response):
+    return dict(response.headers)["Location"]
+
+
+def test_disco_query_adds_legal_entity_param_when_requested():
+    from satosa.response import SeeOther
+    base = "https://sso.example.org/static/disco.html?entityID=sp&return=r"
+    with patch.object(spidsaml2.SAMLBackend, "disco_query", return_value=SeeOther(base)):
+        resp = spidsaml2.SpidSAMLBackend.disco_query(MagicMock(spec=spidsaml2.SpidSAMLBackend), _FakeContext(_LEGAL_ENTITY_STATE))
+    assert _disco_location(resp) == base + "&legal_entity=1"
+    assert resp.status.startswith("303")
+
+
+def test_disco_query_unchanged_for_citizen_flow():
+    from satosa.response import SeeOther
+    base = "https://sso.example.org/static/disco.html?entityID=sp&return=r"
+    original = SeeOther(base)
+    with patch.object(spidsaml2.SAMLBackend, "disco_query", return_value=original):
+        resp = spidsaml2.SpidSAMLBackend.disco_query(MagicMock(spec=spidsaml2.SpidSAMLBackend), _FakeContext(_CITIZEN_STATE))
+    assert resp is original
+
+
+def _fake_backend():
+    backend = MagicMock()
+    backend.config = {"sp_config": {"ficep_entity_id": _FICEP_ID}}
+    backend.handle_error.return_value = "ERROR_PAGE"
+    return backend
+
+
+def test_authn_request_rejects_eidas_for_legal_entity():
+    backend = _fake_backend()
+    res = spidsaml2.SpidSAMLBackend.authn_request(backend, _FakeContext(_LEGAL_ENTITY_STATE), _FICEP_ID)
+    assert res == "ERROR_PAGE"
+    kwargs = backend.handle_error.call_args.kwargs
+    assert kwargs["message"] == spidsaml2.LEGAL_ENTITY_SPID_ONLY_ERROR["message"]
+    # nessun context → pagina di errore del proxy, non redirect al client
+    assert "context" not in kwargs
+    backend.check_blacklist.assert_not_called()
+
+
+def test_authn_request_allows_spid_idp_for_legal_entity():
+    backend = _fake_backend()
+    # Oltre il guard l'implementazione reale prosegue: basta verificare che il
+    # guard non intervenga (check_blacklist è la prima istruzione successiva).
+    backend.check_blacklist.side_effect = RuntimeError("past guard")
+    with pytest.raises(RuntimeError, match="past guard"):
+        spidsaml2.SpidSAMLBackend.authn_request(
+            backend, _FakeContext(_LEGAL_ENTITY_STATE), "https://idp.spid.example.org"
+        )
+    backend.handle_error.assert_not_called()
+
+
+def test_authn_request_allows_eidas_for_citizen():
+    backend = _fake_backend()
+    backend.check_blacklist.side_effect = RuntimeError("past guard")
+    with pytest.raises(RuntimeError, match="past guard"):
+        spidsaml2.SpidSAMLBackend.authn_request(backend, _FakeContext(_CITIZEN_STATE), _FICEP_ID)
+    backend.handle_error.assert_not_called()

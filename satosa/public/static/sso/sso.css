@@ -284,6 +284,18 @@ a:hover { color: var(--fg-link-hover); }
   margin-bottom: var(--sp-3);
 }
 
+.sso-legal-entity-note {
+  font-size: var(--fs-14);
+  line-height: 1.5;
+  background: #FFF4D9;
+  color: #6B4000;
+  border: 1px solid #F2D48A;
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+.sso-legal-entity-note[hidden] { display: none; }
+
 .sso-helpers {
   display: flex;
   flex-direction: column;
