@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Verifica 2FA — PA SSO Proxy</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css">
+</head>
+<body>
+<div class="a-login-page">
+  <div class="a-login-card">
+    {% if s and s.logo_url %}
+    <img src="{{ s.logo_url }}" alt="Logo ente" style="height:56px;max-width:160px;object-fit:contain;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">
+    {% endif %}
+    <div class="a-login-kicker">PA SSO Proxy</div>
+    <h1>Verifica in due passaggi</h1>
+    {% if error %}
+    <div class="a-alert a-alert-danger">{{ error }}</div>
+    {% endif %}
+    {% if not blocked %}
+    <p>Inserisci il codice a 6 cifre generato dalla tua app di autenticazione.</p>
+    <form method="post" action="/admin/login/2fa">
+      <div class="a-form-group">
+        <label class="a-label" for="code">Codice</label>
+        <input type="text" id="code" name="code" class="a-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" autofocus required {% if banned %}disabled{% endif %}>
+      </div>
+      <button type="submit" class="a-btn a-btn-primary" style="width:100%;justify-content:center;" {% if banned %}disabled{% endif %}>Verifica</button>
+    </form>
+    {% endif %}
+    <p style="margin-top:16px;text-align:center;"><a href="/admin/login">Torna al login</a></p>
+  </div>
+</div>
+</body>
+</html>

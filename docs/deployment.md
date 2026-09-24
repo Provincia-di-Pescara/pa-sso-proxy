@@ -17,7 +17,35 @@ Primo avvio: attendi 2-3 minuti per inizializzazione DB e dipendenze SATOSA.
 - Direct: `http://<HOST>:<PROXY_HOST_PORT>/admin`
 - Via reverse proxy: `https://<PROXY_HOSTNAME>/admin`
 
-Login con `ADMIN_USER` / `ADMIN_PASSWORD`.
+Login con `ADMIN_USER` / `ADMIN_PASSWORD`, poi codice TOTP (vedi sotto).
+
+### 2FA admin (TOTP)
+
+Il secondo fattore è obbligatorio. Al primo login (o dopo un reset) viene mostrato un QR code:
+scansionalo con un'app di autenticazione (FreeOTP, Aegis, Google Authenticator…) e inserisci il
+codice a 6 cifre per completare l'attivazione. Dai login successivi viene chiesto solo il codice.
+
+**Telefono perso — reset da console** (nessun restart):
+
+```bash
+docker compose exec config-api python -m app.cli reset-2fa
+```
+
+**Reset da `.env`** (se non hai accesso alla console del container): imposta
+`ADMIN_2FA_RESET=true`, riavvia config-api, poi **rimuovi la variabile** — finché resta a `true`
+il 2FA viene azzerato a ogni avvio (un banner rosso nella WebUI lo ricorda).
+
+In entrambi i casi al login successivo viene richiesta una nuova attivazione.
+
+**Sviluppo locale:** `ADMIN_2FA_ENABLED=false` disattiva il 2FA (login con sola password, banner
+rosso su tutte le pagine). Mai in produzione.
+
+**Attenzione a `SESSION_SECRET`:** il secret TOTP è cifrato con una chiave derivata da
+`SESSION_SECRET`. Se lo cambi, il login si blocca con "Secret 2FA non decifrabile": esegui il reset
+da console e riattiva il 2FA.
+
+Il TOTP **non** è incluso nel backup JSON: dopo un ripristino su DB nuovo il 2FA va riattivato
+al primo login.
 
 ## Docker Compose (manuale)
 

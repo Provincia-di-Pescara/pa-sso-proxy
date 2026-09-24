@@ -96,6 +96,8 @@ docs/                     Documentazione architetturale
 | `PROXY_HOSTNAME` | Dominio pubblico (es. `sso.ente.it`) |
 | `ADMIN_USER` | Username WebUI admin |
 | `ADMIN_PASSWORD` | Password WebUI admin |
+| `ADMIN_2FA_ENABLED` | 2FA TOTP admin obbligatorio (default `true`; `false` solo sviluppo locale) |
+| `ADMIN_2FA_RESET` | `true` + restart azzera il TOTP admin (rimuovere subito dopo) |
 | `POSTGRES_PASSWORD` | Password database |
 | `PROXY_HOST_PORT` | Porta host per nginx (es. `127.0.0.1:18080`) |
 | `ORG_DISPLAY_NAME` | Nome ente visualizzato |

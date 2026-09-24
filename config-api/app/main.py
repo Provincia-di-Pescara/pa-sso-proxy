@@ -18,8 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import AsyncSessionLocal, engine, get_db
 from app.models import EnteSettings
 from app.rate_limiter import is_ip_banned, record_failed_attempt, clear_attempts
+from app.admin_2fa import apply_startup_flags, get_totp, is_2fa_enabled
 from app.metadata_watcher import run_metadata_watcher, run_retention, fetch_spid_aggregate
-from app.routes import dashboard, clients, idps, settings, certs, cie, eidas, legal_entity, test_client, backup, access_log, internal, placeholders, verifica, metadata
+from app.routes import dashboard, clients, idps, settings, certs, cie, eidas, legal_entity, test_client, backup, access_log, internal, placeholders, verifica, metadata, login_2fa
 from app.satosa_generator import generate_and_write
 from app.spid_seeder import seed_spid_idps
 from app.trust_mark_fetcher import fetch_trust_mark
@@ -146,6 +147,7 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.warning("SPID aggregate download failed at startup", exc_info=True)
     async with AsyncSessionLocal() as session:
+        await apply_startup_flags(session)
         await seed_spid_idps(session)
         await _try_fetch_trust_mark(session)
         try:
@@ -230,6 +232,7 @@ app.include_router(access_log.router, prefix="/admin")
 app.include_router(eidas.router, prefix="/admin")
 app.include_router(legal_entity.router, prefix="/admin")
 app.include_router(placeholders.router, prefix="/admin")
+app.include_router(login_2fa.router, prefix="/admin")
 app.include_router(internal.router)
 app.include_router(verifica.router)
 
@@ -290,10 +293,19 @@ async def login_post(
         )
 
     if username == ADMIN_USER and password == ADMIN_PASSWORD:
-        await clear_attempts(db, ip_address)
-        request.session["user"] = username
-        request.session["last_activity"] = int(time.time())
-        return RedirectResponse("/admin/", status_code=302)
+        if not is_2fa_enabled():
+            await clear_attempts(db, ip_address)
+            request.session["user"] = username
+            request.session["last_activity"] = int(time.time())
+            return RedirectResponse("/admin/", status_code=302)
+        # Password ok ma sessione NON autenticata finché il TOTP non è verificato
+        # (clear_attempts rimandato a dopo il secondo fattore).
+        request.session.clear()
+        request.session["pending_2fa"] = {"user": username, "ts": int(time.time())}
+        row = await get_totp(db)
+        if row is not None and row.confirmed_at is not None:
+            return RedirectResponse("/admin/login/2fa", status_code=302)
+        return RedirectResponse("/admin/login/setup", status_code=302)
 
     await record_failed_attempt(db, ip_address)
     banned, remaining = await is_ip_banned(db, ip_address)

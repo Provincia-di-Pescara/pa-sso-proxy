@@ -20,6 +20,8 @@ cd config-api && pytest tests/test_eidas.py::test_name -v         # singolo test
 
 `POST /admin/eidas/toggle` da form: checkbox `eidas_enabled=yes` per abilitare (assente = disabilita), **richiede anche `confirmed=yes`** altrimenti redirect a warning senza applicare nulla (stesso `window.confirm()` della UI) — utile saperlo per test via curl/script.
 
+Login admin via curl/script: con 2FA attivo (default) `POST /admin/login` dà solo `pending_2fa` → serve `POST /admin/login/2fa` con `code` TOTP. In locale più semplice `ADMIN_2FA_ENABLED=false`. Reset TOTP: `docker compose exec config-api python -m app.cli reset-2fa`. Nei test pytest il 2FA è off di default (fixture autouse in `tests/conftest.py`); i test 2FA lo riattivano con `monkeypatch.setenv("ADMIN_2FA_ENABLED", "true")`.
+
 ## Cos'è
 
 Docker Compose stack per SSO centralizzato di Pubblica Amministrazione italiana. Permette a N applicativi dell'ente di autenticare cittadini tramite SPID e CIE, esponendo un'unica interfaccia OIDC standard (PKCE).
@@ -80,8 +82,11 @@ satosa/
 config-api/
   app/
     main.py               Entry point FastAPI
+    admin_2fa.py          2FA TOTP admin (flag env, cifratura secret, verifica anti-replay)
+    cli.py                `python -m app.cli reset-2fa`
     routes/               Route per ogni sezione WebUI
       dashboard.py        Dashboard + statistiche accessi
+      login_2fa.py        /admin/login/2fa + /admin/login/setup (enrollment forzato)
       clients.py          Gestione client OIDC
       idps.py             Gestione IdP SPID/CIE
       cie.py              Configurazione CIE OIDC Federation
@@ -101,7 +106,7 @@ config-api/
     satosa_config_generator.py   Genera YAML SATOSA + plugin Python da DB
     satosa_generator.py   Wrapper: chiama generator + scrive cert/key
     metadata_watcher.py   Cron aggiornamento metadata IdP + retention access_log
-  alembic/versions/       Migrazioni DB (001–012)
+  alembic/versions/       Migrazioni DB (001–019)
 nginx/
   conf.d/
     proxy.conf            Route: /verifica → config-api, /admin → config-api, / → satosa
@@ -117,6 +122,7 @@ Tutte in `.env` (vedi `.env.example`). Le variabili sono passate dal compose a s
 |---|---|
 | `PROXY_HOSTNAME` | SATOSA (redirect URI, SP metadata), config-api |
 | `ADMIN_USER` / `ADMIN_PASSWORD` | config-api WebUI |
+| `ADMIN_2FA_ENABLED` / `ADMIN_2FA_RESET` | config-api — 2FA TOTP admin (default on; `false` solo dev locale) / reset all'avvio |
 | `POSTGRES_*` | config-api (SQLAlchemy), postgres |
 | `ORG_*` / `IPA_CODE` | config-api (impostazioni ente default) |
 | `SATOSA_INTERNAL_URL` | config-api → health check SATOSA (dashboard) |
