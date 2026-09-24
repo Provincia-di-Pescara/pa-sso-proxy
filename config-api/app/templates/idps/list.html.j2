@@ -56,9 +56,28 @@
 .a-tab.active { color:var(--fg-1); background:var(--bg-1); border-color:var(--border-1); }
 .a-tab-dot { width:8px; height:8px; border-radius:50%; flex:none; }
 .a-tab-panel[hidden] { display:none; }
+.a-help { background:#E5F1FC; border:1px solid var(--brand); border-radius:6px; margin-bottom:16px; }
+.a-help > summary { padding:10px 14px; font-size:13px; font-weight:600; color:var(--brand-dk); cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; }
+.a-help > summary::-webkit-details-marker { display:none; }
+.a-help > summary::before { content:"❓"; }
+.a-help[open] > summary::before { content:"💡"; }
+.a-help-body { padding:0 14px 14px 14px; font-size:13px; line-height:1.6; color:var(--brand-dk); }
+.a-help-body p { margin:0 0 10px 0; }
+.a-help-body ol, .a-help-body ul { margin:0 0 10px 0; padding-left:20px; }
+.a-help-body li { margin-bottom:4px; }
+.a-help-body code { background:rgba(0,0,0,0.06); padding:1px 4px; border-radius:3px; font-size:12px; }
+.a-help-example { background:rgba(255,255,255,0.6); border-left:3px solid var(--brand); padding:10px 12px; border-radius:0 4px 4px 0; margin-top:8px; }
 </style>
 
 <section id="spid" class="a-tab-panel">
+<details class="a-help">
+  <summary>Come funziona questa sezione</summary>
+  <div class="a-help-body">
+    <p>Le <strong>chiavi</strong> sono la coppia certificato + chiave privata con cui il proxy firma e decifra i messaggi SAML verso gli Identity Provider SPID/eIDAS. Il certificato pubblico è quello registrato su AgID e negli IdP.</p>
+    <p><strong>"Rigenera chiavi"</strong> crea una coppia completamente nuova: il certificato pubblico cambia per davvero. Da quel momento il metadata registrato su AgID non corrisponde più alla chiave che il proxy usa realmente — serve una nuova validazione/registrazione. È un'operazione diversa e più invasiva di "Rigenera metadata" (tab <em>Gestione metadata</em>), che non tocca le chiavi.</p>
+    <div class="a-help-example"><strong>Esempio:</strong> il certificato scade tra 20 giorni → rigeneri le chiavi → il metadata SP cambia contenuto (nuovo certificato) → va ri-registrato/ri-validato presso AgID prima che SPID torni a funzionare in produzione con gli IdP ufficiali.</div>
+  </div>
+</details>
 {# Certificate section #}
 <div class="a-card" style="margin-bottom:14px;">
     <div class="a-card-header">
@@ -157,6 +176,14 @@
 </section>
 
 <section id="test" class="a-tab-panel" hidden>
+<details class="a-help">
+  <summary>Come funziona questa sezione</summary>
+  <div class="a-help-body">
+    <p><strong>Demo</strong> e <strong>Validator</strong> sono i due IdP ufficiali AgID per test/collaudo (nessun cittadino reale). Sono mutuamente esclusivi: attivarne uno disattiva automaticamente l'altro.</p>
+    <p>Attivarli/disattivarli <strong>non modifica il metadata SP</strong> — cambia solo quali IdP compaiono nella pagina di scelta provider (<code>/verifica</code>). Nessun impatto sulla validazione AgID.</p>
+    <div class="a-help-example"><strong>Esempio:</strong> attivi il Validator, mandi il link <code>/verifica</code> ad AgID per la sessione di collaudo, poi lo disattivi — in nessun momento serve toccare chiavi o metadata.</div>
+  </div>
+</details>
 {# Test/Validation providers #}
 <div class="a-card">
   <div class="a-card-header">
@@ -230,6 +257,13 @@
 </section>
 
 <section id="provider" class="a-tab-panel" hidden>
+<details class="a-help">
+  <summary>Come funziona questa sezione</summary>
+  <div class="a-help-body">
+    <p>Lista degli IdP SPID di produzione, sincronizzata dal registry ufficiale AgID (automaticamente ogni 6 ore, o a mano con "Sync da Registry"). Abilitare/disabilitare un IdP decide solo se compare come opzione di login per i cittadini.</p>
+    <p>Questa sezione <strong>non tocca il metadata SP del proxy</strong> — cambia quali IdP il proxy contatta, non cosa il proxy dichiara di sé stesso. Nessun impatto su AgID/validazione.</p>
+  </div>
+</details>
 {# Registry sync + IdP table #}
 <div class="a-card">
   <div class="a-card-header">
@@ -303,6 +337,14 @@
 </section>
 
 <section id="eidas" class="a-tab-panel" hidden>
+<details class="a-help">
+  <summary>Come funziona questa sezione</summary>
+  <div class="a-help-body">
+    <p>Abilitare eIDAS aggiunge due nuovi indici (99 e 100) di <code>AttributeConsumingService</code> al metadata SP — il documento pubblicato <strong>cambia contenuto per davvero</strong>. Non tocca le chiavi, ma modifica cosa il metadata dichiara.</p>
+    <p>Serve ri-validazione AgID prima di andare in produzione. <strong>Non serve rifarla ogni volta</strong> che riavvii SATOSA: solo la prima volta che abiliti/disabiliti (o cambi ambiente prod/QA).</p>
+    <div class="a-help-example"><strong>Workflow consigliato per non rischiare nulla:</strong> abilita eIDAS qui → vai al tab <em>Gestione metadata</em>, trovi la nuova versione generata → <code>Esponi</code> per pubblicarla e testare con AgID → se qualcosa non va, <code>Esponi</code> la versione di prima del cambio (torni esattamente come stavi) → solo quando sei soddisfatto, <code>Segna validato</code> e chiedi la validazione ufficiale ad AgID.</div>
+  </div>
+</details>
 <div class="a-card" style="max-width:720px;">
   <div class="a-card-header">
     Integrazione eIDAS
@@ -351,6 +393,13 @@
 </section>
 
 <section id="persona-giuridica" class="a-tab-panel" hidden>
+<details class="a-help">
+  <summary>Come funziona questa sezione</summary>
+  <div class="a-help-body">
+    <p>Abilitare l'accesso persona giuridica aggiunge un <code>AttributeConsumingService</code> dedicato con gli attributi azienda (ragione sociale, sede legale, P.IVA) al metadata SP — il documento pubblicato <strong>cambia contenuto per davvero</strong>, stessa logica di eIDAS.</p>
+    <p>Serve ri-validazione AgID. Stesso workflow non distruttivo di eIDAS: vedi il suggerimento nel tab <em>Gestione metadata</em>.</p>
+  </div>
+</details>
 <div class="a-card" style="max-width:720px;">
   <div class="a-card-header">
     Accesso SPID persona giuridica
@@ -393,6 +442,34 @@
 </section>
 
 <section id="gestione-metadata" class="a-tab-panel" hidden>
+<details class="a-help" open>
+  <summary>Come funziona questa sezione</summary>
+  <div class="a-help-body">
+    <p><strong>Cosa mostra questa tabella.</strong> Ogni volta che SATOSA rigenera il metadata SP con contenuto <em>realmente diverso</em> da prima (chiavi ruotate, eIDAS/persona giuridica abilitati o disabilitati, upload manuale), viene salvata una riga qui — uno "scatto" (checkpoint) del documento in quel momento. Un semplice riavvio di SATOSA senza modifiche di configurazione <strong>non</strong> crea una nuova riga.</p>
+
+    <p><strong>Due stati indipendenti, non collegati tra loro:</strong></p>
+    <ul>
+      <li><span class="a-badge a-badge-success" style="font-size:11px;">Esposto</span> — è la versione che SATOSA sta servendo davvero in questo momento su <code>/spidSaml2/metadata</code>. Una sola alla volta.</li>
+      <li><span class="a-badge a-badge-info" style="font-size:11px;">Validato AgID</span> — è la versione che AgID ha approvato ufficialmente. Puro promemoria/bookmark, non ha alcun effetto tecnico. Può restare "Validato" anche se in questo momento stai esponendo una versione diversa per fare dei test.</li>
+    </ul>
+
+    <p><strong>"Esponi" = rollback non distruttivo.</strong> Cliccando "Esponi" su una riga, quella diventa esattamente ciò che SATOSA serve — bit per bit, cert compreso — indipendentemente da cosa dice la configurazione attuale (eIDAS/persona giuridica/toggle). Puoi tornare a una versione precedente in qualunque momento senza disfare nulla nelle impostazioni.</p>
+
+    <div class="a-help-example">
+      <strong>Esempio pratico — provare eIDAS senza rischi:</strong>
+      <ol>
+        <li>Oggi il metadata (validato AgID mesi fa) è esposto. Vuoi provare eIDAS ma non sei sicuro.</li>
+        <li>Vai al tab eIDAS, abiliti il toggle. SATOSA rigenera → compare qui una <strong>nuova riga</strong> (contenuto diverso: nuovi indici ACS 99/100).</li>
+        <li>La nuova riga diventa automaticamente quella esposta (è la config live). Fai i test con il Validator AgID o il validatore ufficiale.</li>
+        <li><strong>Non ti convince, o serve rifare un tentativo?</strong> Clicca "Esponi" sulla riga di <em>prima</em> del cambio (quella ancora marcata "Validato AgID") — SATOSA torna a servire esattamente quel documento, come se eIDAS non fosse mai stato toccato. Nessuna richiesta ad AgID intanto compromessa.</li>
+        <li>Solo quando i test vanno bene, clicchi "Segna validato" sulla nuova riga e fai la richiesta ufficiale di ri-validazione ad AgID.</li>
+      </ol>
+    </div>
+
+    <p style="margin-top:10px;"><strong>Colonna "Cert usato":</strong> quale certificato (tab SPID) era attivo quando quella riga è stata generata. Se ruoti le chiavi dopo, le righe vecchie mostrano un avviso — sono firmate con una chiave che non esiste più, non esponibili in modo affidabile.</p>
+    <p><strong>Colonna "Hash":</strong> solo un identificativo tecnico troncato per distinguere le righe a colpo d'occhio, non serve altro scopo.</p>
+  </div>
+</details>
 <div class="a-card">
   <div class="a-card-header">
     Storico e gestione metadata SPID/eIDAS

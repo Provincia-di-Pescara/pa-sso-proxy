@@ -65,6 +65,54 @@ async def test_snapshot_first_row_is_exposed_by_default(client, db_session):
     assert row.is_exposed is True
 
 
+async def test_snapshot_dedupes_by_semantic_hash_not_signed_content(client, db_session):
+    """
+    pysaml2 firma con un ID XML casuale ad ogni chiamata, quindi due snapshot
+    con lo STESSO contenuto semantico (stessa config) hanno comunque XML
+    firmato diverso — es. reload del cron IdP che non tocca il metadata SP.
+    Il dedup deve usare semantic_hash quando fornito, non hash(xml_content).
+    """
+    await client.post(
+        "/internal/spid-metadata-snapshot",
+        json={"xml_content": "<A signed=\"1\"/>", "semantic_hash": "same-config-hash"},
+    )
+    await client.post(
+        "/internal/spid-metadata-snapshot",
+        json={"xml_content": "<A signed=\"2\"/>", "semantic_hash": "same-config-hash"},
+    )
+    result = await db_session.execute(select(SpidMetadataVersion))
+    rows = result.scalars().all()
+    assert len(rows) == 1
+    assert rows[0].content_hash == "same-config-hash"
+    # La prima versione firmata resta quella storicizzata/esposta — il
+    # secondo reload (stessa config) non la sovrascrive.
+    assert rows[0].xml_content == '<A signed="1"/>'
+
+
+async def test_snapshot_semantic_hash_change_creates_new_row(client, db_session):
+    """Config realmente diversa (hash semantico diverso) -> nuova riga, checkpoint vero."""
+    await client.post(
+        "/internal/spid-metadata-snapshot",
+        json={"xml_content": "<A/>", "semantic_hash": "config-v1"},
+    )
+    await client.post(
+        "/internal/spid-metadata-snapshot",
+        json={"xml_content": "<B/>", "semantic_hash": "config-v2"},
+    )
+    result = await db_session.execute(select(SpidMetadataVersion))
+    rows = result.scalars().all()
+    assert len(rows) == 2
+
+
+async def test_snapshot_without_semantic_hash_falls_back_to_content_hash(client, db_session):
+    """Retrocompatibilità: satosa image vecchia senza semantic_hash -> comportamento invariato."""
+    response = await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
+    assert response.status_code == 200
+    result = await db_session.execute(select(SpidMetadataVersion))
+    row = result.scalar_one()
+    assert row.content_hash == hashlib.sha256(b"<A/>").hexdigest()
+
+
 async def test_snapshot_dedupes_identical_content(client, db_session):
     await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
     await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})

@@ -1,3 +1,4 @@
+import hashlib
 import inspect
 import json
 import logging
@@ -50,16 +51,25 @@ def _redact_pii_xml(raw_b64):
         return "[REDACTED: impossibile decodificare/redigere SAMLResponse per forensics]"
 
 
-def _report_metadata_snapshot(xml_text):
+def _report_metadata_snapshot(xml_text, semantic_hash=None):
     """
     Invia in modo fire-and-forget il metadata SP generato a config-api, che lo
     storicizza per permettere rollback non distruttivi. Errori/timeout non devono
     mai bloccare l'inizializzazione del backend.
+
+    `semantic_hash` (se fornito) è l'hash del contenuto PRIMA della firma —
+    pysaml2 firma con un ID XML casuale ad ogni chiamata, quindi l'hash del
+    documento firmato cambierebbe sempre anche a configurazione identica.
+    Passarlo evita che config-api storicizzi una nuova riga ad ogni reload
+    SATOSA (es. il cron di sync registry IdP, che non tocca il metadata SP).
     """
     config_api_url = os.environ.get("CONFIG_API_INTERNAL_URL", "http://config-api:8000")
     url = f"{config_api_url}/internal/spid-metadata-snapshot"
     try:
-        payload = json.dumps({"xml_content": xml_text}).encode("utf-8")
+        payload_dict = {"xml_content": xml_text}
+        if semantic_hash:
+            payload_dict["semantic_hash"] = semantic_hash
+        payload = json.dumps(payload_dict).encode("utf-8")
         req = urllib.request.Request(
             url, data=payload, headers={"Content-Type": "application/json"}, method="POST"
         )
@@ -221,7 +231,7 @@ class SpidSAMLBackend(SAMLBackend):
         logger.debug("inizializing metadata xmldoc")
         self.saml_base = saml2.md.SamlBase()
         self.xmldoc = self.__create_metadata(self.sp.config)
-        _report_metadata_snapshot(text_type(self.xmldoc))
+        _report_metadata_snapshot(text_type(self.xmldoc), getattr(self, "_metadata_semantic_hash", None))
 
     def _metadata_contact_person(self, metadata, conf):
         logger.debug(
@@ -969,6 +979,16 @@ class SpidSAMLBackend(SAMLBackend):
 
         # load ContactPerson Extensions
         self._metadata_contact_person(metadata, conf)
+
+        # Hash del contenuto PRIMA della firma: deterministico a parità di
+        # cert+config (nessun ID/timestamp casuale ancora presente a questo
+        # punto — quello arriva solo con sign_entity_descriptor qui sotto).
+        # Usato da _report_metadata_snapshot per evitare che ogni reload
+        # SATOSA produca una riga nuova nello storico metadata anche quando
+        # il metadata SP non è realmente cambiato.
+        self._metadata_semantic_hash = hashlib.sha256(
+            text_type(metadata).encode("utf-8")
+        ).hexdigest()
 
         # metadata signature
         secc = security_context(conf)

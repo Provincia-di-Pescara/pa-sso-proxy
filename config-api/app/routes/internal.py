@@ -46,12 +46,20 @@ async def log_access(entry: AccessLogEntry, db: AsyncSession = Depends(get_db)):
 
 class MetadataSnapshotEntry(BaseModel):
     xml_content: str
+    # Hash del contenuto PRIMA della firma (deterministico a parità di cert+config).
+    # pysaml2 firma con un ID XML casuale ad ogni chiamata (sid()), quindi l'hash
+    # del documento FIRMATO cambia sempre anche a configurazione identica — usarlo
+    # per il dedup produrrebbe una riga nuova ad ogni singolo reload SATOSA (inclusi
+    # quelli del cron di sync registry IdP, che non toccano affatto il metadata SP).
+    # Fallback al hash del contenuto firmato solo per compatibilità con un satosa
+    # image più vecchio durante un rolling deploy.
+    semantic_hash: Optional[str] = None
 
 
 @router.post("/internal/spid-metadata-snapshot")
 async def log_metadata_snapshot(entry: MetadataSnapshotEntry, db: AsyncSession = Depends(get_db)):
     try:
-        content_hash = hashlib.sha256(entry.xml_content.encode("utf-8")).hexdigest()
+        content_hash = entry.semantic_hash or hashlib.sha256(entry.xml_content.encode("utf-8")).hexdigest()
         last_result = await db.execute(
             select(SpidMetadataVersion)
             .where(SpidMetadataVersion.source == "generated")
