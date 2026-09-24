@@ -490,3 +490,24 @@ async def test_spid_backend_yaml_has_contact_person(full_db, tmp_path, monkeypat
     assert cp["Public"] == ""
 
 
+
+
+async def test_verifica_client_scopes_without_legal_entity(full_db, tmp_path, monkeypatch):
+    import json
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+    clients = json.loads((tmp_path / "oidc_clients.json").read_text())
+    assert clients["__spid_verifica__"]["allowed_scopes"] == ["openid", "profile", "email"]
+
+
+async def test_verifica_client_scopes_with_legal_entity(full_db, tmp_path, monkeypatch):
+    import json
+    s = (await full_db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one()
+    s.legal_entity_enabled = True
+    await full_db.commit()
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+    clients = json.loads((tmp_path / "oidc_clients.json").read_text())
+    assert clients["__spid_verifica__"]["allowed_scopes"] == ["openid", "profile", "email", "legal_entity"]

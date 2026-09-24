@@ -1029,7 +1029,10 @@ async def generate_satosa_config(db: AsyncSession) -> None:
     client_db["__spid_verifica__"] = {
         "client_secret": _hmac.new(_salt, b"__spid_verifica__", _hashlib.sha256).hexdigest(),
         "redirect_uris": [f"{_base_url(hostname)}/verifica/callback"],
-        "allowed_scopes": ["openid", "profile", "email"],
+        # legal_entity solo se l'ACS persona giuridica è nel metadata SP:
+        # altrimenti il login PG dalla pagina /verifica fallirebbe sempre.
+        "allowed_scopes": ["openid", "profile", "email"]
+        + (["legal_entity"] if settings.legal_entity_enabled else []),
         "response_types": ["code"],
     }
     _write_json(conf_dir, "oidc_clients.json", client_db)

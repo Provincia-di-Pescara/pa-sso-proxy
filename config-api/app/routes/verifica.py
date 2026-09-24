@@ -63,9 +63,11 @@ async def _get_settings(db: AsyncSession):
 @router.get("/verifica", response_class=HTMLResponse)
 async def verifica_page(request: Request, db: AsyncSession = Depends(get_db)):
     test_idp = await _get_test_idp(db)
+    settings = await _get_settings(db)
     return templates.TemplateResponse(request, "verifica/index.html.j2", {
-        "settings": await _get_settings(db),
+        "settings": settings,
         "test_idp_name": test_idp.display_name if test_idp else None,
+        "legal_entity_enabled": bool(settings and settings.legal_entity_enabled),
     })
 
 
@@ -88,24 +90,36 @@ async def verifica_start(request: Request, db: AsyncSession = Depends(get_db)):
     level = request.query_params.get("level", "2")
     acr = _SPID_ACR.get(level, _SPID_ACR["2"])
 
+    settings = await _get_settings(db)
+    legal_entity = (
+        request.query_params.get("subject") == "pg"
+        and bool(settings and settings.legal_entity_enabled)
+    )
+    scope = "openid profile email" + (" legal_entity" if legal_entity else "")
+    userinfo_claims = {
+        "fiscal_number": {"essential": True},
+        "given_name": None,
+        "family_name": None,
+        "email": None,
+        "https://attributes.eid.gov.it/fiscal_number": {"essential": True},
+    }
+    if legal_entity:
+        userinfo_claims.update({
+            "company_name": {"essential": True},
+            "registered_office": None,
+            "iva_code": {"essential": True},
+        })
+
     auth_url = f"{satosa_base}/OIDC/authorization?" + urlencode({
         "client_id": VERIFICA_CLIENT_ID,
         "response_type": "code",
-        "scope": "openid profile email",
+        "scope": scope,
         "redirect_uri": callback_uri,
         "state": state,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
         "acr_values": acr,
-        "claims": json.dumps({
-            "userinfo": {
-                "fiscal_number": {"essential": True},
-                "given_name": None,
-                "family_name": None,
-                "email": None,
-                "https://attributes.eid.gov.it/fiscal_number": {"essential": True},
-            }
-        }),
+        "claims": json.dumps({"userinfo": userinfo_claims}),
     })
     return RedirectResponse(auth_url, status_code=302)
 
