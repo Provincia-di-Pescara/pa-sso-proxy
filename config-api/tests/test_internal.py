@@ -8,7 +8,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy import select
 
 from app.database import get_db
-from app.models import SpidCert, SpidMetadataVersion
+from app.models import EnteSettings, SpidCert, SpidMetadataVersion
 
 
 @pytest.fixture
@@ -63,6 +63,25 @@ async def test_snapshot_first_row_is_exposed_by_default(client, db_session):
     result = await db_session.execute(select(SpidMetadataVersion))
     row = result.scalar_one()
     assert row.is_exposed is True
+
+
+async def test_snapshot_captures_settings_toggles(client, db_session):
+    settings = EnteSettings(
+        id=1, org_display_name="Test", org_name="Test Ente", org_url="https://test.it",
+        proxy_hostname="sso.test.it", ipa_code="TEST", contact_email="t@t.it",
+        contact_phone="+39", org_city="Pescara",
+        eidas_enabled=True, eidas_environment="qa", legal_entity_enabled=False,
+    )
+    db_session.add(settings)
+    await db_session.commit()
+
+    response = await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
+    assert response.status_code == 200
+
+    row = (await db_session.execute(select(SpidMetadataVersion))).scalar_one()
+    assert row.eidas_enabled is True
+    assert row.eidas_environment == "qa"
+    assert row.legal_entity_enabled is False
 
 
 async def test_snapshot_dedupes_by_semantic_hash_not_signed_content(client, db_session):
@@ -132,7 +151,7 @@ async def test_snapshot_new_content_follows_previously_live_exposed_row(client, 
     await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
     await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<B/>"})
     result = await db_session.execute(
-        select(SpidMetadataVersion).order_by(SpidMetadataVersion.created_at)
+        select(SpidMetadataVersion).order_by(SpidMetadataVersion.id)
     )
     rows = result.scalars().all()
     assert len(rows) == 2
@@ -161,7 +180,7 @@ async def test_snapshot_new_content_does_not_flip_pinned_older_version(client, d
     await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<B/>"})
 
     result = await db_session.execute(
-        select(SpidMetadataVersion).order_by(SpidMetadataVersion.created_at)
+        select(SpidMetadataVersion).order_by(SpidMetadataVersion.id)
     )
     rows = result.scalars().all()
     assert len(rows) == 3
@@ -172,56 +191,39 @@ async def test_snapshot_new_content_does_not_flip_pinned_older_version(client, d
     assert new_row.is_exposed is False
 
 
-async def test_concurrent_snapshot_race_results_in_one_row_no_error(client, db_session, monkeypatch):
+async def test_snapshot_hash_matching_old_non_last_row_still_creates_new_row(client, db_session):
     """
-    Regression test for the uWSGI multi-worker race: two workers can both
-    read "no existing row for this hash" before either commits, and both
-    then attempt to insert. The DB-level unique constraint on
-    (source, content_hash) is what actually prevents the duplicate;
-    log_metadata_snapshot must catch the resulting IntegrityError from the
-    loser and swallow it without raising (fire-and-forget contract).
+    Regression test: a toggle-revert cycle (A -> B -> A) makes the semantic
+    hash of the CURRENT state match an OLD row that is not the immediately
+    preceding one. A global UNIQUE(source, content_hash) constraint used to
+    silently block this insert (IntegrityError swallowed as "concurrent
+    worker race already handled"), leaving is_exposed stuck on a row SATOSA
+    no longer actually serves. Dedup must only ever compare against the
+    single most-recent row.
     """
-    xml = "<Race/>"
-    content_hash = hashlib.sha256(xml.encode("utf-8")).hexdigest()
-
-    # Simulate worker A's insert winning the race first.
-    winner = SpidMetadataVersion(
-        source="generated", xml_content=xml, content_hash=content_hash, is_exposed=True,
+    await client.post(
+        "/internal/spid-metadata-snapshot",
+        json={"xml_content": "<A/>", "semantic_hash": "config-a"},
     )
-    db_session.add(winner)
-    await db_session.commit()
-
-    # Simulate worker B: force its "last_row" SELECT to see no existing row
-    # (as if it ran before worker A's insert became visible), so it takes
-    # the insert branch and collides with worker A's row at commit time.
-    orig_execute = db_session.execute
-    state = {"patched_once": False}
-
-    class _EmptyResult:
-        def scalar_one_or_none(self):
-            return None
-
-    async def patched_execute(stmt, *args, **kwargs):
-        stmt_text = str(stmt)
-        if not state["patched_once"] and "spid_metadata_version" in stmt_text and "SELECT" in stmt_text:
-            state["patched_once"] = True
-            return _EmptyResult()
-        return await orig_execute(stmt, *args, **kwargs)
-
-    monkeypatch.setattr(db_session, "execute", patched_execute)
-
-    response = await client.post("/internal/spid-metadata-snapshot", json={"xml_content": xml})
+    await client.post(
+        "/internal/spid-metadata-snapshot",
+        json={"xml_content": "<B/>", "semantic_hash": "config-b"},
+    )
+    # Revert back to config A's semantic hash - must create a THIRD row,
+    # not be silently dropped because "config-a" already exists on row 1.
+    response = await client.post(
+        "/internal/spid-metadata-snapshot",
+        json={"xml_content": "<A/>", "semantic_hash": "config-a"},
+    )
     assert response.status_code == 200
-    assert response.json() == {"ok": True}
 
-    monkeypatch.undo()
     result = await db_session.execute(
-        select(SpidMetadataVersion).where(SpidMetadataVersion.content_hash == content_hash)
+        select(SpidMetadataVersion).order_by(SpidMetadataVersion.id)
     )
     rows = result.scalars().all()
-    assert len(rows) == 1
-    # The winning row's is_exposed must be untouched by the failed loser.
-    assert rows[0].is_exposed is True
+    assert len(rows) == 3
+    assert [r.content_hash for r in rows] == ["config-a", "config-b", "config-a"]
+    assert [r.is_exposed for r in rows] == [False, False, True]
 
 
 async def test_snapshot_db_failure_still_returns_ok(client, db_session, monkeypatch):

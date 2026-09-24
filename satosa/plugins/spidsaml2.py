@@ -986,9 +986,15 @@ class SpidSAMLBackend(SAMLBackend):
         # Usato da _report_metadata_snapshot per evitare che ogni reload
         # SATOSA produca una riga nuova nello storico metadata anche quando
         # il metadata SP non è realmente cambiato.
-        self._metadata_semantic_hash = hashlib.sha256(
-            text_type(metadata).encode("utf-8")
-        ).hexdigest()
+        _unsigned_text = text_type(metadata)
+        self._metadata_semantic_hash = hashlib.sha256(_unsigned_text.encode("utf-8")).hexdigest()
+        logger.warning(
+            "DEBUG ficep=%s has99=%s hash=%s len=%d",
+            self.config["sp_config"]["ficep_enable"],
+            'index="99"' in _unsigned_text,
+            self._metadata_semantic_hash,
+            len(_unsigned_text),
+        )
 
         # metadata signature
         secc = security_context(conf)

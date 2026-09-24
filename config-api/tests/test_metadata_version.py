@@ -6,7 +6,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy import select
 
 from app.database import get_db
-from app.models import SpidCert, SpidMetadataVersion
+from app.models import EnteSettings, SpidCert, SpidMetadataVersion
 
 
 @pytest.fixture
@@ -126,6 +126,85 @@ async def test_expose_warns_when_cert_mismatch(auth_client, db_session, tmp_path
     response = await auth_client.post(f"/admin/metadata/{older.id}/expose", follow_redirects=False)
     assert response.status_code == 303
     assert "metadata_warning=" in response.headers["location"]
+
+
+async def test_expose_restores_settings_toggles_from_snapshot(auth_client, db_session, tmp_path, monkeypatch):
+    """
+    'Esponi' è un rollback completo: se il profilo porta uno snapshot dei
+    toggle eIDAS/persona giuridica, EnteSettings viene riallineato — non solo
+    il documento pubblicato, anche il comportamento runtime del backend
+    (ficep_enable/legal_entity_enable).
+    """
+    from unittest.mock import AsyncMock, patch
+
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    settings = EnteSettings(
+        id=1, org_display_name="Test", org_name="Test Ente", org_url="https://test.it",
+        proxy_hostname="sso.test.it", ipa_code="TEST", contact_email="t@t.it",
+        contact_phone="+39", org_city="Pescara",
+        eidas_enabled=True, eidas_environment="prod", legal_entity_enabled=True,
+    )
+    db_session.add(settings)
+    await db_session.commit()
+
+    latest = SpidMetadataVersion(
+        source="generated", xml_content="<Latest/>", content_hash="h2", is_exposed=True,
+        eidas_enabled=True, eidas_environment="prod", legal_entity_enabled=True,
+    )
+    older_profile = SpidMetadataVersion(
+        source="generated", xml_content="<Older/>", content_hash="h1", is_exposed=False,
+        eidas_enabled=False, eidas_environment="qa", legal_entity_enabled=False,
+    )
+    db_session.add_all([older_profile, latest])
+    await db_session.commit()
+    await db_session.refresh(older_profile)
+
+    with patch("app.routes.metadata.generate_and_write", new=AsyncMock()) as mock_gen, \
+         patch("app.routes.metadata.reload_satosa") as mock_reload:
+        response = await auth_client.post(f"/admin/metadata/{older_profile.id}/expose", follow_redirects=False)
+
+    assert response.status_code == 303
+    mock_gen.assert_awaited_once()
+    mock_reload.assert_called_once()
+
+    await db_session.refresh(settings)
+    assert settings.eidas_enabled is False
+    assert settings.eidas_environment == "qa"
+    assert settings.legal_entity_enabled is False
+
+
+async def test_expose_does_not_touch_settings_when_snapshot_absent(auth_client, db_session, tmp_path, monkeypatch):
+    """Profili storici (precedenti al tracciamento toggle) hanno eidas_enabled=None:
+    'Esponi' ripristina solo il documento, le impostazioni live restano intatte."""
+    from unittest.mock import AsyncMock, patch
+
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    settings = EnteSettings(
+        id=1, org_display_name="Test", org_name="Test Ente", org_url="https://test.it",
+        proxy_hostname="sso.test.it", ipa_code="TEST", contact_email="t@t.it",
+        contact_phone="+39", org_city="Pescara",
+        eidas_enabled=True, eidas_environment="prod", legal_entity_enabled=True,
+    )
+    db_session.add(settings)
+    await db_session.commit()
+
+    latest = SpidMetadataVersion(source="generated", xml_content="<Latest/>", content_hash="h2", is_exposed=True)
+    legacy_profile = SpidMetadataVersion(source="generated", xml_content="<Legacy/>", content_hash="h1", is_exposed=False)
+    db_session.add_all([legacy_profile, latest])
+    await db_session.commit()
+    await db_session.refresh(legacy_profile)
+
+    with patch("app.routes.metadata.generate_and_write", new=AsyncMock()) as mock_gen, \
+         patch("app.routes.metadata.reload_satosa") as mock_reload:
+        response = await auth_client.post(f"/admin/metadata/{legacy_profile.id}/expose", follow_redirects=False)
+
+    assert response.status_code == 303
+    mock_gen.assert_not_awaited()
+    mock_reload.assert_not_called()
+
+    await db_session.refresh(settings)
+    assert settings.eidas_enabled is True
+    assert settings.legal_entity_enabled is True
 
 
 async def test_validate_switches_flag(auth_client, db_session):

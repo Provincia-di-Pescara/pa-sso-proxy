@@ -168,7 +168,9 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     registry_provider_enabled = any(item.enabled for item in idps)
 
     metadata_versions_result = await db.execute(
-        select(SpidMetadataVersion).order_by(SpidMetadataVersion.created_at.desc())
+        select(SpidMetadataVersion).order_by(
+            SpidMetadataVersion.created_at.desc(), SpidMetadataVersion.id.desc()
+        )
     )
     metadata_versions = metadata_versions_result.scalars().all()
     metadata_exposed_mismatch = any(

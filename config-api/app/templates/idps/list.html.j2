@@ -45,7 +45,7 @@
   </button>
   <button type="button" class="a-tab" data-tab="gestione-metadata" role="tab">
     <span class="a-tab-dot" style="background:{% if metadata_exposed_mismatch %}var(--danger){% elif not metadata_versions %}var(--fg-muted){% else %}var(--success){% endif %};"></span>
-    Gestione metadata
+    Profili configurazione
   </button>
 </div>
 
@@ -74,7 +74,7 @@
   <summary>Come funziona questa sezione</summary>
   <div class="a-help-body">
     <p>Le <strong>chiavi</strong> sono la coppia certificato + chiave privata con cui il proxy firma e decifra i messaggi SAML verso gli Identity Provider SPID/eIDAS. Il certificato pubblico è quello registrato su AgID e negli IdP.</p>
-    <p><strong>"Rigenera chiavi"</strong> crea una coppia completamente nuova: il certificato pubblico cambia per davvero. Da quel momento il metadata registrato su AgID non corrisponde più alla chiave che il proxy usa realmente — serve una nuova validazione/registrazione. È un'operazione diversa e più invasiva di "Rigenera metadata" (tab <em>Gestione metadata</em>), che non tocca le chiavi.</p>
+    <p><strong>"Rigenera chiavi"</strong> crea una coppia completamente nuova: il certificato pubblico cambia per davvero. Da quel momento il metadata registrato su AgID non corrisponde più alla chiave che il proxy usa realmente — serve una nuova validazione/registrazione. È un'operazione diversa e più invasiva di "Rigenera metadata" (tab <em>Profili configurazione</em>), che non tocca le chiavi.</p>
     <div class="a-help-example"><strong>Esempio:</strong> il certificato scade tra 20 giorni → rigeneri le chiavi → il metadata SP cambia contenuto (nuovo certificato) → va ri-registrato/ri-validato presso AgID prima che SPID torni a funzionare in produzione con gli IdP ufficiali.</div>
   </div>
 </details>
@@ -89,7 +89,7 @@
       {% if s and s.eidas_enabled and metadata_status and not metadata_status.has_eidas %}
         <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
           <strong>Attenzione:</strong> eIDAS è abilitato in configurazione, ma il metadata pubblicato non supporta ancora eIDAS (indici FICEP 99/100 mancanti).
-          Verifica che SATOSA sia stato ricaricato correttamente (in fondo alla pagina Metadata SPID trovi "Rigenera metadata").
+          Verifica che SATOSA sia stato ricaricato correttamente (nel tab Profili configurazione trovi "Rigenera metadata").
         </div>
       {% endif %}
       {% if cert %}
@@ -342,7 +342,7 @@
   <div class="a-help-body">
     <p>Abilitare eIDAS aggiunge due nuovi indici (99 e 100) di <code>AttributeConsumingService</code> al metadata SP — il documento pubblicato <strong>cambia contenuto per davvero</strong>. Non tocca le chiavi, ma modifica cosa il metadata dichiara.</p>
     <p>Serve ri-validazione AgID prima di andare in produzione. <strong>Non serve rifarla ogni volta</strong> che riavvii SATOSA: solo la prima volta che abiliti/disabiliti (o cambi ambiente prod/QA).</p>
-    <div class="a-help-example"><strong>Workflow consigliato per non rischiare nulla:</strong> abilita eIDAS qui → vai al tab <em>Gestione metadata</em>, trovi la nuova versione generata → <code>Esponi</code> per pubblicarla e testare con AgID → se qualcosa non va, <code>Esponi</code> la versione di prima del cambio (torni esattamente come stavi) → solo quando sei soddisfatto, <code>Segna validato</code> e chiedi la validazione ufficiale ad AgID.</div>
+    <div class="a-help-example"><strong>Workflow consigliato per non rischiare nulla:</strong> abilita eIDAS qui → vai al tab <em>Profili configurazione</em>, trovi la nuova versione generata → <code>Esponi</code> per pubblicarla e testare con AgID → se qualcosa non va, <code>Esponi</code> la versione di prima del cambio (torni esattamente come stavi) → solo quando sei soddisfatto, <code>Segna validato</code> e chiedi la validazione ufficiale ad AgID.</div>
   </div>
 </details>
 <div class="a-card" style="max-width:720px;">
@@ -397,7 +397,7 @@
   <summary>Come funziona questa sezione</summary>
   <div class="a-help-body">
     <p>Abilitare l'accesso persona giuridica aggiunge un <code>AttributeConsumingService</code> dedicato con gli attributi azienda (ragione sociale, sede legale, P.IVA) al metadata SP — il documento pubblicato <strong>cambia contenuto per davvero</strong>, stessa logica di eIDAS.</p>
-    <p>Serve ri-validazione AgID. Stesso workflow non distruttivo di eIDAS: vedi il suggerimento nel tab <em>Gestione metadata</em>.</p>
+    <p>Serve ri-validazione AgID. Stesso workflow non distruttivo di eIDAS: vedi il suggerimento nel tab <em>Profili configurazione</em>.</p>
   </div>
 </details>
 <div class="a-card" style="max-width:720px;">
@@ -453,26 +453,27 @@
       <li><span class="a-badge a-badge-info" style="font-size:11px;">Validato AgID</span> — è la versione che AgID ha approvato ufficialmente. Puro promemoria/bookmark, non ha alcun effetto tecnico. Può restare "Validato" anche se in questo momento stai esponendo una versione diversa per fare dei test.</li>
     </ul>
 
-    <p><strong>"Esponi" = rollback non distruttivo.</strong> Cliccando "Esponi" su una riga, quella diventa esattamente ciò che SATOSA serve — bit per bit, cert compreso — indipendentemente da cosa dice la configurazione attuale (eIDAS/persona giuridica/toggle). Puoi tornare a una versione precedente in qualunque momento senza disfare nulla nelle impostazioni.</p>
+    <p><strong>"Esponi" = rollback completo, non solo del documento.</strong> Ogni riga è un <em>profilo</em>: il metadata XML pubblicato **più** lo stato dei toggle eIDAS/persona giuridica in quel momento. Cliccando "Esponi", il documento torna esattamente quello — bit per bit, cert compreso — <strong>e i toggle eIDAS/persona giuridica vengono automaticamente riallineati</strong> a com'erano allora (SATOSA si ricarica di conseguenza). Il certificato di firma resta invece un'azione separata (tab SPID → storico certificati → Attiva) — riattivare una chiave vecchia ha implicazioni di sicurezza diverse da un semplice toggle, "Esponi" non lo tocca, solo avvisa se non corrisponde.</p>
 
     <div class="a-help-example">
       <strong>Esempio pratico — provare eIDAS senza rischi:</strong>
       <ol>
-        <li>Oggi il metadata (validato AgID mesi fa) è esposto. Vuoi provare eIDAS ma non sei sicuro.</li>
-        <li>Vai al tab eIDAS, abiliti il toggle. SATOSA rigenera → compare qui una <strong>nuova riga</strong> (contenuto diverso: nuovi indici ACS 99/100).</li>
-        <li>La nuova riga diventa automaticamente quella esposta (è la config live). Fai i test con il Validator AgID o il validatore ufficiale.</li>
-        <li><strong>Non ti convince, o serve rifare un tentativo?</strong> Clicca "Esponi" sulla riga di <em>prima</em> del cambio (quella ancora marcata "Validato AgID") — SATOSA torna a servire esattamente quel documento, come se eIDAS non fosse mai stato toccato. Nessuna richiesta ad AgID intanto compromessa.</li>
-        <li>Solo quando i test vanno bene, clicchi "Segna validato" sulla nuova riga e fai la richiesta ufficiale di ri-validazione ad AgID.</li>
+        <li>Oggi il profilo (validato AgID mesi fa) è esposto, eIDAS disabilitato.</li>
+        <li>Vai al tab eIDAS, abiliti il toggle. SATOSA rigenera → compare qui un <strong>nuovo profilo</strong> (contenuto diverso: nuovi indici ACS 99/100, eIDAS=on).</li>
+        <li>Il nuovo profilo diventa automaticamente quello esposto (è la config live). Fai i test con il Validator AgID o il validatore ufficiale.</li>
+        <li><strong>Non ti convince, o serve rifare un tentativo?</strong> Clicca "Esponi" sul profilo di <em>prima</em> del cambio (quello ancora marcato "Validato AgID") — SATOSA torna a servire esattamente quel documento <em>e il toggle eIDAS torna disabilitato da solo</em>. Come se non l'avessi mai toccato. Nessuna richiesta ad AgID intanto compromessa.</li>
+        <li>Solo quando i test vanno bene, clicchi "Segna validato" sul nuovo profilo e fai la richiesta ufficiale di ri-validazione ad AgID.</li>
       </ol>
     </div>
 
-    <p style="margin-top:10px;"><strong>Colonna "Cert usato":</strong> quale certificato (tab SPID) era attivo quando quella riga è stata generata. Se ruoti le chiavi dopo, le righe vecchie mostrano un avviso — sono firmate con una chiave che non esiste più, non esponibili in modo affidabile.</p>
+    <p style="margin-top:10px;"><strong>Colonna "Cert usato":</strong> quale certificato (tab SPID) era attivo quando quel profilo è stato generato. Se ruoti le chiavi dopo, i profili vecchi mostrano un avviso — sono firmati con una chiave che non esiste più, non ripristinabile automaticamente.</p>
+    <p><strong>Colonna "eIDAS / PG":</strong> stato dei due toggle in quel profilo — quello che "Esponi" ripristina. "—" per profili storici salvati prima che questo tracciamento esistesse (nessun ripristino possibile per quelli, solo il documento).</p>
     <p><strong>Colonna "Hash":</strong> solo un identificativo tecnico troncato per distinguere le righe a colpo d'occhio, non serve altro scopo.</p>
   </div>
 </details>
 <div class="a-card">
   <div class="a-card-header">
-    Storico e gestione metadata SPID/eIDAS
+    Storico profili di configurazione SPID/eIDAS
     <span class="a-badge a-badge-neutral">SAML SP</span>
   </div>
   <div class="a-card-body">
@@ -506,6 +507,7 @@
           <th>Fonte</th>
           <th>Generato il</th>
           <th>Cert usato</th>
+          <th>eIDAS / PG</th>
           <th>Hash</th>
           <th>Stato</th>
           <th>Azioni</th>
@@ -520,6 +522,14 @@
             {% if v.cert_id %}
               #{{ v.cert_id }}{% if not cert or v.cert_id != cert.id %} <span class="a-badge a-badge-warning">non è il cert attivo</span>{% endif %}
             {% else %}—{% endif %}
+          </td>
+          <td style="font-size:11px;white-space:nowrap;">
+            {% if v.eidas_enabled is none and v.legal_entity_enabled is none %}
+              <span class="a-muted">—</span>
+            {% else %}
+              <span class="{% if v.eidas_enabled %}a-badge a-badge-success{% else %}a-badge a-badge-neutral{% endif %}" style="font-size:10px;">eIDAS {% if v.eidas_enabled %}on{% else %}off{% endif %}</span>
+              <span class="{% if v.legal_entity_enabled %}a-badge a-badge-success{% else %}a-badge a-badge-neutral{% endif %}" style="font-size:10px;">PG {% if v.legal_entity_enabled %}on{% else %}off{% endif %}</span>
+            {% endif %}
           </td>
           <td class="a-mono" style="font-size:11px;">{{ v.content_hash[:12] }}</td>
           <td>

@@ -5,11 +5,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import AccessLog, SpidCert, SpidMetadataVersion
+from app.models import AccessLog, EnteSettings, SpidCert, SpidMetadataVersion
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -63,13 +62,18 @@ async def log_metadata_snapshot(entry: MetadataSnapshotEntry, db: AsyncSession =
         last_result = await db.execute(
             select(SpidMetadataVersion)
             .where(SpidMetadataVersion.source == "generated")
-            .order_by(SpidMetadataVersion.created_at.desc())
+            # id (autoincrement) invece di created_at: due commit ravvicinati
+            # possono ricevere lo stesso timestamp (granularità SQLite/PG),
+            # rendendo l'ordinamento per created_at non deterministico.
+            .order_by(SpidMetadataVersion.id.desc())
             .limit(1)
         )
         last_row = last_result.scalar_one_or_none()
         if last_row is None or last_row.content_hash != content_hash:
             cert_result = await db.execute(select(SpidCert).where(SpidCert.is_active == True).limit(1))
             cert = cert_result.scalar_one_or_none()
+            settings_result = await db.execute(select(EnteSettings).limit(1))
+            settings = settings_result.scalar_one_or_none()
             # `last_row` being currently exposed means SATOSA is serving it as the
             # live/dynamic metadata (no override file pinning an older version —
             # pinning an older version would have left is_exposed=False on
@@ -83,23 +87,17 @@ async def log_metadata_snapshot(entry: MetadataSnapshotEntry, db: AsyncSession =
                 content_hash=content_hash,
                 cert_id=cert.id if cert else None,
                 is_exposed=last_row is None or was_live_exposed,
+                # Snapshot dei toggle live — "Esponi" non li tocca mai, servono
+                # a rilevare un mismatch pubblicato/comportamento (vedi metadata.py).
+                eidas_enabled=getattr(settings, "eidas_enabled", None),
+                eidas_environment=getattr(settings, "eidas_environment", None),
+                legal_entity_enabled=getattr(settings, "legal_entity_enabled", None),
             )
             db.add(row)
-            try:
+            await db.commit()
+            if was_live_exposed:
+                last_row.is_exposed = False
                 await db.commit()
-            except IntegrityError:
-                # Race between uWSGI workers: another worker already inserted a
-                # row with this (source, content_hash) between our read and our
-                # insert. Nothing to do — the row exists, fire-and-forget.
-                await db.rollback()
-                logger.info(
-                    "Metadata snapshot with hash %s already inserted by a concurrent worker; skipping",
-                    content_hash,
-                )
-            else:
-                if was_live_exposed:
-                    last_row.is_exposed = False
-                    await db.commit()
     except Exception:
         logger.error("Failed to save metadata snapshot", exc_info=True)
     return {"ok": True}

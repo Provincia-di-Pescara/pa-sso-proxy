@@ -7,11 +7,10 @@ from defusedxml import ElementTree
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import SpidCert, SpidMetadataVersion
+from app.models import EnteSettings, SpidCert, SpidMetadataVersion
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 
@@ -92,11 +91,52 @@ async def metadata_expose(version_id: int, request: Request, db: AsyncSession = 
         active_cert_result = await db.execute(select(SpidCert).where(SpidCert.is_active == True).limit(1))
         active_cert = active_cert_result.scalar_one_or_none()
         if active_cert is None or active_cert.id != version.cert_id:
+            # Il certificato NON viene auto-ripristinato: riattivare una chiave
+            # privata vecchia è un'azione a se stante (tab SPID -> storico
+            # certificati -> Attiva), con implicazioni di sicurezza diverse da
+            # un toggle di configurazione. Qui solo avviso, non blocco.
             warning = quote(
                 "Attenzione: questa versione di metadata è firmata con un certificato diverso "
                 "da quello attualmente attivo. Il metadata esposto potrebbe non corrispondere "
                 "al certificato in uso su SATOSA."
             )
+
+    # "Esponi" è un rollback completo, non solo del documento: se questa
+    # versione porta uno snapshot dei toggle EnteSettings (righe successive
+    # alla migrazione 017 — righe storiche precedenti hanno NULL, nessun
+    # ripristino possibile), li riallinea così che anche il comportamento
+    # RUNTIME del backend (ficep_enable/legal_entity_enable in
+    # satosa_config_generator.py) torni coerente con il documento esposto,
+    # non solo il metadata pubblicato.
+    settings_changed = False
+    if version.eidas_enabled is not None or version.legal_entity_enabled is not None:
+        settings_result = await db.execute(select(EnteSettings).limit(1))
+        settings = settings_result.scalar_one_or_none()
+        if settings:
+            if version.eidas_enabled is not None and settings.eidas_enabled != version.eidas_enabled:
+                settings.eidas_enabled = version.eidas_enabled
+                settings_changed = True
+            if (
+                version.eidas_environment is not None
+                and settings.eidas_environment != version.eidas_environment
+            ):
+                settings.eidas_environment = version.eidas_environment
+                settings_changed = True
+            if (
+                version.legal_entity_enabled is not None
+                and settings.legal_entity_enabled != version.legal_entity_enabled
+            ):
+                settings.legal_entity_enabled = version.legal_entity_enabled
+                settings_changed = True
+            if settings_changed:
+                await db.commit()
+
+    if settings_changed:
+        try:
+            await generate_and_write(db)
+            await asyncio.to_thread(reload_satosa)
+        except Exception:
+            pass
 
     redirect_url = "/admin/idps"
     if warning:
@@ -143,16 +183,20 @@ async def metadata_upload(request: Request, db: AsyncSession = Depends(get_db), 
         )
 
     content_hash = hashlib.sha256(xml_text.encode("utf-8")).hexdigest()
-    row = SpidMetadataVersion(source="uploaded", xml_content=xml_text, content_hash=content_hash, is_exposed=False)
-    db.add(row)
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
+    dup_result = await db.execute(
+        select(SpidMetadataVersion)
+        .where(SpidMetadataVersion.source == "uploaded")
+        .where(SpidMetadataVersion.content_hash == content_hash)
+        .limit(1)
+    )
+    if dup_result.scalar_one_or_none() is not None:
         return RedirectResponse(
             f"/admin/idps?metadata_error={quote('Questa versione di metadata è già stata caricata in precedenza.')}#gestione-metadata",
             status_code=303,
         )
+    row = SpidMetadataVersion(source="uploaded", xml_content=xml_text, content_hash=content_hash, is_exposed=False)
+    db.add(row)
+    await db.commit()
     return RedirectResponse("/admin/idps#gestione-metadata", status_code=303)
 
 
