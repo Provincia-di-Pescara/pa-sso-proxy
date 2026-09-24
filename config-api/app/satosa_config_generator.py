@@ -629,7 +629,7 @@ def _eid_locale_strings(
     spid_it = {
         "name": "SPID",
         "logo_text": "Entra con SPID",
-        "logo": "https://raw.githubusercontent.com/italia/spid-idp-login-layout/master/img/spid-ico-circle-bb.svg",
+        "logo": "spid/spid-ico-circle-bb.svg",
         "login_url": "#spid-idp-button-xlarge-post",
         "learn_more_descr": (
             "SPID (Sistema Pubblico di Identità Digitale) è il sistema pubblico di identità digitale italiano. "
@@ -641,7 +641,7 @@ def _eid_locale_strings(
     spid_en = {
         "name": "SPID",
         "logo_text": "Login with SPID",
-        "logo": "https://raw.githubusercontent.com/italia/spid-idp-login-layout/master/img/spid-ico-circle-bb.svg",
+        "logo": "spid/spid-ico-circle-bb.svg",
         "login_url": "#spid-idp-button-xlarge-post",
         "learn_more_descr": (
             "SPID (Sistema Pubblico di Identità Digitale) is the Italian public digital identity system. "
@@ -1042,13 +1042,13 @@ async def generate_satosa_config(db: AsyncSession) -> None:
             spid_idps_json.append({
                 "organization_name": "Demo Provider",
                 "entity_id": "https://demo.spid.gov.it",
-                "logo_uri": "https://pagopa-prx.comune.montesilvano.pe.it/static/spid/spid-agid-logo-lb.png"
+                "logo_uri": "/static/spid/spid-agid-logo-lb.png"
             })
         elif idp.alias == "spid-validator":
             spid_idps_json.append({
                 "organization_name": "AgID Validator",
                 "entity_id": "https://validator.spid.gov.it",
-                "logo_uri": "https://pagopa-prx.comune.montesilvano.pe.it/static/spid/spid-agid-logo-lb.png"
+                "logo_uri": "/static/spid/spid-agid-logo-lb.png"
             })
         elif idp.alias in _EIDAS_ALIASES:
             # eIDAS has its own dedicated tab in the disco page — skip from SPID IdP list.
