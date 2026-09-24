@@ -16,6 +16,10 @@ cd config-api && pytest tests/test_satosa_config_generator.py -v  # singolo file
 cd config-api && pytest tests/test_eidas.py::test_name -v         # singolo test
 ```
 
+`docker compose port nginx 80` per trovare la porta host esposta (es. `18080`) quando serve `curl`/testare form admin dal terminale — config-api non è esposto direttamente sull'host, solo dietro nginx.
+
+`POST /admin/eidas/toggle` da form: checkbox `eidas_enabled=yes` per abilitare (assente = disabilita), **richiede anche `confirmed=yes`** altrimenti redirect a warning senza applicare nulla (stesso `window.confirm()` della UI) — utile saperlo per test via curl/script.
+
 ## Cos'è
 
 Docker Compose stack per SSO centralizzato di Pubblica Amministrazione italiana. Permette a N applicativi dell'ente di autenticare cittadini tramite SPID e CIE, esponendo un'unica interfaccia OIDC standard (PKCE).
@@ -175,7 +179,15 @@ Quando un client OIDC chiede lo scope `legal_entity`, il backend SPID (`spidsaml
 
 `spid_metadata_version` storicizza ogni XML di metadata generato da SATOSA: `spidsaml2.py` invia uno snapshot fire-and-forget a `POST /internal/spid-metadata-snapshot` dopo ogni `__create_metadata`. Un admin può "esporre" (rollback non distruttivo) una versione storica: `config-api` scrive/rimuove `/satosa-conf/spid_sp_metadata_override.xml`, che `_metadata_endpoint` serve al posto del metadata dinamico se presente (nessun reload necessario, letto ad ogni richiesta). Il file è rifiutato se è un symlink (`os.open(..., O_NOFOLLOW)`) — endpoint pubblico, stessa directory della chiave privata SPID.
 
-**Gotcha:** pysaml2 firma il metadata con un ID XML casuale (`sign_entity_descriptor(metadata, None, secc, ...)` → `ident=None` → `sid()`), quindi hash/firma cambiano ad **ogni reload SATOSA**, anche a configurazione invariata — il dedup su `content_hash` in `internal.py` funziona solo per snapshot letteralmente identici (es. race tra i 2 worker uWSGI), non per "stesso config, reload diverso". Storico più verboso del previsto per design — eliminazione manuale delle versioni non necessarie è l'unica leva.
+**Gotcha (risolto):** pysaml2 firma con ID XML casuale (`sign_entity_descriptor(metadata, None, secc, ...)` → `ident=None` → `sid()`), quindi hash del documento FIRMATO cambia ad ogni reload anche a config invariata. Fix: `spidsaml2.py` calcola un `semantic_hash` (sha256 del metadata NON firmato, prima di `sign_entity_descriptor`) e lo manda a `/internal/spid-metadata-snapshot`; dedup in `internal.py` usa quello, non l'hash del documento firmato.
+
+**Niente `UNIQUE(source, content_hash)` sulla tabella**: con l'hash semantico il contenuto può legittimamente ripetersi nel tempo (ciclo toggle A→B→A riporta lo stesso hash di una riga VECCHIA, non solo dell'ultima) — un vincolo globale blocca in silenzio quell'insert (IntegrityError scambiata per race tra worker), lasciando `is_exposed` su una riga che SATOSA non serve più. Dedup "niente rumore" resta solo a livello applicativo, confronto contro l'ultima riga.
+
+**"Ultima riga" va ordinata per `id.desc()`, non `created_at.desc()`**: due commit ravvicinati possono ricevere lo stesso timestamp (granularità DB), rendendo l'ordinamento per data non deterministico — visto in produzione su `spid_metadata_version`.
+
+`spid_metadata_version` porta anche uno snapshot di `eidas_enabled`/`eidas_environment`/`legal_entity_enabled` per riga: "Esponi" ripristina ANCHE questi toggle (non solo il documento XML) se la riga li ha — altrimenti si rischia di esporre un metadata senza ACS eIDAS mentre il backend ha ancora `ficep_enable=true` attivo.
+
+**Gotcha:** mai hardcodare URL assoluti verso `pagopa-prx.comune.montesilvano.pe.it` (o altra istanza di riferimento esterna) in codice servito in produzione — è solo per confronto/debug (vedi sezione "Relazione con altri repository"). Successo una volta in `satosa_config_generator.py` (`logo_uri` di spid-demo/spid-validator) copiato per errore da lì invece che puntare ad asset locale in `satosa/public/static/`. Se serve un'icona statica, va sempre in `satosa/public/static/` e referenziata con path relativo, mai un dominio esterno (nemmeno GitHub raw — fragile, hotlink).
 
 ### Reload SATOSA
 Il config-api segnala il reload toccando `/satosa-conf/.reload` (volume condiviso). uWSGI nel container satosa è configurato con `--touch-reload /satosa-conf/.reload` e ricarica i worker gracefully senza caduta delle connessioni. Non è necessario il Docker socket.
