@@ -1,9 +1,13 @@
 import logging
 import inspect
+import os
 
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from satosa.backends.base import BackendModule
 from satosa.backends.oauth import get_metadata_desc_for_oauth_backend
+from satosa.response import Response
 
+from ..spidsaml2 import LEGAL_ENTITY_SPID_ONLY_ERROR, _legal_entity_requested
 from .utils.endpoints_loader import EndpointsLoader
 
 from pyeudiw.federation.trust_chain_builder import TrustChainBuilder
@@ -11,6 +15,25 @@ from pyeudiw.federation.statements import EntityStatement, get_entity_configurat
 
 
 logger = logging.getLogger(__name__)
+
+
+def _render_legal_entity_error() -> Response:
+    """Pagina di errore del proxy: CIE non supporta l'accesso per conto di un'impresa."""
+    template_folder = os.environ.get("SATOSA_TEMPLATE_FOLDER", "/satosa_proxy/templates")
+    static_url = os.environ.get("SATOSA_STATIC_URL", "/static/")
+    if not static_url.endswith("/"):
+        static_url += "/"
+    env = Environment(
+        loader=FileSystemLoader(searchpath=template_folder),
+        autoescape=select_autoescape(["html"]),
+    )
+    env.globals.update({"static": static_url})
+    result = env.get_template("spid_login_error.html").render({
+        **LEGAL_ENTITY_SPID_ONLY_ERROR,
+        "error_type": "generic",
+        "cancel_url": os.environ.get("SATOSA_CANCEL_REDIRECT_URL") or "/",
+    })
+    return Response(result.encode("utf-8"), content="text/html; charset=utf8", status="403")
 
 
 class CieOidcBackend(BackendModule):
@@ -29,6 +52,9 @@ class CieOidcBackend(BackendModule):
             f"Entering method: {inspect.getframeinfo(inspect.currentframe()).function}. "
             f"Params [metadata: {context}, conf: {internal_request}]"
         )
+        if _legal_entity_requested(context):
+            logger.warning("CIE richiesta con scope legal_entity: rifiutata (solo SPID)")
+            return _render_legal_entity_error()
         authorization_endpoint = self.endpoints.get("authorization")
         if not authorization_endpoint:
             raise ValueError("No authorization endpoint configured in the CieOidc backend")

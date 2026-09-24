@@ -100,6 +100,11 @@
 
       <!-- SPID PANEL -->
       <div class="sso-tab-panel" id="panel-spid" role="tabpanel" aria-labelledby="tab-spid">
+        <p class="sso-legal-entity-note" id="legal-entity-note" role="note" hidden>
+          <strong>Accesso per conto di un'impresa.</strong>
+          Usa SPID con un'identità per uso professionale della persona giuridica.
+          CIE ed eIDAS non sono disponibili per questo tipo di accesso.
+        </p>
         <p class="sso-desc">
           SPID, il <strong>Sistema Pubblico di Identità Digitale</strong>, è il sistema di accesso che consente di utilizzare, con un'identità digitale unica, i servizi online della Pubblica Amministrazione e dei privati accreditati. Se sei già in possesso di un'identità digitale, accedi con le credenziali del tuo gestore. Se non hai ancora un'identità digitale, richiedila ad uno dei gestori.
         </p>
@@ -234,6 +239,17 @@
 
 var DISCO_EP = '/spidSaml2/disco';
 
+/* Flusso persona giuridica (scope legal_entity): il backend SPID aggiunge
+   legal_entity=1 all'URL della discovery. Solo SPID: CIE ed eIDAS non possono
+   restituire i claim aziendali (e i backend rifiutano comunque la richiesta). */
+var LEGAL_ENTITY = new URLSearchParams(window.location.search).get('legal_entity') === '1';
+if (LEGAL_ENTITY) {
+  document.addEventListener('DOMContentLoaded', function() {
+    var note = document.getElementById('legal-entity-note');
+    if (note) note.hidden = false;
+  });
+}
+
 /* Tab switching */
 function ssoTab(name) {
   document.querySelectorAll('.sso-tab').forEach(function(t) {
@@ -359,7 +375,7 @@ function ssoMakeDot() {
 
       /* CIE tab — show only if login_url is configured */
       var cie = data && data.digital_id && data.digital_id.cie;
-      if (cie && cie.login_url && cie.login_url !== '#' && cie.login_url !== '') {
+      if (!LEGAL_ENTITY && cie && cie.login_url && cie.login_url !== '#' && cie.login_url !== '') {
         var tabCie = document.getElementById('tab-cie');
         var btnCie = document.getElementById('cie-login-btn');
         if (tabCie) tabCie.style.display = '';
@@ -368,7 +384,7 @@ function ssoMakeDot() {
 
       /* eIDAS tab — show only if login_url is configured */
       var eidas = data && data.digital_id && data.digital_id.eidas;
-      if (eidas && eidas.login_url && eidas.login_url !== '') {
+      if (!LEGAL_ENTITY && eidas && eidas.login_url && eidas.login_url !== '') {
         var tabEidas = document.getElementById('tab-eidas');
         var btnEidas = document.getElementById('eidas-login-btn');
         var descEidas = document.getElementById('eidas-desc');

@@ -19,7 +19,7 @@ from saml2.validate import valid_instance
 from satosa.backends.saml2 import SAMLBackend
 from satosa.context import Context
 from satosa.exception import SATOSAAuthenticationError
-from satosa.response import Response
+from satosa.response import Response, SeeOther
 from satosa.saml_util import make_saml_response
 from six import text_type
 
@@ -162,7 +162,7 @@ SPID_ANOMALIES = {
 
 def _legal_entity_requested(context) -> bool:
     """True se la richiesta OIDC originale include lo scope 'legal_entity'."""
-    for v in context.state.values():
+    for v in (getattr(context, "state", None) or {}).values():
         if isinstance(v, dict) and "oidc_request" in v:
             oidc_request = v["oidc_request"]
             if not oidc_request:
@@ -184,6 +184,24 @@ def _build_purpose_extension(purpose: str) -> "saml2.samlp.Extensions":
         "Purpose", namespace="https://spid.gov.it/saml-extensions", text=purpose
     )
     return saml2.samlp.Extensions(extension_elements=[ext])
+
+
+# Accesso per conto di un'impresa: solo SPID (Purpose=PG + ACS persona giuridica).
+# CIE ed eIDAS (ACS 99/100 "Natural Person") non possono restituire i claim
+# aziendali: la discovery page li nasconde e i backend rifiutano la richiesta.
+LEGAL_ENTITY_SPID_ONLY_ERROR = {
+    "message": "L'accesso per conto di un'impresa è disponibile solo con SPID.",
+    "troubleshoot": (
+        "Torna al servizio e accedi con SPID usando un'identità per uso "
+        "professionale della persona giuridica. CIE ed eIDAS non supportano "
+        "questo tipo di accesso."
+    ),
+}
+
+
+def _add_legal_entity_disco_param(url: str) -> str:
+    """Segnala alla discovery page (statica) che il flusso è persona giuridica."""
+    return url + ("&" if urllib.parse.urlsplit(url).query else "?") + "legal_entity=1"
 
 
 _TROUBLESHOOT_MSG = (
@@ -422,6 +440,12 @@ class SpidSAMLBackend(SAMLBackend):
                         context.state, "Selected IdP is blacklisted for this backend"
                     )
 
+    def disco_query(self, context):
+        response = super().disco_query(context)
+        if not _legal_entity_requested(context):
+            return response
+        return SeeOther(_add_legal_entity_disco_param(dict(response.headers)["Location"]))
+
     def authn_request(self, context, entity_id):
         logger.debug(
             f"Entering method: {inspect.getframeinfo(inspect.currentframe()).function}. "
@@ -439,6 +463,13 @@ class SpidSAMLBackend(SAMLBackend):
         :param entity_id: Target IDP entity id
         :return: response to the user agent
         """
+        if (
+            _legal_entity_requested(context)
+            and entity_id == self.config["sp_config"].get("ficep_entity_id")
+        ):
+            logger.warning("eIDAS richiesto con scope legal_entity: rifiutato (solo SPID)")
+            return self.handle_error(**LEGAL_ENTITY_SPID_ONLY_ERROR)
+
         self.check_blacklist(context, entity_id)
         kwargs = {}
         # fetch additional kwargs

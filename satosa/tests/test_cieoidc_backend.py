@@ -199,3 +199,43 @@ def test_generate_trust_chain_static(mock_tcb):
     mock_tc.start.assert_called_once()
     mock_tc.apply_metadata_policy.assert_called_once()
     assert res == mock_tc
+
+
+# --- Persona giuridica: CIE non supportata ----------------------------------
+
+def _context_with_scope(scope):
+    ctx = Context()
+    ctx.state = {"OIDC": {"oidc_request": f"client_id=x&scope={scope}&state=y"}}
+    return ctx
+
+
+def test_start_auth_rejects_legal_entity(backend):
+    mock_auth = MagicMock(return_value="response")
+    backend.endpoints["authorization"] = mock_auth
+    with patch("backends.cieoidc.cieoidc._render_legal_entity_error", return_value="ERROR_PAGE") as render:
+        res = backend.start_auth(_context_with_scope("openid+legal_entity"), MagicMock())
+    assert res == "ERROR_PAGE"
+    render.assert_called_once()
+    mock_auth.assert_not_called()
+
+
+def test_start_auth_citizen_scope_calls_authorization(backend):
+    mock_auth = MagicMock(return_value="response")
+    backend.endpoints["authorization"] = mock_auth
+    res = backend.start_auth(_context_with_scope("openid+profile"), MagicMock())
+    assert res == "response"
+    mock_auth.assert_called_once()
+
+
+def test_render_legal_entity_error_uses_proxy_template(tmp_path, monkeypatch):
+    from markupsafe import escape
+    from backends.cieoidc import cieoidc
+    from backends.spidsaml2 import LEGAL_ENTITY_SPID_ONLY_ERROR
+    (tmp_path / "spid_login_error.html").write_text("{{ message }}|{{ troubleshoot }}|{{ static }}", encoding="utf-8")
+    monkeypatch.setenv("SATOSA_TEMPLATE_FOLDER", str(tmp_path))
+    monkeypatch.setenv("SATOSA_STATIC_URL", "/static")
+    resp = cieoidc._render_legal_entity_error()
+    body = resp.message.decode("utf-8") if isinstance(resp.message, bytes) else resp.message
+    assert str(escape(LEGAL_ENTITY_SPID_ONLY_ERROR["message"])) in body
+    assert body.endswith("|/static/")
+    assert resp.status.startswith("403")

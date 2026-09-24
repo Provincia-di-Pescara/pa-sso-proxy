@@ -18,6 +18,8 @@ cd config-api && pytest tests/test_eidas.py::test_name -v         # singolo test
 
 `docker compose port nginx 80` per trovare la porta host esposta (es. `18080`) quando serve `curl`/testare form admin dal terminale — config-api non è esposto direttamente sull'host, solo dietro nginx.
 
+Test flussi SATOSA via script su `http://localhost:<porta>`: il cookie `satosa_state` è `Secure; SameSite=None`, quindi httpx/curl non lo rimandano su http → SATOSA perde lo stato (scope, client) e il comportamento sembra sbagliato. Estrai `satosa_state=...` dal `Set-Cookie` della `/OIDC/authorization` e passalo a mano come header `Cookie`.
+
 `POST /admin/eidas/toggle` da form: checkbox `eidas_enabled=yes` per abilitare (assente = disabilita), **richiede anche `confirmed=yes`** altrimenti redirect a warning senza applicare nulla (stesso `window.confirm()` della UI) — utile saperlo per test via curl/script.
 
 Login admin via curl/script: con 2FA attivo (default) `POST /admin/login` dà solo `pending_2fa` → serve `POST /admin/login/2fa` con `code` TOTP. In locale più semplice `ADMIN_2FA_ENABLED=false`. Reset TOTP: `docker compose exec config-api python -m app.cli reset-2fa`. Nei test pytest il 2FA è off di default (fixture autouse in `tests/conftest.py`); i test 2FA lo riattivano con `monkeypatch.setenv("ADMIN_2FA_ENABLED", "true")`.
@@ -180,6 +182,8 @@ Quando un client OIDC chiede lo scope `legal_entity`, il backend SPID (`spidsaml
 
 **Abilitare persona giuridica modifica il metadata SPID** (nuovo ACS) → richiede ri-validazione AgID, stesso avviso già presente per eIDAS.
 
+**Flusso persona giuridica = solo SPID.** Con scope `legal_entity`, `SpidSAMLBackend.disco_query` aggiunge `legal_entity=1` all'URL della discovery (`disco.html` è statica, non legge lo stato SATOSA): la pagina nasconde le tab CIE/eIDAS e mostra un avviso. Guard lato server (URL di login aperti a mano): `authn_request` rifiuta l'`entity_id` FICEP e `CieOidcBackend.start_auth` rifiuta CIE, entrambi con la pagina d'errore del proxy (403, `LEGAL_ENTITY_SPID_ONLY_ERROR`), non redirect al client. Motivo: ACS eIDAS 99/100 sono solo "Natural Person" e CIE non ha identità PG — nessuno dei due può restituire i claim aziendali.
+
 ### Storico certificati e metadata SPID/eIDAS
 `SpidCert.is_active` (un solo `True` alla volta, applicativo non DB) sostituisce la selezione "ultimo per data" in tutti i punti che leggono il cert attivo (`idps.py`, `dashboard.py`, `eidas.py`, `backup.py`). Storico consultabile in `/admin/certs`: export cert/chiave, riattivazione, eliminazione dei non-attivi.
 
@@ -220,6 +224,8 @@ Pagina pubblica (no login admin) per validazione AgID. Gate: 404 se nessun IdP c
 Unico modo per testarli davvero: build dell'immagine satosa e pytest dentro il container (`docker build -t satosa-test -f satosa/Dockerfile satosa/`, poi `docker run --entrypoint sh satosa-test -c "... PYTHONPATH=/satosa_proxy pytest ..."`, import tipo `from backends.spidsaml2 import ...`). Vedi `.github/workflows/satosa-tests.yml` job `test-satosa-plugins-docker`.
 
 Comando reale che funziona (quello sopra fallisce con `pytest: not found` — niente venv su PATH): `docker run --rm -v "<repo>/satosa/tests:/tests" --entrypoint sh satosa-test -c ". /.venv/bin/activate && pip install -q -r /tests/requirements-test.txt && cd /satosa_proxy && PYTHONPATH=/satosa_proxy pytest /tests/test_spidsaml2.py -v"` — venv del pacchetto fork attivato esplicitamente, test montati da `/tests` (non `/satosa_proxy/tests`), dipendenze installate da `requirements-test.txt`.
+
+Per testare modifiche ai plugin senza rebuild: montali sopra l'immagine (`-v "<repo>/satosa/plugins/spidsaml2.py:/satosa_proxy/backends/spidsaml2.py"`, `-v ".../cieoidc-backend/cieoidc.py:/satosa_proxy/backends/cieoidc/cieoidc.py"`) e usa `--ignore=/tests/test_redis_storage.py` come la CI (quel file fallisce nel container con `No module named 'redis_storage'`, gira nel job pytest separato).
 
 Su Windows/Git Bash, `-v "$PWD/...":...` nel `docker run` non risolve il path — usa `MSYS_NO_PATHCONV=1` e path assoluto `/c/Users/...`.
 
