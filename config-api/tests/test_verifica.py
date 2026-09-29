@@ -119,8 +119,8 @@ def test_result_company_block_unwraps_list_values():
     assert "[" not in block and "&#39;" not in block
 
 
-async def test_start_forces_italian_ui_locales(verifica_app, db_session):
-    # Validazione AgID: messaggi SPID 19-30 in italiano a prescindere dal browser del tester.
+async def test_start_does_not_force_language(verifica_app, db_session):
+    # Nessuna lingua imposta: le pagine del proxy seguono il browser del tester.
     await _setup(db_session, legal_entity_enabled=False)
     params = await _authorize_params(verifica_app)
-    assert params["ui_locales"] == "it"
+    assert "ui_locales" not in params
