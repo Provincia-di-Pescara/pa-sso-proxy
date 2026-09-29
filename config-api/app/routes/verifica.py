@@ -120,8 +120,6 @@ async def verifica_start(request: Request, db: AsyncSession = Depends(get_db)):
         "code_challenge_method": "S256",
         "acr_values": acr,
         "claims": json.dumps({"userinfo": userinfo_claims}),
-        # Validazione AgID: pagine e messaggi SPID del proxy in italiano, come /verifica.
-        "ui_locales": "it",
     })
     return RedirectResponse(auth_url, status_code=302)
 
