@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Errore di accesso — Servizi digitali</title>
+  <title>{{ t('error.page_title') }}</title>
   <meta name="robots" content="noindex,nofollow">
   <link id="page-favicon" rel="icon" type="image/svg+xml" href="{{ static }}favicon.svg">
   <link rel="stylesheet" href="{{ static }}sso/sso.css">
@@ -16,15 +16,15 @@
     <div class="sso-slim-in">
       <span class="gov">
         <span class="gov-dot"></span>
-        <span>Sito ufficiale della Pubblica Amministrazione</span>
+        <span>{{ t('common.gov_site') }}</span>
       </span>
     </div>
   </div>
 
   <!-- ENTE BRAND (placeholder) -->
   <div class="sso-brand">
-    <img class="sso-crest" id="ente-logo" src="" alt="Logo ente" style="display:none">
-    <svg class="sso-crest-svg" id="ente-crest-svg" viewBox="0 0 64 64" fill="none" aria-label="Logo ente" role="img">
+    <img class="sso-crest" id="ente-logo" src="" alt="{{ t('common.ente_logo_alt') }}" style="display:none">
+    <svg class="sso-crest-svg" id="ente-crest-svg" viewBox="0 0 64 64" fill="none" aria-label="{{ t('common.ente_logo_alt') }}" role="img">
       <rect x="2" y="2" width="60" height="60" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5"/>
       <path d="M32 13 L48 21 H16 Z" fill="#64748B"/>
       <rect x="17" y="21" width="30" height="3" fill="#64748B"/>
@@ -34,7 +34,7 @@
       <rect x="15" y="45" width="34" height="4" rx="1" fill="#64748B"/>
     </svg>
     <div>
-      <p class="sso-brand-name" id="ente-name">Servizi digitali</p>
+      <p class="sso-brand-name" id="ente-name">{{ t('common.default_ente_name') }}</p>
     </div>
   </div>
 
@@ -50,7 +50,7 @@
           <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/>
         </svg>
       </div>
-      <h1 class="sso-title">Accesso annullato</h1>
+      <h1 class="sso-title">{{ t('error.title.cancelled') }}</h1>
 
       {% elif error_type == "timeout" %}
       <!-- Sessione scaduta — tono warning -->
@@ -60,7 +60,7 @@
           <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
         </svg>
       </div>
-      <h1 class="sso-title">Sessione scaduta</h1>
+      <h1 class="sso-title">{{ t('error.title.timeout') }}</h1>
 
       {% else %}
       <!-- Errore generico — tono danger -->
@@ -71,7 +71,7 @@
           <path d="M12 9v4"/><path d="M12 17h.01"/>
         </svg>
       </div>
-      <h1 class="sso-title">Non è stato possibile completare l'accesso</h1>
+      <h1 class="sso-title">{{ t('error.title.generic') }}</h1>
 
       {% endif %}
 
@@ -83,7 +83,7 @@
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>
           </svg>
-          Riprova ad accedere
+          {{ t('error.button.retry') }}
         </a>
         {% if cancel_url %}
         <a class="btn-outline" id="btn-cancel" href="{{ cancel_url }}">
@@ -91,13 +91,16 @@
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
           </svg>
-          Annulla
+          {{ t('error.button.cancel') }}
         </a>
         {% endif %}
       </div>
 
       {% if troubleshoot %}
-      <span class="sso-err-code">{{ troubleshoot }}</span>
+      <p class="sso-desc">{{ troubleshoot }}</p>
+      {% endif %}
+      {% if detail %}
+      <span class="sso-err-code">{{ detail }}</span>
       {% endif %}
 
     </div>
@@ -124,7 +127,7 @@
 
 </div>
 <script>
-fetch('/static/locales/eid-it.json').then(function(r){return r.json();}).then(function(d){
+fetch('/static/locales/eid-{{ lang }}.json').then(function(r){return r.json();}).then(function(d){
   var version=d&&d.version;
   if(version){
     var vEl=document.getElementById('software-version');

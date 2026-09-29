@@ -90,13 +90,18 @@ a:hover { color: var(--fg-link-hover); }
   display: inline-flex; align-items: center; gap: var(--sp-2); opacity: .94;
 }
 .gov-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--it-green); flex: 0 0 auto; }
-.sso-lang { display: flex; gap: 4px; align-items: center; }
-.sso-lang a, .sso-lang span {
-  padding: 2px 7px; border-radius: 3px; font-weight: 600;
-  color: #fff; text-decoration: none; transition: background var(--dur-fast);
+.sso-lang { display: flex; align-items: center; flex: 0 0 auto; }
+.sso-lang select {
+  font: inherit; font-weight: 600; color: #fff;
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.35);
+  border-radius: 3px; padding: 2px 6px; cursor: pointer;
 }
-.sso-lang a.active, .sso-lang span.active { background: rgba(255,255,255,.16); }
-.sso-lang a:not(.active), .sso-lang span:not(.active) { opacity: .6; font-weight: 400; }
+.sso-lang select:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.sso-lang select option { color: #1a1a1a; background: #fff; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 
 /* ---------- ENTE BRAND ---------- */
 .sso-brand {

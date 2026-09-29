@@ -440,3 +440,33 @@ def test_handle_idp_error_falls_back_to_branded_page_without_oidc_request(handle
     context.state = {}
     response = handler._handle_idp_error(context)
     assert response.status == "200 OK"
+
+
+def test_idp_error_redirect_description_is_translated(handler):
+    import urllib.parse
+    from backends import i18n
+    ctx = Context()
+    ctx.qs_params = {"error": "access_denied", "error_description": "User cancelled"}
+    ctx.state = {"OIDC": {"oidc_request": "client_id=c&redirect_uri=https%3A%2F%2Fapp%2Fcb&state=s&ui_locales=de"}}
+    ctx.http_headers = {}
+    ctx.cookie = ""
+    with patch("backends.cieoidc.endpoints.authorization_callback_endpoint._post_access_log"):
+        resp = handler._handle_idp_error(ctx)
+    body = resp.message.decode()
+    assert urllib.parse.urlencode({"error_description": i18n.t("de", "error.cie.cancelled")}) in body
+
+
+def test_idp_error_page_generic_keeps_raw_detail(handler):
+    from markupsafe import escape
+    from backends import i18n
+    ctx = Context()
+    ctx.qs_params = {"error": "server_error", "error_description": "boom"}
+    ctx.state = {}
+    ctx.http_headers = {"HTTP_ACCEPT_LANGUAGE": "fr"}
+    ctx.cookie = ""
+    with patch("backends.cieoidc.endpoints.authorization_callback_endpoint._post_access_log"):
+        resp = handler._handle_idp_error(ctx)
+    body = resp.message.decode()
+    assert str(escape(i18n.t("fr", "error.cie.generic"))) in body
+    assert '<html lang="fr">' in body
+    assert "server_error: boom" in body

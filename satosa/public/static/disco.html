@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Accesso sicuro — Servizi digitali</title>
-  <meta name="description" content="Scegli il sistema di identità digitale per accedere ai servizi.">
+  <title data-i18n="disco.page_title">Accesso sicuro — Servizi digitali</title>
+  <meta name="description" data-i18n-attr="content:disco.meta_description" content="Scegli il sistema di identità digitale per accedere ai servizi.">
   <meta name="robots" content="noindex,nofollow">
   <link id="page-favicon" rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/sso/sso.css">
@@ -17,19 +17,25 @@
     <div class="sso-slim-in">
       <span class="gov">
         <span class="gov-dot"></span>
-        <span>Sito ufficiale della Pubblica Amministrazione</span>
+        <span data-i18n="common.gov_site">Sito ufficiale della Pubblica Amministrazione</span>
       </span>
-      <span class="sso-lang">
-        <span class="active" id="lang-it">IT</span>
-        <span id="lang-en">EN</span>
-      </span>
+      <label class="sso-lang">
+        <span class="sr-only" data-i18n="common.language">Lingua</span>
+        <select id="sso-lang-select">
+          <option value="it" lang="it">Italiano</option>
+          <option value="en" lang="en">English</option>
+          <option value="fr" lang="fr">Français</option>
+          <option value="de" lang="de">Deutsch</option>
+          <option value="es" lang="es">Español</option>
+        </select>
+      </label>
     </div>
   </div>
 
   <!-- ENTE BRAND (populated from eid locale JSON) -->
   <div class="sso-brand" id="ente-brand">
-    <img class="sso-crest" id="ente-logo" src="" alt="Logo ente" style="display:none">
-    <svg class="sso-crest-svg" id="ente-crest-svg" viewBox="0 0 64 64" fill="none" aria-label="Logo ente" role="img">
+    <img class="sso-crest" id="ente-logo" src="" alt="Logo ente" data-i18n-attr="alt:common.ente_logo_alt" style="display:none">
+    <svg class="sso-crest-svg" id="ente-crest-svg" viewBox="0 0 64 64" fill="none" aria-label="Logo ente" data-i18n-attr="aria-label:common.ente_logo_alt" role="img">
       <rect x="2" y="2" width="60" height="60" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5"/>
       <path d="M32 13 L48 21 H16 Z" fill="#64748B"/>
       <rect x="17" y="21" width="30" height="3" fill="#64748B"/>
@@ -39,7 +45,7 @@
       <rect x="15" y="45" width="34" height="4" rx="1" fill="#64748B"/>
     </svg>
     <div>
-      <p class="sso-brand-name" id="ente-name">Servizi digitali</p>
+      <p class="sso-brand-name" id="ente-name" data-i18n="common.default_ente_name">Servizi digitali</p>
     </div>
   </div>
 
@@ -47,9 +53,9 @@
   <main class="sso-main">
     <div class="sso-card">
 
-      <p class="sso-kicker">Accesso ai servizi</p>
-      <h1 class="sso-title" id="page-title">Entra nell'area riservata</h1>
-      <p class="sso-lead" id="page-lead">Scegli il sistema di identità digitale con cui vuoi accedere.</p>
+      <p class="sso-kicker" data-i18n="disco.kicker">Accesso ai servizi</p>
+      <h1 class="sso-title" id="page-title" data-i18n="disco.title">Entra nell'area riservata</h1>
+      <p class="sso-lead" id="page-lead" data-i18n="disco.lead">Scegli il sistema di identità digitale con cui vuoi accedere.</p>
 
       <!-- APP CONTEXT CHIP (shown when relay state contains app name) -->
       <div class="sso-appctx" id="app-ctx" style="display:none">
@@ -63,13 +69,13 @@
           </svg>
         </span>
         <div>
-          <p class="lbl">Stai accedendo a</p>
+          <p class="lbl" data-i18n="disco.app_ctx_label">Stai accedendo a</p>
           <p class="val" id="app-name-val"></p>
         </div>
       </div>
 
       <!-- TAB BAR -->
-      <div class="sso-tabs" role="tablist" aria-label="Metodo di autenticazione">
+      <div class="sso-tabs" role="tablist" aria-label="Metodo di autenticazione" data-i18n-attr="aria-label:disco.tabs_label">
 
         <button class="sso-tab sso-tab--active" id="tab-spid" role="tab"
                 aria-selected="true" aria-controls="panel-spid"
@@ -100,25 +106,25 @@
 
       <!-- SPID PANEL -->
       <div class="sso-tab-panel" id="panel-spid" role="tabpanel" aria-labelledby="tab-spid">
-        <p class="sso-legal-entity-note" id="legal-entity-note" role="note" hidden>
+        <p class="sso-legal-entity-note" id="legal-entity-note" role="note" data-i18n-html="disco.legal_entity.note_html" hidden>
           <strong>Accesso per conto di un'impresa.</strong>
           Usa SPID con un'identità per uso professionale della persona giuridica.
           CIE ed eIDAS non sono disponibili per questo tipo di accesso.
         </p>
-        <p class="sso-desc">
+        <p class="sso-desc" data-i18n-html="disco.spid.description_html">
           SPID, il <strong>Sistema Pubblico di Identità Digitale</strong>, è il sistema di accesso che consente di utilizzare, con un'identità digitale unica, i servizi online della Pubblica Amministrazione e dei privati accreditati. Se sei già in possesso di un'identità digitale, accedi con le credenziali del tuo gestore. Se non hai ancora un'identità digitale, richiedila ad uno dei gestori.
         </p>
         <div class="sso-helpers">
-          <a href="https://www.spid.gov.it/" target="_blank" rel="noopener">Maggiori informazioni su SPID</a>
-          <a href="https://www.spid.gov.it/richiedi-spid" target="_blank" rel="noopener">Non hai SPID?</a>
-          <a href="https://www.spid.gov.it/serve-aiuto" target="_blank" rel="noopener">Serve aiuto?</a>
+          <a href="https://www.spid.gov.it/" target="_blank" rel="noopener" data-i18n="disco.spid.more_info">Maggiori informazioni su SPID</a>
+          <a href="https://www.spid.gov.it/richiedi-spid" target="_blank" rel="noopener" data-i18n="disco.spid.get">Non hai SPID?</a>
+          <a href="https://www.spid.gov.it/serve-aiuto" target="_blank" rel="noopener" data-i18n="disco.spid.help">Serve aiuto?</a>
         </div>
 
         <div class="sso-spid-btn-container" style="margin-bottom: var(--sp-4);">
           <button class="spid-btn" id="spid-toggle" aria-expanded="false"
                   aria-controls="spid-idp-panel" type="button" onclick="ssoToggleSpidList()">
             <img class="spid-mark" src="/static/spid/spid-ico-circle-bb.svg" alt="">
-            <span class="spid-word">Entra con SPID</span>
+            <span class="spid-word" data-i18n="disco.spid.button">Entra con SPID</span>
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="m6 9 6 6 6-6"/>
@@ -128,8 +134,8 @@
 
         <div class="idp-panel" id="spid-idp-panel" style="display: none;">
           <div class="idp-panel-head">
-            <p class="t">Scegli il tuo gestore di identità</p>
-            <p class="s">Accedi con le credenziali SPID che già possiedi.</p>
+            <p class="t" data-i18n="disco.spid.idp_title">Scegli il tuo gestore di identità</p>
+            <p class="s" data-i18n="disco.spid.idp_subtitle">Accedi con le credenziali SPID che già possiedi.</p>
           </div>
           <div class="idp-grid" id="spid-idp-list">
             <!-- Populated by JS -->
@@ -137,39 +143,39 @@
         </div>
 
         <div class="panel-foot-logo">
-          <img class="spid-agid-logo" src="/static/spid/spid-agid-logo-lb.png" alt="Logo SPID - AGID - Agenzia per l'Italia Digitale">
+          <img class="spid-agid-logo" src="/static/spid/spid-agid-logo-lb.png" alt="Logo SPID - AGID - Agenzia per l'Italia Digitale" data-i18n-attr="alt:disco.spid.agid_logo_alt">
         </div>
       </div>
 
       <!-- CIE PANEL -->
       <div class="sso-tab-panel" id="panel-cie" role="tabpanel" aria-labelledby="tab-cie" hidden>
-        <p class="sso-desc">
+        <p class="sso-desc" data-i18n-html="disco.cie.description_html">
           La <strong>Carta d'Identità Elettronica</strong> (CIE) è il documento personale che attesta l'identità del cittadino. Dotata di microprocessore, oltre a comprovare l'identità personale, permette l'accesso ai servizi digitali della Pubblica Amministrazione.
         </p>
         <div class="sso-helpers">
-          <a href="https://www.cartaidentita.interno.gov.it/" target="_blank" rel="noopener">Maggiori informazioni su CIE</a>
-          <a href="https://www.cartaidentita.interno.gov.it/richiedi-cie/" target="_blank" rel="noopener">Non hai la CIE?</a>
+          <a href="https://www.cartaidentita.interno.gov.it/" target="_blank" rel="noopener" data-i18n="disco.cie.more_info">Maggiori informazioni su CIE</a>
+          <a href="https://www.cartaidentita.interno.gov.it/richiedi-cie/" target="_blank" rel="noopener" data-i18n="disco.cie.get">Non hai la CIE?</a>
         </div>
 
         <div class="cie-panel">
           <a class="cie-login-btn" id="cie-login-btn" href="#">
             <img src="/static/cie/cie_white.svg" alt="" style="height:22px; flex:0 0 auto;">
-            Entra con CIE
+            <span data-i18n="disco.cie.button">Entra con CIE</span>
           </a>
         </div>
 
         <div class="panel-foot-logo">
-          <img class="ministero-logo" src="/static/cie/ministero@2x.png" alt="Ministero dell'Interno">
+          <img class="ministero-logo" src="/static/cie/ministero@2x.png" alt="Ministero dell'Interno" data-i18n-attr="alt:disco.cie.ministry_logo_alt">
         </div>
       </div>
 
       <!-- eIDAS PANEL -->
       <div class="sso-tab-panel" id="panel-eidas" role="tabpanel" aria-labelledby="tab-eidas" hidden>
-        <p class="sso-desc" id="eidas-desc">
+        <p class="sso-desc" id="eidas-desc" data-i18n="disco.eidas.description">
           I cittadini dell'Unione Europea possono accedere ai servizi online con la propria identità digitale nazionale tramite il nodo eIDAS italiano.
         </p>
         <div class="sso-helpers">
-          <a href="https://www.agid.gov.it/it/piattaforme/eidas" target="_blank" rel="noopener" id="eidas-learn-more">Maggiori informazioni su eIDAS</a>
+          <a href="https://www.agid.gov.it/it/piattaforme/eidas" target="_blank" rel="noopener" id="eidas-learn-more" data-i18n="disco.eidas.more_info">Maggiori informazioni su eIDAS</a>
         </div>
 
         <div class="cie-panel">
@@ -177,7 +183,7 @@
             <span class="eidas-btn-icon">
               <img src="/static/eidas/ficep-it-eidas-ybw.svg" alt="">
             </span>
-            <span class="eidas-btn-text">Entra con eIDAS</span>
+            <span class="eidas-btn-text" data-i18n="disco.eidas.button">Entra con eIDAS</span>
           </a>
         </div>
 
@@ -197,7 +203,7 @@
               <circle cx="5.9" cy="8.5" r="1.2" fill="#003399" stroke="none" />
               <circle cx="8.5" cy="5.9" r="1.2" fill="#003399" stroke="none" />
             </svg>
-            Unione Europea
+            <span data-i18n="disco.eidas.eu">Unione Europea</span>
           </span>
         </div>
       </div>
@@ -223,10 +229,10 @@
       <span class="version" id="software-version">v1.0.0</span>
     </a>
     <span class="links">
-      <a href="#" id="foot-privacy" style="display:none">Privacy</a>
-      <a href="#" id="foot-legal"   style="display:none">Note legali</a>
-      <a href="#" id="foot-access"  style="display:none">Accessibilità</a>
-      <a href="#" id="foot-support" style="display:none">Assistenza</a>
+      <a href="#" id="foot-privacy" data-i18n="footer.privacy" style="display:none">Privacy</a>
+      <a href="#" id="foot-legal" data-i18n="footer.legal" style="display:none">Note legali</a>
+      <a href="#" id="foot-access" data-i18n="footer.accessibility" style="display:none">Accessibilità</a>
+      <a href="#" id="foot-support" data-i18n="footer.support" style="display:none">Assistenza</a>
     </span>
   </footer>
 
@@ -236,6 +242,88 @@
 /* ============================================================
    SSO Disco Page — Logic
    ============================================================ */
+
+/* i18n — stessa precedenza del server (backends/i18n.py):
+   cookie sso_lang → ?lang= (ui_locales del client, aggiunto da disco_query)
+   → navigator.languages → it */
+var SSO_LANGS = ['it', 'en', 'fr', 'de', 'es'];
+var SSO_DICT = {};
+var SSO_ENTE_NAME = '';
+
+function ssoNormLang(tag) {
+  if (!tag) return null;
+  var p = String(tag).replace('_', '-').split('-')[0].toLowerCase();
+  return SSO_LANGS.indexOf(p) >= 0 ? p : null;
+}
+
+function ssoCookieLang() {
+  var m = document.cookie.match(/(?:^|;\s*)sso_lang=([^;]*)/);
+  if (!m) return null;
+  try { return ssoNormLang(decodeURIComponent(m[1])); } catch (e) { return null; }
+}
+
+function ssoResolveLang() {
+  var l = ssoCookieLang() || ssoNormLang(new URLSearchParams(window.location.search).get('lang'));
+  if (l) return l;
+  var prefs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
+  for (var i = 0; i < prefs.length; i++) {
+    l = ssoNormLang(prefs[i]);
+    if (l) return l;
+  }
+  return 'it';
+}
+
+var SSO_LANG = ssoResolveLang();
+
+function t(key, fallback) {
+  return SSO_DICT[key] || fallback || key;
+}
+
+function ssoApplyI18n() {
+  document.documentElement.lang = SSO_LANG;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var v = SSO_DICT[el.getAttribute('data-i18n')];
+    if (v) el.textContent = v;
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
+    var v = SSO_DICT[el.getAttribute('data-i18n-html')];
+    if (v) el.innerHTML = v;  /* catalogo statico del proxy, non input utente */
+  });
+  document.querySelectorAll('[data-i18n-attr]').forEach(function(el) {
+    var parts = el.getAttribute('data-i18n-attr').split(':');
+    var v = SSO_DICT[parts[1]];
+    if (v) el.setAttribute(parts[0], v);
+  });
+  if (SSO_ENTE_NAME) {
+    var n = document.getElementById('ente-name');
+    if (n) n.textContent = SSO_ENTE_NAME;
+  }
+  var sel = document.getElementById('sso-lang-select');
+  if (sel) sel.value = SSO_LANG;
+}
+
+function ssoLoadLang(lang) {
+  return fetch('/static/i18n/' + lang + '.json')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { SSO_LANG = lang; SSO_DICT = d || {}; ssoApplyI18n(); })
+    .catch(function() { ssoApplyI18n(); });
+}
+
+function ssoSetLang(lang) {
+  lang = ssoNormLang(lang);
+  if (!lang) return;
+  document.cookie = 'sso_lang=' + lang + '; Path=/; Max-Age=31536000; SameSite=Lax; Secure';
+  ssoLoadLang(lang);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var sel = document.getElementById('sso-lang-select');
+  if (sel) {
+    sel.value = SSO_LANG;
+    sel.addEventListener('change', function() { ssoSetLang(sel.value); });
+  }
+  ssoLoadLang(SSO_LANG);
+});
 
 var DISCO_EP = '/spidSaml2/disco';
 
@@ -322,9 +410,10 @@ function ssoLoadIdps() {
     })
     .catch(function() {
       if (container) {
-        container.innerHTML =
-          '<p style="padding:12px;font-size:.875rem;color:var(--fg-3)">'
-          + 'Nessun provider disponibile al momento.</p>';
+        var p = document.createElement('p');
+        p.style.cssText = 'padding:12px;font-size:.875rem;color:var(--fg-3)';
+        p.textContent = t('disco.spid.no_providers', 'Nessun provider disponibile al momento.');
+        container.replaceChildren(p);
       }
     });
 }
@@ -338,7 +427,7 @@ function ssoMakeDot() {
 
 /* Load locale strings — configure logo, ente name, CIE tab, footer links */
 (function() {
-  fetch('/static/locales/eid-it.json')
+  fetch('/static/locales/eid-' + SSO_LANG + '.json')
     .then(function(r) { return r.json(); })
     .then(function(data) {
 
@@ -370,6 +459,7 @@ function ssoMakeDot() {
       var regionName = data && data.header && data.header.region_name;
       if (regionName) {
         var nameEl = document.getElementById('ente-name');
+        SSO_ENTE_NAME = regionName;
         if (nameEl) nameEl.textContent = regionName;
       }
 
@@ -387,47 +477,26 @@ function ssoMakeDot() {
       if (!LEGAL_ENTITY && eidas && eidas.login_url && eidas.login_url !== '') {
         var tabEidas = document.getElementById('tab-eidas');
         var btnEidas = document.getElementById('eidas-login-btn');
-        var descEidas = document.getElementById('eidas-desc');
-        var lmEidas = document.getElementById('eidas-learn-more');
-        if (tabEidas) {
-          tabEidas.style.display = '';
-          tabEidas.innerHTML = '<span class="sso-tab-ico-wrapper" style="background:#003399;display:inline-flex;align-items:center;justify-content:center;padding:0;">'
-            + '<img class="sso-tab-ico" src="/static/eidas/ficep-it-eidas-ybw.svg" alt="eIDAS" style="width:100%;height:100%;">'
-            + '</span> ' + (eidas.logo_text || 'eIDAS');
-        }
-        if (btnEidas) {
-          btnEidas.href = eidas.login_url;
-          btnEidas.innerHTML = '<span class="eidas-btn-icon">'
-            + '<img src="/static/eidas/ficep-it-eidas-ybw.svg" alt="">'
-            + '</span>'
-            + '<span class="eidas-btn-text">' + (eidas.logo_text_button || 'Entra con eIDAS') + '</span>';
-        }
-        if (descEidas && eidas.learn_more_descr) {
-          descEidas.innerHTML = eidas.learn_more_descr;
-        }
-        if (lmEidas && eidas.learn_more_link) {
-          lmEidas.href = eidas.learn_more_link;
-          if (eidas.learn_more_label) lmEidas.textContent = eidas.learn_more_label;
-        }
+        if (tabEidas) tabEidas.style.display = '';
+        if (btnEidas) btnEidas.href = eidas.login_url;
       }
 
       /* Footer links */
       var f = data && data.footer;
       if (f) {
-        _foot('foot-privacy', f.privacy_policy_url,  f.privacy_policy);
-        _foot('foot-legal',   f.legal_notice_url,    f.legal_notice);
-        _foot('foot-access',  f.accessibility_url,   f.accessibility_statement);
-        _foot('foot-support', f.support_url,         f.support);
+        _foot('foot-privacy', f.privacy_policy_url);
+        _foot('foot-legal',   f.legal_notice_url);
+        _foot('foot-access',  f.accessibility_url);
+        _foot('foot-support', f.support_url);
       }
     })
     .catch(function() {});
 
-  function _foot(id, url, label) {
+  function _foot(id, url) {
     if (!url) return;
     var el = document.getElementById(id);
     if (!el) return;
     el.href = url;
-    if (label) el.textContent = label;
     el.style.display = '';
   }
 })();

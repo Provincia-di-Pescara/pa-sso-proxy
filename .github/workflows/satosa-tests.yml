@@ -46,7 +46,7 @@ jobs:
 
       - name: Run tests
         working-directory: satosa/tests
-        run: pytest -q test_redis_storage.py
+        run: pytest -q test_redis_storage.py test_i18n.py test_i18n_catalog.py
 
   audit-satosa-tests:
     name: pip-audit

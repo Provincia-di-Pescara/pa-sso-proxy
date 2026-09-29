@@ -23,6 +23,7 @@ from satosa.response import Response, SeeOther
 from satosa.saml_util import make_saml_response
 from six import text_type
 
+from . import i18n
 from .spidsaml2_validator import Saml2ResponseValidator
 
 logger = logging.getLogger(__name__)
@@ -126,38 +127,13 @@ def _post_access_log(provider_type, client_id, result, error_code=None):
 #
 # Ref: https://docs.italia.it/italia/spid/spid-regole-tecniche/it/stabile/messaggi-errore.html
 #
+# Testi in static/i18n/<lang>.json (chiavi error.spid.<n>[.troubleshoot]).
 SPID_ANOMALIES = {
-    19: {
-        "message": "Autenticazione fallita per ripetuta sottomissione di credenziali errate",
-        "troubleshoot": "Inserire credenziali corrette",
-    },
-    20: {
-        "message": (
-            "Utente privo di credenziali compatibili con "
-            "il livello di autenticazione richiesto"
-        ),
-        "troubleshoot": "Acquisire credenziali di livello idoneo all'accesso al servizio",
-    },
-    21: {
-        "message": "Timeout durante l'autenticazione utente",
-        "troubleshoot": (
-            "Si ricorda che l'operazione di autenticazione deve "
-            "essere completata entro un determinato periodo di tempo"
-        ),
-    },
-    22: {
-        "message": "L'utente nega il consenso all'invio di dati al fornitore del servizio",
-        "troubleshoot": "È necessario dare il consenso per poter accedere al servizio",
-    },
-    23: {"message": "Utente con identità sospesa/revocata o con credenziali bloccate"},
-    25: {"message": "Processo di autenticazione annullato dall'utente"},
-    30: {
-        "message": "L'identità digitale utilizzata non è un'identità digitale del tipo atteso",
-        "troubleshoot": (
-            "È necessario eseguire l'autenticazione con le credenziali "
-            "del corretto tipo di identità digitale richiesto"
-        ),
-    },
+    n: {
+        "message_key": f"error.spid.{n}",
+        **({"troubleshoot_key": f"error.spid.{n}.troubleshoot"} if n not in (23, 25) else {}),
+    }
+    for n in (19, 20, 21, 22, 23, 25, 30)
 }
 
 def _legal_entity_requested(context) -> bool:
@@ -190,26 +166,14 @@ def _build_purpose_extension(purpose: str) -> "saml2.samlp.Extensions":
 # CIE ed eIDAS (ACS 99/100 "Natural Person") non possono restituire i claim
 # aziendali: la discovery page li nasconde e i backend rifiutano la richiesta.
 LEGAL_ENTITY_SPID_ONLY_ERROR = {
-    "message": "L'accesso per conto di un'impresa è disponibile solo con SPID.",
-    "troubleshoot": (
-        "Torna al servizio e accedi con SPID usando un'identità per uso "
-        "professionale della persona giuridica. CIE ed eIDAS non supportano "
-        "questo tipo di accesso."
-    ),
+    "message_key": "error.legal_entity_spid_only",
+    "troubleshoot_key": "error.legal_entity_spid_only.troubleshoot",
 }
 
 
-def _add_legal_entity_disco_param(url: str) -> str:
-    """Segnala alla discovery page (statica) che il flusso è persona giuridica."""
-    return url + ("&" if urllib.parse.urlsplit(url).query else "?") + "legal_entity=1"
-
-
-_TROUBLESHOOT_MSG = (
-    "È stato riscontrato un problema di validazione "
-    "della risposta proveniente dal "
-    "Provider di Identità. "
-    " Contattare il supporto tecnico per eventuali chiarimenti"
-)
+def _add_disco_params(url: str, params: dict) -> str:
+    """Parametri per la discovery page (statica, non legge lo stato SATOSA)."""
+    return url + ("&" if urllib.parse.urlsplit(url).query else "?") + urllib.parse.urlencode(params)
 
 
 class SpidSAMLBackend(SAMLBackend):
@@ -442,9 +406,15 @@ class SpidSAMLBackend(SAMLBackend):
 
     def disco_query(self, context):
         response = super().disco_query(context)
-        if not _legal_entity_requested(context):
+        params = {}
+        if _legal_entity_requested(context):
+            params["legal_entity"] = "1"
+        ui_lang = i18n.ui_locales_lang(context)
+        if ui_lang:
+            params["lang"] = ui_lang
+        if not params:
             return response
-        return SeeOther(_add_legal_entity_disco_param(dict(response.headers)["Location"]))
+        return SeeOther(_add_disco_params(dict(response.headers)["Location"], params))
 
     def authn_request(self, context, entity_id):
         logger.debug(
@@ -463,12 +433,14 @@ class SpidSAMLBackend(SAMLBackend):
         :param entity_id: Target IDP entity id
         :return: response to the user agent
         """
+        # Per le pagine di errore dell'ACS, dove il cookie sso_lang non arriva.
+        context.state[i18n.STATE_KEY] = i18n.resolve_lang(context)
         if (
             _legal_entity_requested(context)
             and entity_id == self.config["sp_config"].get("ficep_entity_id")
         ):
             logger.warning("eIDAS richiesto con scope legal_entity: rifiutato (solo SPID)")
-            return self.handle_error(**LEGAL_ENTITY_SPID_ONLY_ERROR)
+            return self.handle_error(**LEGAL_ENTITY_SPID_ONLY_ERROR, lang_context=context)
 
         self.check_blacklist(context, entity_id)
         kwargs = {}
@@ -634,19 +606,28 @@ class SpidSAMLBackend(SAMLBackend):
 
     def handle_error(
         self,
-        message: str,
-        troubleshoot: str = "",
+        message_key: str = "error.spid.process_anomaly",
+        troubleshoot_key: str | None = None,
         err="",
         template_path="templates",
         error_template="spid_login_error.html",
         context=None,
+        lang_context=None,
         error_type="generic",
+        detail: str = "",
+        message: str | None = None,
     ):
+        # context → redirect OIDC al client; lang_context → solo lingua (pagina del proxy).
+        # message = testo grezzo non tradotto, per compatibilità.
+        lang = i18n.resolve_lang(lang_context or context)
+        if message is None:
+            message = i18n.t(lang, message_key)
+        troubleshoot = i18n.t(lang, troubleshoot_key) if troubleshoot_key else ""
         logger.debug(
             f"Entering method: {inspect.getframeinfo(inspect.currentframe()).function}. "
             f"Params[ message: {message}, troubleshoot: {troubleshoot}]"
         )
-        logger.error(f"SPID authentication error: {message} {err}")
+        logger.error(f"SPID authentication error: {message_key} {detail} {err}")
 
         # ── 1. Tenta redirect OIDC-conforme verso il client originante ────────────
         # Il context.state SATOSA (cookie) contiene la richiesta OIDC originale
@@ -704,8 +685,10 @@ class SpidSAMLBackend(SAMLBackend):
             {
                 "message": message,
                 "troubleshoot": troubleshoot,
+                "detail": detail,
                 "error_type": error_type,
                 "cancel_url": cancel_url,
+                **i18n.template_vars(lang),
             }
         )
         return Response(result, content="text/html; charset=utf8", status="403")
@@ -715,7 +698,7 @@ class SpidSAMLBackend(SAMLBackend):
             f"Entering method: {inspect.getframeinfo(inspect.currentframe()).function}. "
             f"Params[ err_number: {err_number}, err: {err}]"
         )
-        return self.handle_error(**{**SPID_ANOMALIES[int(err_number)], "context": context})
+        return self.handle_error(**SPID_ANOMALIES[int(err_number)], err=err, context=context)
 
 
     def authn_response(self, context, binding):
@@ -749,15 +732,10 @@ class SpidSAMLBackend(SAMLBackend):
                 return self.handle_spid_anomaly(erdict.groupdict()["err_code"], err, context=context)
             else:
                 return self.handle_error(
-                    **{
-                        "err": err,
-                        "message": "Autenticazione fallita",
-                        "troubleshoot": (
-                            "Anomalia riscontrata durante la fase di Autenticazione. "
-                            f"{_TROUBLESHOOT_MSG}"
-                        ),
-                        "context": context,
-                    }
+                    err=err,
+                    message_key="error.spid.auth_failed",
+                    troubleshoot_key="error.spid.troubleshoot.anomaly",
+                    context=context,
                 )
         except SignatureError as err:
             logger.error(
@@ -765,33 +743,23 @@ class SpidSAMLBackend(SAMLBackend):
                 _redact_pii_xml(context.request.get("SAMLResponse")),
             )
             return self.handle_error(
-                **{
-                    "err": err,
-                    "message": "Autenticazione fallita",
-                    "troubleshoot": (
-                        "La firma digitale della risposta ottenuta "
-                        f"non risulta essere corretta. {_TROUBLESHOOT_MSG}"
-                    ),
-                    "context": context,
-                }
+                err=err,
+                message_key="error.spid.auth_failed",
+                troubleshoot_key="error.spid.troubleshoot.signature",
+                context=context,
             )
         except Exception as err:
             return self.handle_error(
-                **{
-                    "err": err,
-                    "message": "Anomalia riscontrata nel processo di Autenticazione",
-                    "troubleshoot": _TROUBLESHOOT_MSG,
-                    "context": context,
-                }
+                err=err, troubleshoot_key="error.spid.troubleshoot.validation", context=context
             )
 
         if self.sp.config.getattr("allow_unsolicited", "sp") is False:
             req_id = authn_response.in_response_to
             if req_id not in self.outstanding_queries:
-                errmsg = ("No request with id: {}".format(req_id),)
+                errmsg = "No request with id: {}".format(req_id)
                 logger.debug(errmsg)
                 return self.handle_error(
-                    **{"message": errmsg, "troubleshoot": _TROUBLESHOOT_MSG, "context": context}
+                    detail=errmsg, troubleshoot_key="error.spid.troubleshoot.validation", context=context
                 )
             del self.outstanding_queries[req_id]
 
@@ -802,13 +770,13 @@ class SpidSAMLBackend(SAMLBackend):
             )
             logger.error(_msg)
             return self.handle_error(
-                **{"message": _msg, "troubleshoot": _TROUBLESHOOT_MSG, "context": context}
+                detail=_msg, troubleshoot_key="error.spid.troubleshoot.validation", context=context
             )
         # check if the relay_state matches the cookie state
         if context.state[self.name]["relay_state"] != context.request["RelayState"]:
             _msg = "State did not match relay state for state"
             return self.handle_error(
-                **{"message": _msg, "troubleshoot": _TROUBLESHOOT_MSG, "context": context}
+                detail=_msg, troubleshoot_key="error.spid.troubleshoot.validation", context=context
             )
 
         # Spid and SAML2 additional tests
@@ -829,14 +797,9 @@ class SpidSAMLBackend(SAMLBackend):
                 "acr_mapping not defined in the spid backend"
             )
             return self.handle_error(
-                **{
-                    "message": "acr_mapping not defined in the spid backend troubleshoot",
-                    "troubleshoot": (
-                        "Please contact the administrators of the platform and tell them to "
-                        "configure properly the acr_mapping in the SPID/CIE backend"
-                    ),
-                    "context": context,
-                }
+                detail="acr_mapping not defined in the spid backend",
+                troubleshoot_key="error.spid.troubleshoot.config",
+                context=context,
             )
         acr_default = acr_map.get("", "https://www.spid.gov.it/SpidL2")
         authn_context_classref = acr_map.get(issuer, acr_default)
@@ -845,7 +808,7 @@ class SpidSAMLBackend(SAMLBackend):
         if len(context.state.keys()) < 2:
             _msg = "Inconsistent context.state"
             return self.handle_error(
-                **{"message": _msg, "troubleshoot": _TROUBLESHOOT_MSG, "context": context}
+                detail=_msg, troubleshoot_key="error.spid.troubleshoot.validation", context=context
             )
 
         list(context.state.keys())[1]
@@ -877,7 +840,9 @@ class SpidSAMLBackend(SAMLBackend):
             validator.run()
         except Exception as e:
             logger.error(e)
-            return self.handle_error(e, context=context)
+            return self.handle_error(
+                err=e, detail=str(e), troubleshoot_key="error.spid.troubleshoot.validation", context=context
+            )
 
         context.decorate(Context.KEY_BACKEND_METADATA_STORE, self.sp.metadata)
         if self.config.get(SAMLBackend.KEY_MEMORIZE_IDP):

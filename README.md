@@ -21,6 +21,7 @@ Permette a qualsiasi applicativo dell'ente di autenticare i cittadini tramite SP
 - **CIE OIDC Federation 1.0** — accreditamento portale AgID
 - **eIDAS SAML (FICEP)** — login per cittadini europei tramite nodo eIDAS italiano (QA e Prod)
 - **Multi-client OIDC** — N applicativi per ente, configurabili via WebUI
+- **Pagine utente in 5 lingue** — IT/EN/FR/DE/ES, lingua automatica dal browser o da `ui_locales`
 - **WebUI di configurazione** — gestione clienti, certificati, chiavi JWK, metadata IdP
 - **Rinnovo automatico certificato SPID** — cron mensile, notifica cambio metadata
 - **Aggiornamento automatico metadata IdP** — cron notturno, reload graceful
@@ -120,6 +121,12 @@ Issuer:                 https://<PROXY_HOSTNAME>
 ```
 
 Flow: Authorization Code + PKCE (`code_challenge_method=S256`).
+
+### Lingua delle pagine del proxy
+
+Discovery e pagine di errore sono in italiano, inglese, francese, tedesco e spagnolo. La lingua segue il browser dell'utente, che può cambiarla dal menu in testata (scelta ricordata nel cookie `sso_lang`). Un'app può imporre la propria lingua con il parametro standard OIDC `ui_locales` sulla richiesta di autorizzazione (es. `ui_locales=en`, anche lista in ordine di preferenza: `ui_locales=de en`); vale finché l'utente non sceglie un'altra lingua dal menu.
+
+In caso di errore il redirect verso l'app contiene `error=access_denied` e un `error_description` nella lingua risolta: l'app deve basarsi su `error`, non sul testo.
 
 ## Licenza
 

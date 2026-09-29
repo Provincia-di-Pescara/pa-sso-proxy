@@ -151,7 +151,6 @@ exec uwsgi \
     --buffer-size 32768 \
     --touch-reload /satosa-conf/.reload \
     --static-map /static/js/spid-idps-default.json=/satosa-conf/spid-idps-default.json \
-    --static-map /static/locales/eid-it.json=/satosa-conf/locales/eid-it.json \
-    --static-map /static/locales/eid-en.json=/satosa-conf/locales/eid-en.json \
+    --static-map /static/locales=/satosa-conf/locales \
     --static-map /static=/satosa_proxy/static
 
