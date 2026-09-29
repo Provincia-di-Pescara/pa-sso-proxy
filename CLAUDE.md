@@ -80,7 +80,9 @@ satosa/
     spidsaml2.py          Backend SPID SAML2 (flag ficep_enable per ACS eIDAS 99/100)
     cieoidc-backend/      Backend CIE OIDC Federation
     cieoidc-endpoints/    Endpoint CIE OIDC (callback, entity config, …)
+    i18n.py               resolve_lang / t — lingua pagine utente (puro Python)
   public/                 Asset statici discovery page
+    static/i18n/          Traduzioni <lang>.json (fonte unica client + server)
 config-api/
   app/
     main.py               Entry point FastAPI
@@ -183,6 +185,13 @@ Quando un client OIDC chiede lo scope `legal_entity`, il backend SPID (`spidsaml
 **Abilitare persona giuridica modifica il metadata SPID** (nuovo ACS) → richiede ri-validazione AgID, stesso avviso già presente per eIDAS.
 
 **Flusso persona giuridica = solo SPID.** Con scope `legal_entity`, `SpidSAMLBackend.disco_query` aggiunge `legal_entity=1` all'URL della discovery (`disco.html` è statica, non legge lo stato SATOSA): la pagina nasconde le tab CIE/eIDAS e mostra un avviso. Guard lato server (URL di login aperti a mano): `authn_request` rifiuta l'`entity_id` FICEP e `CieOidcBackend.start_auth` rifiuta CIE, entrambi con la pagina d'errore del proxy (403, `LEGAL_ENTITY_SPID_ONLY_ERROR`), non redirect al client. Motivo: ACS eIDAS 99/100 sono solo "Natural Person" e CIE non ha identità PG — nessuno dei due può restituire i claim aziendali.
+
+### i18n pagine utente
+Discovery, pagina di errore e messaggi dei backend in `it/en/fr/de/es`. Fonte unica: `satosa/public/static/i18n/<lang>.json` (chiavi piatte; suffisso `_html` = markup, applicato con `innerHTML` dalla discovery). Server: `satosa/plugins/i18n.py` (`resolve_lang(context)`, `t(lang, key)`); client: stessa logica in `disco.html`. Precedenza: cookie `sso_lang` (tendina) → `ui_locales` OIDC (passato alla discovery come `lang=` da `disco_query`) → `Accept-Language`/`navigator.languages` → `it`. Fallback chiave: lingua → `en` → `it`.
+
+**Nuova stringa = chiave in tutti e 5 i JSON**: `satosa/tests/test_i18n_catalog.py` (job host di satosa-tests.yml, skip nel container) fallisce su chiavi mancanti, placeholder diversi, markup fuori da chiavi `_html`, chiavi usate in disco/plugin/template ma assenti. `handle_error` prende `message_key`/`troubleshoot_key`, non testo; dettagli tecnici in `detail` (non tradotti, mostrati come codice errore). `lang_context=` risolve la lingua senza fare redirect al client (usato dal blocco persona giuridica).
+
+`eid-<lang>.json` (config-api) = solo dati ente/URL, identici nelle 5 lingue; servito da `--static-map /static/locales=/satosa-conf/locales`. `/verifica` e WebUI admin restano solo in italiano.
 
 ### Storico certificati e metadata SPID/eIDAS
 `SpidCert.is_active` (un solo `True` alla volta, applicativo non DB) sostituisce la selezione "ultimo per data" in tutti i punti che leggono il cert attivo (`idps.py`, `dashboard.py`, `eidas.py`, `backup.py`). Storico consultabile in `/admin/certs`: export cert/chiave, riattivazione, eliminazione dei non-attivi.
