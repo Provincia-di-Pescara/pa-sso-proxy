@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 SUPPORTED = ("it", "en", "fr", "de", "es")
 DEFAULT = "it"
 COOKIE_NAME = "sso_lang"
+# Lingua salvata nello stato SATOSA a inizio login (GET, cookie presente): sull'ACS
+# SPID (POST cross-site dall'IdP) il cookie SameSite=Lax sso_lang non arriva.
+STATE_KEY = "sso_i18n_lang"
 I18N_DIR = os.environ.get("SSO_I18N_DIR", "/satosa_proxy/static/i18n")
 
 
@@ -87,7 +90,8 @@ def resolve_lang(context):
         return DEFAULT
     headers = getattr(context, "http_headers", None) or {}
     cookie = getattr(context, "cookie", None) or headers.get("HTTP_COOKIE")
-    lang = lang_from_cookie(cookie) or ui_locales_lang(context)
+    state = getattr(context, "state", None) or {}
+    lang = lang_from_cookie(cookie) or normalize(state.get(STATE_KEY)) or ui_locales_lang(context)
     if lang:
         return lang
     browser = parse_accept_language(headers.get("HTTP_ACCEPT_LANGUAGE"))

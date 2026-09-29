@@ -433,6 +433,8 @@ class SpidSAMLBackend(SAMLBackend):
         :param entity_id: Target IDP entity id
         :return: response to the user agent
         """
+        # Per le pagine di errore dell'ACS, dove il cookie sso_lang non arriva.
+        context.state[i18n.STATE_KEY] = i18n.resolve_lang(context)
         if (
             _legal_entity_requested(context)
             and entity_id == self.config["sp_config"].get("ficep_entity_id")

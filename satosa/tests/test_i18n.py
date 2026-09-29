@@ -124,3 +124,22 @@ def test_template_vars():
     tv = i18n.template_vars("en")
     assert tv["lang"] == "en"
     assert tv["t"]("error.button.cancel") == "Cancel"
+
+
+def test_resolve_lang_uses_state_lang_without_cookie():
+    # ACS SPID: POST cross-site dall'IdP, il cookie SameSite=Lax sso_lang non arriva.
+    ctx = _Ctx(accept_language="it", oidc_request="client_id=x&ui_locales=fr")
+    ctx.state[i18n.STATE_KEY] = "de"
+    assert i18n.resolve_lang(ctx) == "de"
+
+
+def test_resolve_lang_cookie_beats_state_lang():
+    ctx = _Ctx(cookie="sso_lang=es")
+    ctx.state[i18n.STATE_KEY] = "de"
+    assert i18n.resolve_lang(ctx) == "es"
+
+
+def test_resolve_lang_ignores_invalid_state_lang():
+    ctx = _Ctx(accept_language="en")
+    ctx.state[i18n.STATE_KEY] = "../x"
+    assert i18n.resolve_lang(ctx) == "en"

@@ -402,3 +402,13 @@ def test_real_error_template_renders_in_language(lang):
     from markupsafe import escape
     for key in ("error.title.generic", "error.button.retry", "error.button.cancel", "error.spid.25"):
         assert str(escape(t(key))) in body
+
+
+def test_authn_request_remembers_language_for_acs():
+    backend = _fake_backend()
+    backend.check_blacklist.side_effect = RuntimeError("past guard")
+    ctx = _LangCtx({"OIDC": {"oidc_request": "client_id=x&scope=openid&state=y"}}, "de")
+    ctx.cookie = "sso_lang=fr"
+    with pytest.raises(RuntimeError, match="past guard"):
+        spidsaml2.SpidSAMLBackend.authn_request(backend, ctx, "https://idp.spid.example.org")
+    assert ctx.state[spidsaml2.i18n.STATE_KEY] == "fr"
