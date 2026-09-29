@@ -1,13 +1,16 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_DB: proxy
       POSTGRES_USER: proxy
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - proxy_db_data:/var/lib/postgresql/data
+      # PG18+: dati in /var/lib/postgresql/18/docker, mount sulla directory padre.
+      # Volume nuovo per l'upgrade 16→18 (vedi docs/deployment.md): proxy_db_data
+      # resta intatto come rollback.
+      - proxy_db_data_pg18:/var/lib/postgresql
     networks:
       - proxy-internal
     healthcheck:
@@ -113,5 +116,5 @@ networks:
     driver: bridge
 
 volumes:
-  proxy_db_data:
+  proxy_db_data_pg18:
   proxy_satosa_conf:

@@ -108,8 +108,48 @@ Flow: Authorization Code + PKCE (`code_challenge_method=S256`).
 
 | Volume | Contenuto | Persistere? |
 |---|---|---|
-| `proxy_db_data` | PostgreSQL | **Sì** — contiene config e client |
+| `proxy_db_data_pg18` | PostgreSQL 18 | **Sì** — contiene config, client e log accessi |
 | `proxy_satosa_conf` | Config SATOSA | Ricostruibile |
+| `proxy_db_data` | PostgreSQL 16 (fino alla v0.9.x) | Solo come rollback dopo l'upgrade a PG18, poi eliminabile |
+
+## Upgrade PostgreSQL 16 → 18
+
+Dalla versione che usa `postgres:18` il database sta in un volume nuovo (`proxy_db_data_pg18`,
+montato su `/var/lib/postgresql`): i dati di una major precedente non sono leggibili dalla 18 e
+l'immagine 18 si rifiuta di partire sul vecchio mount `/var/lib/postgresql/data`. Il volume
+PG16 (`proxy_db_data`) non viene toccato e resta come rollback.
+
+Il login resta fermo per qualche minuto. Comandi dalla directory dello stack, **prima** di
+aggiornare `docker-compose.yaml` (o l'immagine in Portainer):
+
+```bash
+# 1. Ferma le app (niente scritture durante il dump) e fai il dump dal PostgreSQL 16
+docker compose stop nginx satosa config-api
+docker compose exec -T postgres pg_dump -U proxy -d proxy -Fc > proxy-pg16.dump
+docker compose exec -T postgres pg_restore -l < proxy-pg16.dump | grep -c "TABLE DATA"   # deve essere > 0
+
+# 2. Aggiorna docker-compose.yaml alla nuova versione, poi avvia SOLO postgres 18
+#    (config-api non deve partire prima del restore: creerebbe schema e dati iniziali)
+docker compose up -d --no-deps postgres
+docker compose exec -T postgres pg_isready -U proxy -d proxy
+
+# 3. Ripristina il dump nel database vuoto
+docker compose exec -T postgres pg_restore -U proxy -d proxy --no-owner --exit-on-error < proxy-pg16.dump
+
+# 4. Avvia tutto e verifica
+docker compose up -d
+docker compose exec -T postgres psql -U proxy -d proxy -c "select count(*) from oidc_clients"
+```
+
+Verifica: login WebUI, dashboard con lo storico accessi, `/.well-known/openid-configuration` e
+`/spidSaml2/metadata` rispondono 200, un login di prova completo.
+
+**Rollback** (se qualcosa non va): `docker compose down`, ripristina il `docker-compose.yaml`
+precedente (`postgres:16`, `proxy_db_data:/var/lib/postgresql/data`), `docker compose up -d`: si
+riparte dal volume PG16 intatto. Le scritture fatte su PG18 nel frattempo (log accessi) si perdono.
+
+Quando la 18 è stabile, il vecchio volume si elimina con `docker volume rm <progetto>_proxy_db_data`
+(nome esatto con `docker volume ls`). Conservare `proxy-pg16.dump` finché non si è sicuri.
 
 ## Troubleshooting
 
