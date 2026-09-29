@@ -246,11 +246,18 @@ Su Windows/Git Bash, `-v "$PWD/...":...` nel `docker run` non risolve il path �
 **Parsing XML da input non fidato (upload admin, ecc.)**: usare sempre `defusedxml.ElementTree`, mai `xml.etree.ElementTree` stdlib (XXE/billion-laughs anche da utente autenticato). Dipendenza già in `config-api/requirements.txt`.
 
 ### Disaster recovery (volumi/container azzerati)
-Procedura testata end-to-end (volumi `proxy_db_data`/`proxy_satosa_conf` distrutti con `docker compose down -v`, rebuild, restore): `docker compose up -d` → login WebUI → `POST /admin/backup/import` con l'ultimo bundle JSON → **nessun accesso console necessario**, `satosa` si auto-guarisce entro ~1-2 minuti (crash iniziale su cert mancante → `restart: unless-stopped` lo rilancia → al riavvio trova cert/chiavi già scritti dal restore).
+Procedura testata end-to-end (volumi DB/`proxy_satosa_conf` distrutti con `docker compose down -v`, rebuild, restore): `docker compose up -d` → login WebUI → `POST /admin/backup/import` con l'ultimo bundle JSON → **nessun accesso console necessario**, `satosa` si auto-guarisce entro ~1-2 minuti (crash iniziale su cert mancante → `restart: unless-stopped` lo rilancia → al riavvio trova cert/chiavi già scritti dal restore).
 
 Due prerequisiti, entrambi già a posto in questo repo:
 - `backup_import` deve scrivere `write_spid_cert()`/`write_jwks_files()` su `/satosa-conf/` (non solo il DB) — `generate_and_write()` da solo non lo fa.
 - `nginx` in `docker-compose.yaml` deve dipendere da `satosa` con `condition: service_started`, **non** `service_healthy` — altrimenti deadlock al primo boot da volumi vuoti (nginx aspetta satosa sano, satosa diventa sano solo dopo un restore che passa da nginx) che richiede `docker start <container>` manuale per sbloccare.
+
+### PostgreSQL 18
+`postgres:18` con volume `proxy_db_data_pg18` montato su `/var/lib/postgresql` (non `/data`): dalla 18 l'immagine usa `PGDATA=/var/lib/postgresql/18/docker` e **si rifiuta di partire** se trova dati sul vecchio mount `/var/lib/postgresql/data`.
+
+**Upgrade 16→18 automatico al redeploy, senza shell** (prod = solo Portainer): servizi one-shot nel compose, script inline in `command:` (niente bind mount: lo stack Portainer non ha i file del repo; nel compose ogni `$` di shell va scritto `$$`). `db-upgrade-dump` (`postgres:16`) → dump in volume `proxy_db_upgrade`; `postgres` dipende da lui (`service_completed_successfully`); `db-upgrade-restore` (`postgres:18`, dopo postgres healthy) → `pg_restore --single-transaction` + marker `restored`; `config-api` dipende dal restore (altrimenti Alembic/seed popolano il DB vuoto prima). Restore saltato con avviso se PG18 ha già tabelle. Compose ferma il vecchio PG16 PRIMA di avviare il dump → di solito si usa il ramo "avvio temporaneo PG16 sul volume". Testato: stack PG16 acceso → redeploy (checksum md5 per tabella + sequenze identici), redeploy ripetuto (no-op), installazione nuova (no-op), PG18 già popolato (skip). Prossima major: stesso schema, volume nuovo `proxy_db_data_pgNN`.
+
+Test locale dello stack con `-p <nome>` separato: l'immagine GHCR `:latest` in cache può essere vecchia di mesi (Alembic "Can't locate revision") → `CONFIG_API_IMAGE=pa-sso-proxy-config-api:local SATOSA_IMAGE=pa-sso-proxy-satosa:local`; un DB ripristinato su volume `satosa-conf` nuovo non ha cert/chiavi (li scrive solo l'import backup WebUI) → satosa 500 "no python application", non è colpa del DB.
 
 ### CI/CD
 `docker/metadata-action` con `tags:` custom deve includere `type=ref,event=pr`, altrimenti su evento PR i tag sono vuoti (rompe step che dipendono da `steps.meta.outputs.tags`, es. scan Trivy).

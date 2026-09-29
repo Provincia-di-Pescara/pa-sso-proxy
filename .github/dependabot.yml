@@ -24,6 +24,16 @@ updates:
         patterns:
           - "*"
 
+  # Immagini in docker-compose.yaml (postgres, redis). Major PostgreSQL = migrazione
+  # dati (docs/deployment.md), non un semplice bump del tag.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+
   - package-ecosystem: "docker"
     directory: "/config-api"
     schedule:
