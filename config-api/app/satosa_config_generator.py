@@ -533,213 +533,48 @@ def _cie_oidc_backend_yaml(
     }
 
 
+_EID_LANGS = ("it", "en", "fr", "de", "es")
+
+
 def _eid_locale_strings(
     cie_oidc_login_url: str | None,
     settings: "EnteSettings | None" = None,
     enabled_idps: list | None = None,
 ) -> dict:
-    """Return eid locale dicts for 'it' and 'en' with correct CIE and eIDAS URLs substituted."""
-    eidas_login_url = None
+    """Dati dinamici dell'ente per la discovery, uno per lingua (contenuto identico).
+
+    I testi sono in satosa/public/static/i18n/<lang>.json: qui solo nome ente,
+    URL e login URL CIE/eIDAS, che non si traducono.
+    """
     # Disco visibility driven by IdP enabled state (not eidas_enabled).
     # This allows temporary hiding without touching SP metadata (ficep_enable).
     eidas_idp = next(
         (idp for idp in (enabled_idps or []) if idp.alias in _EIDAS_ALIASES),
         None,
     )
+    digital_id = {"cie": {"login_url": cie_oidc_login_url or ""}}
     if eidas_idp:
         eidas_entity_id = _EIDAS_ENTITY_IDS.get(eidas_idp.alias, "")
-        eidas_login_url = f"/spidSaml2/disco?entityID={eidas_entity_id}&return=/spidSaml2/disco"
-
-    eidas_it = {
-        "name": "eIDAS",
-        "logo_text": "eIDAS",
-        "logo_text_button": "Entra con eIDAS",
-        "logo": "eidas/ficep-it-eidas-ybw.svg",
-        "login_url": eidas_login_url or "",
-        "learn_more_descr": (
-            "I cittadini dell'Unione Europea possono accedere ai servizi online con la propria "
-            "identità digitale nazionale tramite il nodo eIDAS italiano."
-        ),
-        "learn_more_link": "https://www.agid.gov.it/it/piattaforme/eidas",
-        "learn_more_label": "Scopri di più su eIDAS",
-    } if eidas_login_url else None
-
-    eidas_en = {
-        "name": "eIDAS",
-        "logo_text": "eIDAS",
-        "logo_text_button": "Login with eIDAS",
-        "logo": "eidas/ficep-it-eidas-ybw.svg",
-        "login_url": eidas_login_url or "",
-        "learn_more_descr": (
-            "European Union citizens can access online services using their national digital "
-            "identity via the Italian eIDAS node."
-        ),
-        "learn_more_link": "https://www.agid.gov.it/it/piattaforme/eidas",
-        "learn_more_label": "Find out more about eIDAS",
-    } if eidas_login_url else None
-
-    it_wallet_it = {
-        "name": "IT-Wallet",
-        "logo_text": "Entra con IT-Wallet",
-        "logo": "it-wallet/wallet_icon.svg",
-        "login_url": "it-wallet.html",
-        "learn_more_descr": (
-            "IT-Wallet è il sistema italiano di portafogli digitali che ti permette di autenticarti online "
-            "e di accedere a servizi pubblici e privati in modo sicuro e veloce."
-        ),
-        "learn_more_link": "https://innovazione.gov.it/progetti/sistema-it-wallet/",
-        "learn_more_label": "Scopri come ottenerlo",
-    }
-    it_wallet_en = {
-        "name": "IT-Wallet",
-        "logo_text": "Login with IT-Wallet",
-        "logo": "it-wallet/wallet_icon.svg",
-        "login_url": "it-wallet.html",
-        "learn_more_descr": (
-            "IT-Wallet is Italy's national digital wallet system. It lets you authenticate online and access "
-            "public and private services securely and quickly."
-        ),
-        "learn_more_link": "https://innovazione.gov.it/progetti/sistema-it-wallet/",
-        "learn_more_label": "Find out how to get it",
-    }
-    cie_it = {
-        "name": "CIE",
-        "logo_text": "Entra con CIE",
-        "logo": "cie/cie_white.svg",
-        "login_url": cie_oidc_login_url or "",
-        "learn_more_descr": (
-            "La CIE (Carta d'Identità Elettronica) è il documento d'identità elettronico italiano. "
-            "Usala per accedere ai servizi online in modo sicuro tramite il protocollo OpenID Connect."
-        ),
-        "learn_more_link": "https://www.cartaidentita.interno.gov.it/",
-        "learn_more_label": "Scopri come ottenerla",
-    }
-    cie_en = {
-        "name": "CIE",
-        "logo_text": "Login with CIE",
-        "logo": "cie/cie_white.svg",
-        "login_url": cie_oidc_login_url or "",
-        "learn_more_descr": (
-            "CIE (Carta d'Identità Elettronica) is the Italian electronic identity card. "
-            "Use it to access online services securely via the OpenID Connect protocol."
-        ),
-        "learn_more_link": "https://www.cartaidentita.interno.gov.it/",
-        "learn_more_label": "Find out how to get it",
-    }
-    spid_it = {
-        "name": "SPID",
-        "logo_text": "Entra con SPID",
-        "logo": "spid/spid-ico-circle-bb.svg",
-        "login_url": "#spid-idp-button-xlarge-post",
-        "learn_more_descr": (
-            "SPID (Sistema Pubblico di Identità Digitale) è il sistema pubblico di identità digitale italiano. "
-            "Scegli il tuo gestore di identità per accedere con le deine credenziali SPID."
-        ),
-        "learn_more_link": "https://www.spid.gov.it/",
-        "learn_more_label": "Scopri come ottenerla",
-    }
-    spid_en = {
-        "name": "SPID",
-        "logo_text": "Login with SPID",
-        "logo": "spid/spid-ico-circle-bb.svg",
-        "login_url": "#spid-idp-button-xlarge-post",
-        "learn_more_descr": (
-            "SPID (Sistema Pubblico di Identità Digitale) is the Italian public digital identity system. "
-            "Choose your identity provider to log in with your SPID credentials."
-        ),
-        "learn_more_link": "https://www.spid.gov.it/",
-        "learn_more_label": "Find out how to get it",
-    }
-
-    def _digital_id(cie, spid, it_wallet, eidas, cie_oidc_login, lang):
-        d = {"it_wallet": it_wallet, "cie": cie, "spid": spid}
-        if eidas:
-            d["eidas"] = eidas
-        if cie_oidc_login:
-            cie_oidc_name = "CIE OpenID Connect"
-            cie_oidc_descr_it = (
-                "La CIE (Carta d'Identità Elettronica) può essere usata con il protocollo OIDC "
-                "per autenticarti e accedere ai servizi online."
-            )
-            cie_oidc_descr_en = (
-                "CIE (Carta d'Identità Elettronica) can be used with the OIDC protocol "
-                "to authenticate and access online services."
-            )
-            d["cie_oidc"] = {
-                "name": cie_oidc_name,
-                "logo_text": "Entra con CIE" if lang == "it" else "Login with CIE",
-                "logo": "cie/cie_white.svg",
-                "login_url": cie_oidc_login,
-                "learn_more_descr": cie_oidc_descr_it if lang == "it" else cie_oidc_descr_en,
-            }
-        return d
-
-    common_titles_it = {
-        "page_title": "Pagina di selezione del metodo di Autenticazione",
-        "login_logo": "Il tuo logo",
-        "login_digital_identity": "Accedi con un'identità digitale",
-        "login_alternative_method": "Accedi con un metodo alternativo",
-        "havent_digital_identy": "Non hai un'identità digitale?",
-        "find_how_to_get_digital_id": "Scopri come ottenerla",
-        "find_how_to_get_digital_id_url": "https://identitadigitale.gov.it/",
-        "learn_more": "Scopri di più",
-    }
-    common_titles_en = {
-        "page_title": "Authentication method selection page",
-        "login_logo": "Your logo",
-        "login_digital_identity": "Sign in with a digital identity",
-        "login_alternative_method": "Sign in with an alternative method",
-        "havent_digital_identy": "Don't have a digital identity?",
-        "find_how_to_get_digital_id": "Find out how to get one",
-        "find_how_to_get_digital_id_url": "https://identitadigitale.gov.it/",
-        "learn_more": "Learn more",
-    }
+        digital_id["eidas"] = {
+            "login_url": f"/spidSaml2/disco?entityID={eidas_entity_id}&return=/spidSaml2/disco"
+        }
     _s = settings
-    _logo_url = (_s.logo_url or "") if _s else ""
-    _favicon_url = (_s.favicon_url or "") if _s else ""
-    _privacy_url = (_s.privacy_url or "") if _s else ""
-    _legal_notes_url = (_s.legal_notes_url or "") if _s else ""
-    _accessibility_url = (_s.accessibility_url or "") if _s else ""
-    _support_url = (_s.support_url or "") if _s else ""
-    _org_name_it = (_s.org_display_name or "Nome dell'Organizzazione") if _s else "Nome dell'Organizzazione"
-    _org_name_en = (_s.org_display_name or "Organisation Name") if _s else "Organisation Name"
-
-    footer_it = {
-        "legal_notice": "Note legali",
-        "legal_notice_url": _legal_notes_url,
-        "privacy_policy": "Privacy Policy",
-        "privacy_policy_url": _privacy_url,
-        "accessibility_statement": "Dichiarazione Accessibilità",
-        "accessibility_url": _accessibility_url,
-        "support": "Assistenza",
-        "support_url": _support_url,
-    }
-    footer_en = {
-        "legal_notice": "Legal notice",
-        "legal_notice_url": _legal_notes_url,
-        "privacy_policy": "Privacy Policy",
-        "privacy_policy_url": _privacy_url,
-        "accessibility_statement": "Accessibility statement",
-        "accessibility_url": _accessibility_url,
-        "support": "Support",
-        "support_url": _support_url,
-    }
-
-    it_locale = {
-        "header": {"region_name": _org_name_it, "logo_url": _logo_url, "favicon_url": _favicon_url},
-        "titles": common_titles_it,
-        "digital_id": _digital_id(cie_it, spid_it, it_wallet_it, eidas_it, cie_oidc_login_url, "it"),
-        "footer": footer_it,
+    data = {
+        "header": {
+            "region_name": (_s.org_display_name or "") if _s else "",
+            "logo_url": (_s.logo_url or "") if _s else "",
+            "favicon_url": (_s.favicon_url or "") if _s else "",
+        },
+        "digital_id": digital_id,
+        "footer": {
+            "privacy_policy_url": (_s.privacy_url or "") if _s else "",
+            "legal_notice_url": (_s.legal_notes_url or "") if _s else "",
+            "accessibility_url": (_s.accessibility_url or "") if _s else "",
+            "support_url": (_s.support_url or "") if _s else "",
+        },
         "version": get_display_version(),
     }
-    en_locale = {
-        "header": {"region_name": _org_name_en, "logo_url": _logo_url, "favicon_url": _favicon_url},
-        "titles": common_titles_en,
-        "digital_id": _digital_id(cie_en, spid_en, it_wallet_en, eidas_en, cie_oidc_login_url, "en"),
-        "footer": footer_en,
-        "version": get_display_version(),
-    }
-    return {"it": it_locale, "en": en_locale}
+    return {lang: data for lang in _EID_LANGS}
 
 
 _ACCESS_LOG_REPORTER_PY = '''\
