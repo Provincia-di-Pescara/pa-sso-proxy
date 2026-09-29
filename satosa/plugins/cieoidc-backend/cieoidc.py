@@ -7,6 +7,7 @@ from satosa.backends.base import BackendModule
 from satosa.backends.oauth import get_metadata_desc_for_oauth_backend
 from satosa.response import Response
 
+from .. import i18n
 from ..spidsaml2 import LEGAL_ENTITY_SPID_ONLY_ERROR, _legal_entity_requested
 from .utils.endpoints_loader import EndpointsLoader
 
@@ -17,7 +18,7 @@ from pyeudiw.federation.statements import EntityStatement, get_entity_configurat
 logger = logging.getLogger(__name__)
 
 
-def _render_legal_entity_error() -> Response:
+def _render_legal_entity_error(context=None) -> Response:
     """Pagina di errore del proxy: CIE non supporta l'accesso per conto di un'impresa."""
     template_folder = os.environ.get("SATOSA_TEMPLATE_FOLDER", "/satosa_proxy/templates")
     static_url = os.environ.get("SATOSA_STATIC_URL", "/static/")
@@ -28,10 +29,13 @@ def _render_legal_entity_error() -> Response:
         autoescape=select_autoescape(["html"]),
     )
     env.globals.update({"static": static_url})
+    lang = i18n.resolve_lang(context)
     result = env.get_template("spid_login_error.html").render({
-        **LEGAL_ENTITY_SPID_ONLY_ERROR,
+        "message": i18n.t(lang, LEGAL_ENTITY_SPID_ONLY_ERROR["message_key"]),
+        "troubleshoot": i18n.t(lang, LEGAL_ENTITY_SPID_ONLY_ERROR["troubleshoot_key"]),
         "error_type": "generic",
         "cancel_url": os.environ.get("SATOSA_CANCEL_REDIRECT_URL") or "/",
+        **i18n.template_vars(lang),
     })
     return Response(result.encode("utf-8"), content="text/html; charset=utf8", status="403")
 
@@ -54,7 +58,7 @@ class CieOidcBackend(BackendModule):
         )
         if _legal_entity_requested(context):
             logger.warning("CIE richiesta con scope legal_entity: rifiutata (solo SPID)")
-            return _render_legal_entity_error()
+            return _render_legal_entity_error(context)
         authorization_endpoint = self.endpoints.get("authorization")
         if not authorization_endpoint:
             raise ValueError("No authorization endpoint configured in the CieOidc backend")

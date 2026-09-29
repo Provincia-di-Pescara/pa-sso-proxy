@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import ANY, patch, MagicMock
 
 from satosa.context import Context
 from backends.cieoidc.cieoidc import CieOidcBackend
@@ -215,7 +215,7 @@ def test_start_auth_rejects_legal_entity(backend):
     with patch("backends.cieoidc.cieoidc._render_legal_entity_error", return_value="ERROR_PAGE") as render:
         res = backend.start_auth(_context_with_scope("openid+legal_entity"), MagicMock())
     assert res == "ERROR_PAGE"
-    render.assert_called_once()
+    render.assert_called_once_with(ANY)
     mock_auth.assert_not_called()
 
 
@@ -229,13 +229,23 @@ def test_start_auth_citizen_scope_calls_authorization(backend):
 
 def test_render_legal_entity_error_uses_proxy_template(tmp_path, monkeypatch):
     from markupsafe import escape
+    from backends import i18n
     from backends.cieoidc import cieoidc
-    from backends.spidsaml2 import LEGAL_ENTITY_SPID_ONLY_ERROR
-    (tmp_path / "spid_login_error.html").write_text("{{ message }}|{{ troubleshoot }}|{{ static }}", encoding="utf-8")
+    (tmp_path / "spid_login_error.html").write_text(
+        "{{ lang }}|{{ message }}|{{ troubleshoot }}|{{ static }}", encoding="utf-8"
+    )
     monkeypatch.setenv("SATOSA_TEMPLATE_FOLDER", str(tmp_path))
     monkeypatch.setenv("SATOSA_STATIC_URL", "/static")
-    resp = cieoidc._render_legal_entity_error()
-    body = resp.message.decode("utf-8") if isinstance(resp.message, bytes) else resp.message
-    assert str(escape(LEGAL_ENTITY_SPID_ONLY_ERROR["message"])) in body
-    assert body.endswith("|/static/")
+    ctx = Context()
+    ctx.state = {}
+    ctx.http_headers = {"HTTP_ACCEPT_LANGUAGE": "en"}
+    ctx.cookie = ""
+    resp = cieoidc._render_legal_entity_error(ctx)
+    body = resp.message.decode("utf-8")
+    lang, message, troubleshoot, static = body.split("|")
+    assert lang == "en"
+    assert message == str(escape(i18n.t("en", "error.legal_entity_spid_only")))
+    assert troubleshoot == str(escape(i18n.t("en", "error.legal_entity_spid_only.troubleshoot")))
+    assert static == "/static/"
     assert resp.status.startswith("403")
+

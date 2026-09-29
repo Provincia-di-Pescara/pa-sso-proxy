@@ -23,6 +23,7 @@ from ..utils.helpers.misc import get_jwks, get_jwk_from_jwt, process_user_attrib
 from ..utils.handlers.base_endpoint import BaseEndpoint
 from ..utils.helpers.jwtse import verify_jws, unpad_jwt_payload, verify_at_hash
 from pyeudiw.trust.dynamic import CombinedTrustEvaluator  # todo remove pyeudiw dependency
+from ... import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +271,15 @@ class AuthorizationCallBackHandler(BaseEndpoint):
         description = context.qs_params.get("error_description", "Autenticazione non riuscita")
         logger.warning(f"CIE IdP returned error: {error} — {description}")
 
+        if error in ("login_required", "access_denied"):
+            error_type, message_key = "cancelled", "error.cie.cancelled"
+        elif error in ("request_timeout", "interaction_required"):
+            error_type, message_key = "timeout", "error.cie.timeout"
+        else:
+            error_type, message_key = "generic", "error.cie.generic"
+        lang = i18n.resolve_lang(context)
+        message = i18n.t(lang, message_key)
+
         # ── 1. Recupera redirect_uri e state del client OIDC originante ──────────
         # Il context.state SATOSA (da cookie) contiene la richiesta OIDC originale
         # con redirect_uri e state del client, esattamente come avviene nel flusso
@@ -302,7 +312,7 @@ class AuthorizationCallBackHandler(BaseEndpoint):
             oidc_error = "access_denied"
             error_params = {
                 "error": oidc_error,
-                "error_description": description,
+                "error_description": message,
             }
             if client_state:
                 error_params["state"] = client_state
@@ -324,22 +334,14 @@ class AuthorizationCallBackHandler(BaseEndpoint):
             "Could not determine client redirect_uri from context.state — "
             "showing branded error page"
         )
-        if error in ("login_required", "access_denied"):
-            error_type = "cancelled"
-            message = "Hai annullato l'operazione di accesso con CIE."
-        elif error in ("request_timeout", "interaction_required"):
-            error_type = "timeout"
-            message = "Il tempo a disposizione per autenticarsi è scaduto. Riprova."
-        else:
-            error_type = "generic"
-            message = description
-
         cancel_url = os.environ.get("SATOSA_CANCEL_REDIRECT_URL") or "/"
         result = self.error_page.render({
             "message": message,
-            "troubleshoot": f"{error}: {description}" if error_type == "generic" else "",
+            "troubleshoot": "",
+            "detail": f"{error}: {description}" if error_type == "generic" else "",
             "error_type": error_type,
             "cancel_url": cancel_url,
+            **i18n.template_vars(lang),
         })
         return Response(result.encode("utf-8"), content="text/html; charset=utf8", status="200 OK")
 
