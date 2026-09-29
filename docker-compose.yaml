@@ -7,106 +7,16 @@ services:
       POSTGRES_USER: proxy
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      # PG18+: dati in /var/lib/postgresql/18/docker, mount sulla directory padre.
-      # Volume nuovo: i dati PG16 (proxy_db_data) sono migrati in automatico da
-      # db-upgrade-dump/db-upgrade-restore e restano intatti come rollback.
+      # PG18+: dati in /var/lib/postgresql/18/docker, mount sulla directory padre
+      # (l'immagine rifiuta di partire con il vecchio mount /var/lib/postgresql/data).
       - proxy_db_data_pg18:/var/lib/postgresql
     networks:
       - proxy-internal
-    depends_on:
-      db-upgrade-dump:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U proxy"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # ── Upgrade automatico PostgreSQL 16 → 18 ────────────────────────────────
-  # Nessun accesso shell richiesto: al primo deploy con postgres:18, questo
-  # servizio fa il dump del database PG16 (volume proxy_db_data) e
-  # db-upgrade-restore lo carica nel PG18 vuoto prima che config-api parta.
-  # Dopo la migrazione (o su installazioni nuove) entrambi escono subito.
-  # Dettagli e rollback: docs/deployment.md "Upgrade PostgreSQL 16 → 18".
-  db-upgrade-dump:
-    image: postgres:16
-    restart: "no"
-    environment:
-      POSTGRES_DB: proxy
-      POSTGRES_USER: proxy
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - proxy_db_data:/old
-      - proxy_db_upgrade:/upgrade
-    networks:
-      - proxy-internal
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -eu
-        OUT=/upgrade/proxy-pg16.dump
-        log() { echo "[db-upgrade-dump] $$*"; }
-        if [ -f /upgrade/restored ] || [ -f "$$OUT" ]; then
-          log "migrazione già eseguita o dump già presente: niente da fare"; exit 0
-        fi
-        if [ ! -f /old/PG_VERSION ]; then
-          log "nessun database PostgreSQL 16: niente da migrare"; exit 0
-        fi
-        if [ "$$(cat /old/PG_VERSION)" != "16" ]; then
-          log "ERRORE: versione dati inattesa $$(cat /old/PG_VERSION) in proxy_db_data"; exit 1
-        fi
-        chown postgres:postgres /upgrade
-        export PGPASSWORD="$$POSTGRES_PASSWORD"
-        if pg_isready -q -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" \
-           && [ "$$(psql -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc 'show server_version_num' | cut -c1-2)" = "16" ]; then
-          log "dump dal PostgreSQL 16 in esecuzione"
-          pg_dump -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -Fc -f "$$OUT.tmp"
-        elif [ ! -f /old/postmaster.pid ]; then
-          log "avvio temporaneo di PostgreSQL 16 sul volume esistente"
-          gosu postgres pg_ctl -D /old -o "-c listen_addresses=''" -w start
-          gosu postgres pg_dump -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -Fc -f "$$OUT.tmp"
-          gosu postgres pg_ctl -D /old -m fast -w stop
-        else
-          log "ERRORE: proxy_db_data risulta in uso (postmaster.pid) ma il server non risponde"; exit 1
-        fi
-        if ! pg_restore -l "$$OUT.tmp" | grep -q "TABLE DATA"; then
-          log "ERRORE: dump senza dati"; exit 1
-        fi
-        mv "$$OUT.tmp" "$$OUT"
-        log "dump completato: $$(du -h "$$OUT" | cut -f1)"
-
-  db-upgrade-restore:
-    image: postgres:18
-    restart: "no"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      POSTGRES_DB: proxy
-      POSTGRES_USER: proxy
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - proxy_db_upgrade:/upgrade
-    networks:
-      - proxy-internal
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -eu
-        IN=/upgrade/proxy-pg16.dump
-        log() { echo "[db-upgrade-restore] $$*"; }
-        if [ -f /upgrade/restored ]; then log "già ripristinato: niente da fare"; exit 0; fi
-        if [ ! -f "$$IN" ]; then log "nessun dump da ripristinare"; exit 0; fi
-        export PGPASSWORD="$$POSTGRES_PASSWORD"
-        N=$$(psql -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "select count(*) from pg_tables where schemaname = 'public'")
-        if [ "$$N" != "0" ]; then
-          log "ATTENZIONE: il database PostgreSQL 18 contiene già $$N tabelle, restore saltato (dump conservato nel volume proxy_db_upgrade)"
-          touch /upgrade/restored; exit 0
-        fi
-        log "ripristino del dump PostgreSQL 16"
-        pg_restore -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" --no-owner --single-transaction --exit-on-error "$$IN"
-        touch /upgrade/restored
-        log "ripristino completato"
 
   redis:
     image: redis:alpine
@@ -153,8 +63,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      db-upgrade-restore:
-        condition: service_completed_successfully
     environment:
       - DATABASE_URL=postgresql+asyncpg://proxy:${POSTGRES_PASSWORD}@postgres:5432/proxy
       - ADMIN_USER=${ADMIN_USER}
@@ -208,6 +116,4 @@ networks:
 
 volumes:
   proxy_db_data_pg18:
-  proxy_db_data:       # PostgreSQL 16: sorgente della migrazione, poi solo rollback
-  proxy_db_upgrade:    # dump + marker della migrazione 16 → 18
   proxy_satosa_conf:
