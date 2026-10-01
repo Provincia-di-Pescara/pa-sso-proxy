@@ -60,17 +60,14 @@ def generate_jwk(name: str, use: str) -> JwkKey:
     return JwkKey(name=name, use=use, private_jwk=private_jwk, public_jwk=public_jwk)
 
 
-def portal_jwk(private_jwk: dict) -> dict:
-    """Formato portale CIE: solo kty/kid/e/n/d/p/q/dp/dq/qi — senza alg/use."""
+def portal_jwk(jwk: dict) -> dict:
+    """Formato portale CIE: solo parte pubblica kty/kid/e/n — senza alg/use.
+
+    Il portale accetta la sola chiave pubblica: la privata non deve uscire dal proxy.
+    """
     return {
-        "kty": private_jwk["kty"],
-        "kid": private_jwk["kid"],
-        "e": private_jwk["e"],
-        "n": private_jwk["n"],
-        "d": private_jwk["d"],
-        "p": private_jwk["p"],
-        "q": private_jwk["q"],
-        "dp": private_jwk["dp"],
-        "dq": private_jwk["dq"],
-        "qi": private_jwk["qi"],
+        "kty": jwk["kty"],
+        "kid": jwk["kid"],
+        "e": jwk["e"],
+        "n": jwk["n"],
     }
