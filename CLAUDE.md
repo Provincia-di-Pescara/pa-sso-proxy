@@ -145,7 +145,7 @@ Tutte in `.env` (vedi `.env.example`). Le variabili sono passate dal compose a s
 SubjectDN richiesto da AgID: `CN=<domain>, O=<ente>, 2.5.4.83=<entityId>, 2.5.4.97=PA:IT-<IPA_CODE>, C=IT, L=<città>`. Vedi `keycloak-login-proxy/scripts/manage-spid-cert.py` per implementazione Python con `cryptography`.
 
 ### CIE OIDC Federation
-Il backend CIE OIDC usa 3 JWK separati: `jwk-federation` (firma entity configuration), `jwk-core-sig` (firma OIDC requests), `jwk-core-enc` (cifratura). Il config-api genera questi keypair e li espone in WebUI con tab separato "Portale CIE" (solo federation key, privata) e "SATOSA interno" (public).
+Il backend CIE OIDC usa 3 JWK separati: `jwk-federation` (firma entity configuration), `jwk-core-sig` (firma OIDC requests), `jwk-core-enc` (cifratura). Il config-api genera questi keypair e li espone in WebUI con tab separato "Portale CIE" (solo federation key, **solo parte pubblica** `kty/kid/e/n` — verificato accettato dal portale; fino a v0.9.11 esportava anche `d/p/q/...`, mai rimettere i campi privati) e "SATOSA interno" (public).
 
 **URL fissi produzione:**
 - Trust Anchor / authority_hint: `https://oidc.registry.servizicie.interno.gov.it`
