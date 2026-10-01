@@ -342,6 +342,7 @@
   <div class="a-help-body">
     <p>Abilitare eIDAS aggiunge due nuovi indici (99 e 100) di <code>AttributeConsumingService</code> al metadata SP — il documento pubblicato <strong>cambia contenuto per davvero</strong>. Non tocca le chiavi, ma modifica cosa il metadata dichiara.</p>
     <p>Serve ri-validazione AgID prima di andare in produzione. <strong>Non serve rifarla ogni volta</strong> che riavvii SATOSA: solo la prima volta che abiliti/disabiliti (o cambi ambiente prod/QA).</p>
+    <p><strong>L'accesso SPID già validato continua a funzionare</strong> anche prima della ri-validazione: gli ACS 99/100 si aggiungono a quelli esistenti. <strong>eIDAS invece funziona solo dopo l'aggiornamento del metadata sul registro AgID.</strong></p>
     <div class="a-help-example"><strong>Workflow consigliato per non rischiare nulla:</strong> abilita eIDAS qui → vai al tab <em>Profili configurazione</em>, trovi la nuova versione generata → <code>Esponi</code> per pubblicarla e testare con AgID → se qualcosa non va, <code>Esponi</code> la versione di prima del cambio (torni esattamente come stavi) → solo quando sei soddisfatto, <code>Segna validato</code> e chiedi la validazione ufficiale ad AgID.</div>
   </div>
 </details>
@@ -358,6 +359,7 @@
     {% if eidas_warning %}
     <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
       Conferma l'abilitazione dal toggle qui sotto — modifica il metadata SP pubblicato e richiede ri-validazione AgID.
+      L'accesso SPID già validato continua a funzionare; eIDAS funziona solo dopo l'aggiornamento del metadata sul registro AgID.
     </div>
     {% endif %}
     <p style="font-size:13px;margin-bottom:20px;color:var(--fg-muted);">
@@ -398,6 +400,7 @@
   <div class="a-help-body">
     <p>Abilitare l'accesso persona giuridica aggiunge un <code>AttributeConsumingService</code> dedicato con gli attributi azienda (ragione sociale, sede legale, P.IVA) al metadata SP — il documento pubblicato <strong>cambia contenuto per davvero</strong>, stessa logica di eIDAS.</p>
     <p>Serve ri-validazione AgID. Stesso workflow non distruttivo di eIDAS: vedi il suggerimento nel tab <em>Profili configurazione</em>.</p>
+    <p><strong>Persona fisica continua a funzionare</strong> anche prima della ri-validazione (usa l'ACS già registrato). <strong>Persona giuridica invece funziona solo dopo l'aggiornamento del metadata sul registro AgID</strong>: gli IdP leggono il metadata registrato, non quello pubblicato dal proxy, e senza l'ACS dedicato rifiutano la richiesta.</p>
   </div>
 </details>
 <div class="a-card" style="max-width:720px;">
@@ -413,6 +416,7 @@
     {% if legal_entity_warning %}
     <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
       Conferma l'abilitazione dal toggle qui sotto — modifica il metadata SP pubblicato e richiede ri-validazione AgID.
+      Persona fisica continua a funzionare; persona giuridica funziona solo dopo l'aggiornamento del metadata sul registro AgID.
     </div>
     {% endif %}
     <p style="font-size:13px;margin-bottom:20px;color:var(--fg-muted);">
@@ -598,7 +602,10 @@ function handleEidasSubmit(event) {
   if (isEnabled && !eidasInitialEnabled) {
     var ok = window.confirm(
       "Abilitare l'integrazione eIDAS in ambiente " + envLabel + "?\n\n" +
-      "Questo renderà visibile il pulsante di login eIDAS sulla pagina di scelta provider."
+      "Questo renderà visibile il pulsante di login eIDAS sulla pagina di scelta provider " +
+      "e modifica il metadata SP pubblicato (richiede ri-validazione AgID).\n\n" +
+      "L'accesso SPID già validato continua a funzionare; eIDAS funziona solo " +
+      "dopo l'aggiornamento del metadata sul registro AgID."
     );
     if (!ok) { event.preventDefault(); return false; }
     confirmedInput.value = "yes";
@@ -623,7 +630,11 @@ function handleLegalEntitySubmit(event) {
     var ok = window.confirm(
       "Abilitare l'accesso SPID persona giuridica?\n\n" +
       "Questo modifica il metadata SP pubblicato (nuovi attributi opzionali azienda) " +
-      "e richiede ri-validazione presso AgID."
+      "e richiede ri-validazione presso AgID.
+
+" +
+      "Persona fisica continua a funzionare; persona giuridica funziona solo " +
+      "dopo l'aggiornamento del metadata sul registro AgID."
     );
     if (!ok) { event.preventDefault(); return false; }
     confirmedInput.value = "yes";
