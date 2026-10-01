@@ -67,3 +67,65 @@ jobs:
 
       - name: Run pip-audit
         run: pipx run pip-audit -r config-api/requirements.txt
+
+  # I test pytest girano su SQLite e non eseguono mai Alembic: un bump che rompe
+  # le migrazioni su Postgres (es. SQLAlchemy 2.1 → driver di default psycopg v3,
+  # non installato) passava verde. Qui: immagine reale + postgres:18 + stesso
+  # command del compose (alembic upgrade head && uvicorn) + /health.
+  smoke-config-api-postgres:
+    name: smoke (image + alembic su postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: proxy
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: proxy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U proxy"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Build config-api image
+        run: docker build -t config-api:ci config-api
+
+      - name: Start config-api (alembic upgrade head + uvicorn)
+        run: |
+          mkdir -p "$RUNNER_TEMP/satosa-conf"
+          chmod 777 "$RUNNER_TEMP/satosa-conf"
+          docker run -d --name config-api --network host \
+            -e DATABASE_URL=postgresql+asyncpg://proxy:ci-password@127.0.0.1:5432/proxy \
+            -e ADMIN_USER=admin -e ADMIN_PASSWORD=ci-admin-password \
+            -e SESSION_SECRET=ci-session-secret-0123456789abcdef \
+            -e ADMIN_2FA_ENABLED=true \
+            -e PROXY_HOSTNAME=ci.example.invalid \
+            -e SATOSA_CONF_DIR=/satosa-conf \
+            -e SATOSA_HASH_SALT=ci-hash-salt-0123456789abcdef \
+            -v "$RUNNER_TEMP/satosa-conf:/satosa-conf" \
+            config-api:ci \
+            sh -c "alembic upgrade head && uvicorn app.main:app --host 127.0.0.1 --port 8000"
+
+      - name: Wait for /health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health; then echo; exit 0; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' config-api)" != "true" ]; then
+              echo "::error::config-api container exited"; docker logs config-api; exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::config-api /health timeout"; docker logs config-api; exit 1
+
+      - name: Alembic idempotente (secondo upgrade = no-op)
+        run: docker exec config-api sh -c "alembic upgrade head && alembic current" | tee /dev/stderr | grep -q "(head)"
+
+      - name: Logs config-api
+        if: always()
+        run: docker logs config-api || true
