@@ -14,7 +14,7 @@ target_metadata = Base.metadata
 
 def get_url():
     url = os.environ.get("DATABASE_URL", "")
-    return url.replace("postgresql+asyncpg://", "postgresql://").replace("sqlite+aiosqlite://", "sqlite://")
+    return url.replace("postgresql+asyncpg://", "postgresql+psycopg2://").replace("sqlite+aiosqlite://", "sqlite://")
 
 
 def run_migrations_online():
