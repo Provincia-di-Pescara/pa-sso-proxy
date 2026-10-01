@@ -165,7 +165,7 @@
   </div>
   <div id="tab-portal" class="a-tab-panel" style="padding:16px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <span class="a-muted" style="font-size:12px;">Chiave federation completa (kty/kid/e/n/d/p/q/dp/dq/qi) — incollare nel portale federazione CIE.</span>
+      <span class="a-muted" style="font-size:12px;">Chiave pubblica federation (kty/kid/e/n) — incollare nel portale federazione CIE. La chiave privata non va mai inviata.</span>
       <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyPortalJwks(event)">Copia</button>
     </div>
     <pre style="margin:0;font-size:11px;background:var(--bg-1);padding:12px;border-radius:4px;overflow-x:auto;"><code id="jwks-portal">{{ portal_jwks_json }}</code></pre>

@@ -72,12 +72,12 @@ async def cie_config_get(request: Request, db: AsyncSession = Depends(get_db)):
     public_jwks = {"keys": [k.public_jwk for k in jwk_keys if k.public_jwk]}
     public_jwks_json = json.dumps(public_jwks, indent=4)
 
-    # Formato portale CIE: SOLO chiave federation con campi privati, senza alg/use
-    fed_keys = [k for k in jwk_keys if k.use == "federation" and k.private_jwk and all(
-        f in k.private_jwk for f in ("d", "p", "q", "dp", "dq", "qi")
+    # Formato portale CIE: SOLO chiave federation, parte pubblica, senza alg/use
+    fed_keys = [k for k in jwk_keys if k.use == "federation" and k.public_jwk and all(
+        f in k.public_jwk for f in ("kty", "kid", "e", "n")
     )]
     portal_jwks_json = json.dumps(
-        {"keys": [portal_jwk(k.private_jwk) for k in fed_keys]}, indent=4
+        {"keys": [portal_jwk(k.public_jwk) for k in fed_keys]}, indent=4
     )
 
     generated_at = max((k.created_at for k in jwk_keys), default=None) if jwk_keys else None
