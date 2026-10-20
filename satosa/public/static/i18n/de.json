@@ -70,5 +70,7 @@
 
   "error.cie.cancelled": "Sie haben die Anmeldung mit der CIE abgebrochen.",
   "error.cie.timeout": "Die für die Authentifizierung verfügbare Zeit ist abgelaufen. Bitte versuchen Sie es erneut.",
-  "error.cie.generic": "Die Anmeldung mit der CIE war nicht erfolgreich."
+  "error.cie.generic": "Die Anmeldung mit der CIE war nicht erfolgreich.",
+  "error.cie.state_lost": "Die Anmeldesitzung ist nicht mehr gültig: Die Anmeldung mit der CIE wurde in einem anderen Browser oder einer anderen App abgeschlossen als dort, wo sie begonnen wurde.",
+  "error.cie.state_lost.troubleshoot": "Kehren Sie zum Dienst zurück und starten Sie die Anmeldung erneut im selben Browser. Wenn Sie die CieID-App auf Ihrem Smartphone verwenden, öffnen Sie den Dienst im Standardbrowser des Telefons."
 }
