@@ -70,5 +70,7 @@
 
   "error.cie.cancelled": "Vous avez annulé la connexion avec la CIE.",
   "error.cie.timeout": "Le délai accordé pour l'authentification a expiré. Veuillez réessayer.",
-  "error.cie.generic": "La connexion avec la CIE n'a pas abouti."
+  "error.cie.generic": "La connexion avec la CIE n'a pas abouti.",
+  "error.cie.state_lost": "La session de connexion n'est plus valide : la connexion avec la CIE a été terminée dans un navigateur ou une application différents de ceux où elle avait commencé.",
+  "error.cie.state_lost.troubleshoot": "Revenez au service et recommencez la connexion depuis le même navigateur. Si vous utilisez l'application CieID sur votre smartphone, ouvrez le service dans le navigateur par défaut du téléphone."
 }

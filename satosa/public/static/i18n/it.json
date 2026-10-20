@@ -70,5 +70,7 @@
 
   "error.cie.cancelled": "Hai annullato l'operazione di accesso con CIE.",
   "error.cie.timeout": "Il tempo a disposizione per autenticarsi è scaduto. Riprova.",
-  "error.cie.generic": "L'accesso con CIE non è andato a buon fine."
+  "error.cie.generic": "L'accesso con CIE non è andato a buon fine.",
+  "error.cie.state_lost": "La sessione di accesso non è più valida: il login con CIE è stato completato in un browser o in un'app diversa da quella in cui era iniziato.",
+  "error.cie.state_lost.troubleshoot": "Torna al servizio e riavvia l'accesso dallo stesso browser. Se usi l'app CieID su smartphone, apri il servizio nel browser predefinito del telefono."
 }

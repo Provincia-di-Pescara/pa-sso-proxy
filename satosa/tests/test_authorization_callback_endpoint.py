@@ -470,3 +470,32 @@ def test_idp_error_page_generic_keeps_raw_detail(handler):
     assert str(escape(i18n.t("fr", "error.cie.generic"))) in body
     assert '<html lang="fr">' in body
     assert "server_error: boom" in body
+
+
+def test_endpoint_without_satosa_state_renders_proxy_error_page(handler):
+    # Callback CIE senza cookie satosa_state (es. app CieID che riapre il
+    # callback in un altro browser): pagina d'errore del proxy, niente
+    # SATOSAStateError non gestita e nessuno scambio del code col token endpoint.
+    from markupsafe import escape
+    from backends import i18n
+    ctx = Context()
+    ctx.state = {}
+    ctx.qs_params = {
+        "state": "dummy_state", "code": "code", "iss": "http://cie-provider.example.org:8002/oidc/op"
+    }
+    ctx.http_headers = {"HTTP_ACCEPT_LANGUAGE": "en"}
+    ctx.cookie = ""
+    with patch(
+        "backends.cieoidc.endpoints.authorization_callback_endpoint._post_access_log"
+    ) as mock_log, patch(
+        "backends.cieoidc.utils.clients.oauth2.OAuth2AuthorizationCodeGrant.access_token_request"
+    ) as mock_token:
+        resp = handler.endpoint(ctx)
+    assert resp.status == "400 Bad Request"
+    body = resp.message.decode()
+    assert str(escape(i18n.t("en", "error.cie.state_lost"))) in body
+    assert 'id="btn-retry"' not in body
+    assert 'id="btn-cancel"' in body
+    mock_token.assert_not_called()
+    mock_log.assert_called_once_with("cie", None, "failure", "state_lost")
+    handler._auth_callback.assert_not_called()

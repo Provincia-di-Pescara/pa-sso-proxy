@@ -70,5 +70,7 @@
 
   "error.cie.cancelled": "Ha cancelado el acceso con la CIE.",
   "error.cie.timeout": "El tiempo disponible para la autenticación ha caducado. Inténtelo de nuevo.",
-  "error.cie.generic": "El acceso con la CIE no se ha completado correctamente."
+  "error.cie.generic": "El acceso con la CIE no se ha completado correctamente.",
+  "error.cie.state_lost": "La sesión de acceso ya no es válida: el acceso con la CIE se completó en un navegador o una aplicación distintos de aquellos en los que se inició.",
+  "error.cie.state_lost.troubleshoot": "Vuelva al servicio e inicie de nuevo el acceso desde el mismo navegador. Si utiliza la aplicación CieID en su smartphone, abra el servicio en el navegador predeterminado del teléfono."
 }

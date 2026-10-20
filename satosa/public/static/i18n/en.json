@@ -70,5 +70,7 @@
 
   "error.cie.cancelled": "You cancelled the sign-in with CIE.",
   "error.cie.timeout": "The time allowed for authentication has expired. Please try again.",
-  "error.cie.generic": "Sign-in with CIE was not successful."
+  "error.cie.generic": "Sign-in with CIE was not successful.",
+  "error.cie.state_lost": "The sign-in session is no longer valid: the CIE sign-in was completed in a different browser or app from the one where it started.",
+  "error.cie.state_lost.troubleshoot": "Go back to the service and start the sign-in again from the same browser. If you use the CieID app on your smartphone, open the service in the phone's default browser."
 }

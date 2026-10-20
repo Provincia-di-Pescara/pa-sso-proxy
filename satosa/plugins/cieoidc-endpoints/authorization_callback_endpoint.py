@@ -7,6 +7,7 @@ import urllib.parse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from typing import Callable
 from satosa.attribute_mapping import AttributeMapper
+from satosa.base import STATE_KEY as SATOSA_STATE_KEY
 from satosa.context import Context
 from satosa.exception import SATOSAAuthenticationError, SATOSABadRequestError
 from satosa.internal import InternalData, AuthenticationInformation
@@ -125,6 +126,15 @@ class AuthorizationCallBackHandler(BaseEndpoint):
         )
         if context.qs_params.get("error"):
             return self._handle_idp_error(context)
+
+        # Senza lo state SATOSA (cookie satosa_state) non si sa a quale client
+        # OIDC restituire l'utente: SATOSA core solleverebbe SATOSAStateError
+        # ("context.state has no SATOSA_BASE") con pagina generica. Caso tipico:
+        # login CIE completato con l'app CieID su mobile, che riapre il callback
+        # in un browser/webview diverso da quello di partenza. Controllo PRIMA
+        # dello scambio del code: inutile consumarlo se non possiamo usarlo.
+        if not context.state.get(SATOSA_STATE_KEY):
+            return self._handle_lost_state(context)
 
         state: str = context.qs_params.get("state")
         authorization = self.__get_authorization(state)
@@ -344,6 +354,29 @@ class AuthorizationCallBackHandler(BaseEndpoint):
             **i18n.template_vars(lang),
         })
         return Response(result.encode("utf-8"), content="text/html; charset=utf8", status="200 OK")
+
+    def _handle_lost_state(self, context) -> Response:
+        """
+        Callback CIE arrivato senza state SATOSA: pagina di errore del proxy
+        (nessun redirect possibile, il client originante è ignoto).
+        """
+        logger.warning(
+            "CIE callback without SATOSA state (cookie satosa_state missing) — "
+            f"UA: {context.http_headers.get('HTTP_USER_AGENT', '') if context.http_headers else ''}"
+        )
+        _post_access_log("cie", None, "failure", "state_lost")
+        lang = i18n.resolve_lang(context)
+        result = self.error_page.render({
+            "message": i18n.t(lang, "error.cie.state_lost"),
+            "troubleshoot": i18n.t(lang, "error.cie.state_lost.troubleshoot"),
+            "detail": "",
+            "error_type": "generic",
+            # history.back() riporterebbe all'OP CIE senza recuperare lo state
+            "hide_retry": True,
+            "cancel_url": os.environ.get("SATOSA_CANCEL_REDIRECT_URL") or "/",
+            **i18n.template_vars(lang),
+        })
+        return Response(result.encode("utf-8"), content="text/html; charset=utf8", status="400 Bad Request")
 
 
     def __get_authorization(self, state: str) -> dict:
