@@ -112,8 +112,8 @@ config-api/
     metadata_watcher.py   Cron aggiornamento metadata IdP + retention access_log
   alembic/versions/       Migrazioni DB (001–019)
 nginx/
-  conf.d/
-    proxy.conf            Route: /verifica → config-api, /admin → config-api, / → satosa
+  templates/
+    proxy.conf.template   Route: /verifica → config-api, /admin → config-api, / → satosa (envsubst → conf.d/)
 docs/
   architecture.md, deployment.md, spid-registration.md, cie-oidc-registration.md
 ```
@@ -132,6 +132,7 @@ Tutte in `.env` (vedi `.env.example`). Le variabili sono passate dal compose a s
 | `SATOSA_INTERNAL_URL` | config-api → health check SATOSA (dashboard) |
 | `CONFIG_API_INTERNAL_URL` | SATOSA plugins → POST /internal/access-log |
 | `SATOSA_HASH_SALT` | CF pseudonymization (HMAC key); deriva anche secret del client `__spid_verifica__` |
+| `SATOSA_LOG_LEVEL` | config-api → blocco `LOGGING` di `proxy.yaml` (default `INFO`; mai `DEBUG` in prod, vedi "Log SATOSA") |
 | `CF_HASH_KEY` | Alias di SATOSA_HASH_SALT usato in `access_log_reporter.py` generato; generare con `openssl rand -hex 32`, mai committare |
 
 ## Relazione con altri repository
@@ -251,6 +252,12 @@ Procedura testata end-to-end (volumi DB/`proxy_satosa_conf` distrutti con `docke
 Due prerequisiti, entrambi già a posto in questo repo:
 - `backup_import` deve scrivere `write_spid_cert()`/`write_jwks_files()` su `/satosa-conf/` (non solo il DB) — `generate_and_write()` da solo non lo fa.
 - `nginx` in `docker-compose.yaml` deve dipendere da `satosa` con `condition: service_started`, **non** `service_healthy` — altrimenti deadlock al primo boot da volumi vuoti (nginx aspetta satosa sano, satosa diventa sano solo dopo un restore che passa da nginx) che richiede `docker start <container>` manuale per sbloccare.
+
+### nginx: upstream risolti a runtime
+`proxy_pass` passa sempre da variabile (`$config_api_upstream`/`$satosa_upstream`) + `resolver ${NGINX_LOCAL_RESOLVERS} valid=10s`, mai hostname fisso. Con hostname fisso nginx risolve il nome una volta all'avvio: un redeploy (git pull → stack ricreata) che cambia IP a un upstream lascia nginx sul vecchio IP → `502 connect() failed (113: Host is unreachable)` finché nginx non viene riavviato (incidente prod 2026-10-21, config-api irraggiungibile, satosa salvo per caso). `NGINX_LOCAL_RESOLVERS` viene da `/etc/resolv.conf` (entrypoint ufficiale, abilitato da `NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1` nel Dockerfile): funziona sia su Docker (`127.0.0.11`) sia su Podman (aardvark-dns, la prod gira su Podman/RHEL). Non hardcodare `127.0.0.11`: è solo Docker. Healthcheck nginx in compose verifica entrambi gli upstream passando da nginx.
+
+### Log SATOSA
+Senza `LOGGING` in `proxy.yaml` il fork SATOSA (`proxy_server.make_app`) applica un default **DEBUG hardcoded**, e a DEBUG `generate_configuration_plugin` del backend CIE stampa la config completa, **chiavi private JWK (`jwks_core`/`jwks_federation`) incluse**. `_satosa_logging()` in `satosa_config_generator.py` scrive sempre `LOGGING` (livello da `SATOSA_LOG_LEVEL`, default `INFO`, valore invalido → `INFO`). Log satosa di istanze < v0.9.16 vanno trattati come contenenti segreti.
 
 ### PostgreSQL 18
 `postgres:18` con volume `proxy_db_data_pg18` montato su `/var/lib/postgresql` (non `/data`): dalla 18 l'immagine usa `PGDATA=/var/lib/postgresql/18/docker` e **si rifiuta di partire** se trova dati sul vecchio mount `/var/lib/postgresql/data`.

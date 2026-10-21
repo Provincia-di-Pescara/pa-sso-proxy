@@ -87,6 +87,38 @@ class OIDCFrontendWithEndSession(OpenIDConnectFrontend):
 '''
 
 
+_SATOSA_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+
+def _satosa_logging() -> dict:
+    # Senza LOGGING il fork SATOSA applica un default DEBUG hardcoded
+    # (proxy_server.make_app): a quel livello il backend CIE stampa la propria
+    # config completa, chiavi private JWK incluse. DEBUG solo su richiesta esplicita.
+    level = os.environ.get("SATOSA_LOG_LEVEL", "INFO").strip().upper()
+    if level not in _SATOSA_LOG_LEVELS:
+        logger.warning("SATOSA_LOG_LEVEL=%r non valido, uso INFO", level)
+        level = "INFO"
+    return {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "simple": {
+                "format": "[%(asctime)s] [%(levelname)s] [%(name)s.%(funcName)s] %(message)s"
+            }
+        },
+        "handlers": {
+            "stdout": {
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+                "level": level,
+                "formatter": "simple",
+            }
+        },
+        "loggers": {"satosa": {"level": level}},
+        "root": {"level": level, "handlers": ["stdout"]},
+    }
+
+
 def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
     backend_modules = [
         "/satosa-conf/spid_backend.yaml",
@@ -108,6 +140,7 @@ def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
             "/satosa-conf/default_router.yaml",
             "/satosa-conf/access_log_reporter.yaml",
         ],
+        "LOGGING": _satosa_logging(),
     }
 
 

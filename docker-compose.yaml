@@ -75,6 +75,7 @@ services:
       - SATOSA_CONF_DIR=/satosa-conf
       - SATOSA_STATE_ENCRYPTION_KEY=${SATOSA_STATE_ENCRYPTION_KEY:-changeme-generate-random-state-key-32chars}
       - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
+      - SATOSA_LOG_LEVEL=${SATOSA_LOG_LEVEL:-INFO}
       - PROXY_BASE_URL=${PROXY_BASE_URL:-}
       - CF_HASH_KEY=${CF_HASH_KEY:-}
       - SENTRY_DSN=${SENTRY_DSN:-}
@@ -107,6 +108,15 @@ services:
         condition: service_started
     ports:
       - "${PROXY_HOST_PORT:-127.0.0.1:18080}:80"
+    # Verifica entrambi gli upstream PASSANDO da nginx: un 502 verso config-api
+    # o satosa rende nginx unhealthy (visibile in `compose ps` / monitoraggio).
+    # Nessun servizio dipende da nginx healthy → nessun rischio di deadlock.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health && wget -q -O /dev/null http://127.0.0.1/.well-known/openid-configuration"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     networks:
       - proxy-internal
 
