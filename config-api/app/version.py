@@ -1,5 +1,10 @@
 import os
 
+# Scritti dalla CI (docker.yml) nell'immagine: tag per il footer, identificativo
+# completo (commit + data build) per la release Sentry.
+VERSION_FILE = "/app/app_version.txt"
+RELEASE_FILE = "/app/app_release.txt"
+
 def get_git_hash() -> str:
     """Read short commit hash from local .git folder in pure Python (works in local dev)."""
     try:
@@ -44,7 +49,7 @@ def get_git_hash() -> str:
 def get_display_version() -> str:
     """Get the version string to display. Tag/version is baked into the image itself, local builds fall back to git hash."""
     # 1. Read baked version file if present in the image filesystem
-    version_file = "/app/app_version.txt"
+    version_file = VERSION_FILE
     if os.path.exists(version_file):
         try:
             with open(version_file, "r") as f:
@@ -63,3 +68,16 @@ def get_display_version() -> str:
         return local_hash
 
     return "local"
+
+
+def get_release_version() -> str:
+    """Release Sentry: tag + commit + data build (es. v0.9.16-4-gabc1234+20261026)."""
+    if os.path.exists(RELEASE_FILE):
+        try:
+            with open(RELEASE_FILE, "r") as f:
+                release = f.read().strip()
+            if release:
+                return release
+        except Exception:
+            pass
+    return get_display_version()

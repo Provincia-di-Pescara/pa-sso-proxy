@@ -15,6 +15,13 @@ on:
       - "config-api/**"
       - "nginx/**"
       - ".github/workflows/docker.yml"
+  # Rebuild settimanale da main → :latest. Porta in produzione le patch delle
+  # immagini base flottanti (nginx:alpine, python:3.14-slim, apk/apt upgrade) e
+  # le dipendenze mergiate da dependabot, senza bisogno di un tag. I merge fatti
+  # dall'auto-merge (GITHUB_TOKEN) non fanno partire il push su main: è questo
+  # cron a pubblicarli. Lunedì dopo CodeQL (03:17).
+  schedule:
+    - cron: "0 4 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -48,14 +55,24 @@ jobs:
             # non tenere l'immagine rossa in permanenza per un problema che
             # non controlliamo. Gli HIGH restano visibili nel log dello scan.
             trivy-severity: "CRITICAL"
+            # Smoke: i backend si importano con il venv effettivo dell'immagine.
+            smoke: >-
+              docker run --rm --entrypoint sh "$IMAGE" -c
+              'cd /satosa_proxy && PYTHONPATH=/satosa_proxy /.venv/bin/python -W ignore -c
+              "import satosa.proxy_server, satosa.frontends.openid_connect, backends.spidsaml2, backends.cieoidc.cieoidc"'
           - image: config-api
             context: ./config-api
             scope: config-api
             trivy-severity: "CRITICAL,HIGH"
+            smoke: >-
+              docker run --rm -e DATABASE_URL=postgresql+asyncpg://u:p@127.0.0.1:5432/db
+              "$IMAGE" python -c "import app.main"
           - image: nginx
             context: ./nginx
             scope: nginx
             trivy-severity: "CRITICAL,HIGH"
+            # L'entrypoint ufficiale elabora il template (resolver) prima di nginx -t.
+            smoke: docker run --rm "$IMAGE" nginx -t
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -73,6 +90,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # :latest = ultima build verificata di main (cron settimanale o avvio
+      # manuale) oppure ultimo tag. :sha-<commit> è immutabile, per il rollback.
       - name: Generate image metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
@@ -80,31 +99,44 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
           tags: |
             type=ref,event=branch
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=sha,prefix=sha-,format=short,enable=${{ github.event_name != 'pull_request' }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') || (github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
+      # Footer WebUI: solo l'ultimo tag (v0.9.16). Sentry/GlitchTip: tag +
+      # commit + data build (v0.9.16-4-gabc1234+20261026), per distinguere le
+      # build settimanali. Niente spazi né "/" (non ammessi nelle release Sentry).
       - name: Compute app version
         id: version
-        run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+        run: |
+          display="$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HEAD)"
+          release="$(git describe --tags --long --always)+$(date -u +%Y%m%d)"
+          echo "display=${display}" >> "$GITHUB_OUTPUT"
+          echo "release=${release}" >> "$GITHUB_OUTPUT"
+          echo "footer=${display} | sentry=${release}"
 
       - name: Write version file
         run: |
           if [ "${{ matrix.image }}" = "config-api" ]; then
-            echo "${{ steps.version.outputs.value }}" > config-api/app_version.txt
+            echo "${{ steps.version.outputs.display }}" > config-api/app_version.txt
+            echo "${{ steps.version.outputs.release }}" > config-api/app_release.txt
           fi
 
-      - name: Build and push
+      # Build in locale (load), push solo dopo smoke + Trivy: un'immagine che
+      # non supera i controlli non arriva mai su GHCR.
+      - name: Build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: ${{ matrix.context }}
-          push: ${{ github.event_name != 'pull_request' }}
-          load: ${{ github.event_name == 'pull_request' }}
+          push: false
+          load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            APP_VERSION=${{ steps.version.outputs.value }}
+            APP_VERSION=${{ steps.version.outputs.release }}
           cache-from: type=gha,scope=${{ matrix.scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.scope }}
 
@@ -113,6 +145,11 @@ jobs:
         run: |
           first_tag="$(head -n1 <<< "${{ steps.meta.outputs.tags }}")"
           echo "tag=${first_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        env:
+          IMAGE: ${{ steps.first-tag.outputs.tag }}
+        run: ${{ matrix.smoke }}
 
       - name: Scan image for vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -124,3 +161,12 @@ jobs:
           severity: ${{ matrix.trivy-severity }}
           ignore-unfixed: true
           trivyignores: ${{ github.workspace }}/.trivyignore
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && docker push "$tag"
+          done <<< "$TAGS"

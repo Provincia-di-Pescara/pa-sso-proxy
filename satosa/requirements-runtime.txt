@@ -1,0 +1,6 @@
+# Pacchetti installati nel venv dell'immagine upstream (vedi satosa/Dockerfile).
+# Tenuti qui e non inline nel Dockerfile perché dependabot li possa aggiornare.
+redis==8.1.0
+sentry-sdk==2.68.1
+# Fix GHSA-6q48-6c7w-9gw2 (CRITICAL) sulla copia 2026.4.22 del venv upstream.
+certifi==2026.10.19

@@ -24,8 +24,8 @@ def init_sentry() -> None:
     except ValueError:
         sample_rate = 0.1
 
-    from app.version import get_display_version
-    release = f"config-api@{get_display_version()}"
+    from app.version import get_release_version
+    release = f"config-api@{get_release_version()}"
 
     sentry_sdk.init(
         dsn=sentry_dsn,

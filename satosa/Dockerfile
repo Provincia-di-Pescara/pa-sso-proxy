@@ -1,4 +1,7 @@
-FROM ghcr.io/italia/iam-proxy-italia:latest
+# Digest fisso: aggiornato da dependabot con una PR (revisione manuale, vedi
+# dependabot-automerge.yml). Deve corrispondere a IAM_PROXY_REF qui sotto:
+# venv dell'immagine e codice clonato vengono dalla stessa release upstream.
+FROM ghcr.io/italia/iam-proxy-italia:latest@sha256:48ffe2a3654737f6ccbb13ff3458cb6291cab3ebe484f06ed811f7fad6929af7
 
 USER root
 
@@ -12,6 +15,7 @@ ENV APP_VERSION=${APP_VERSION}
 RUN apk update && apk upgrade --no-cache
 RUN apk add --no-cache git
 
+# Non visto da dependabot: upstream-check.yml apre una issue a ogni nuova release.
 ARG IAM_PROXY_REF=v3.3
 RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
         https://github.com/italia/iam-proxy-italia.git /tmp/upstream \
@@ -19,8 +23,7 @@ RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
     && rm -rf /tmp/upstream
 
 # Install redis client and sentry-sdk inside the venv
-# certifi>=2026.10.19 forza fix GHSA-6q48-6c7w-9gw2 (CRITICAL, root CA emSign
-# compromesse nel bundle) sulla copia 2026.4.22 del venv upstream.
+# Versioni in requirements-runtime.txt (aggiornate da dependabot).
 #
 # Il venv upstream porta tool di sviluppo/packaging mai usati a runtime
 # (poetry, pipx, flake8, pdbpp, …) con le loro dipendenze, più pacchetti
@@ -31,7 +34,8 @@ RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
 # sentry-sdk, uwsgi) né importati da /satosa_proxy o satosa/plugins.
 # device-detector/regex restano: pyeudiw/tools/mobile.py li importa.
 # pip resta: la CI installa i requirement dei test dentro l'immagine.
-RUN . /.venv/bin/activate && pip install redis==8.1.0 sentry-sdk==2.68.1 "certifi>=2026.10.19" --quiet \
+COPY requirements-runtime.txt /tmp/requirements-runtime.txt
+RUN . /.venv/bin/activate && pip install -r /tmp/requirements-runtime.txt --quiet \
     && pip uninstall -y --quiet \
         pillow \
         poetry poetry-core pipx flake8 pdbpp \

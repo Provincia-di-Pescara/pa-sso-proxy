@@ -1,0 +1,64 @@
+name: Dependabot auto-merge
+
+# Abilita l'auto-merge (squash) sulle PR dependabot patch/minor. Il merge vero
+# avviene solo quando il required check "CI gate" è verde (ci-gate.yml), cioè
+# dopo test, build, smoke e Trivy. Le librerie di firma/identità SPID e CIE e
+# l'immagine base iam-proxy-italia restano manuali: la PR riceve l'etichetta
+# "revisione-manuale" e un commento con il motivo.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    name: Auto-merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      - name: Decide
+        id: decide
+        env:
+          DEPS: ${{ steps.meta.outputs.dependency-names }}
+          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+        run: |
+          # Dipendenze che toccano firma SAML/JWT o il core SPID/CIE.
+          manual_re='(^|[ ,])(pysaml2|cryptojwt|cryptography|pyeudiw|satosa|ghcr\.io/italia/iam-proxy-italia|italia/iam-proxy-italia)([ ,]|$)'
+          reason=""
+          if printf '%s' "$DEPS" | grep -qiE "$manual_re"; then
+            reason="dipendenza SPID/CIE o immagine base iam-proxy-italia"
+          elif [ "$UPDATE_TYPE" = "version-update:semver-major" ]; then
+            reason="aggiornamento major"
+          elif [ -z "$UPDATE_TYPE" ]; then
+            reason="tipo di aggiornamento non determinato"
+          fi
+          echo "deps=$DEPS type=$UPDATE_TYPE reason=${reason:-auto}"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge
+        if: steps.decide.outputs.reason == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
+
+      - name: Flag for manual review
+        if: steps.decide.outputs.reason != '' && github.event.action != 'synchronize'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          REASON: ${{ steps.decide.outputs.reason }}
+        run: |
+          gh label create revisione-manuale --color D93F0B \
+            --description "PR dependabot esclusa dall'auto-merge" 2>/dev/null || true
+          gh pr edit "$PR_URL" --add-label revisione-manuale
+          gh pr comment "$PR_URL" --body "Auto-merge non applicato: **${REASON}**. Serve una revisione manuale prima del merge."

@@ -1,9 +1,14 @@
 version: 2
+# Patch/minor: raggruppate e mergiate da dependabot-automerge.yml dopo il CI gate.
+# Major: PR singola, mai raggruppata (update-types), lasciata aperta con label
+# "revisione-manuale" come promemoria. Limite PR alzato a 10 perché le major
+# aperte non blocchino l'arrivo di nuove PR (default 5 per directory).
 updates:
   - package-ecosystem: "pip"
     directory: "/config-api"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     cooldown:
       default-days: 7
       semver-major-days: 14
@@ -11,11 +16,32 @@ updates:
       python-dependencies:
         patterns:
           - "*"
+        update-types: ["minor", "patch"]
+        # Esclusa dall'auto-merge (firma/cifratura): PR separata, così non
+        # blocca il resto del gruppo in revisione manuale.
+        exclude-patterns:
+          - "cryptography"
+
+  # satosa/requirements-runtime.txt: pacchetti aggiunti al venv dell'immagine upstream.
+  - package-ecosystem: "pip"
+    directory: "/satosa"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      python-runtime-dependencies:
+        patterns:
+          - "*"
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "pip"
     directory: "/satosa/tests"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     cooldown:
       default-days: 7
       semver-major-days: 14
@@ -23,6 +49,7 @@ updates:
       python-test-dependencies:
         patterns:
           - "*"
+        update-types: ["minor", "patch"]
 
   # Immagini in docker-compose.yaml (postgres, redis). Major PostgreSQL = migrazione
   # dati (docs/deployment.md), non un semplice bump del tag.
@@ -30,6 +57,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     cooldown:
       default-days: 7
 
@@ -37,6 +65,7 @@ updates:
     directory: "/config-api"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     cooldown:
       default-days: 7
 
@@ -44,6 +73,7 @@ updates:
     directory: "/satosa"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     cooldown:
       default-days: 7
 
@@ -51,6 +81,7 @@ updates:
     directory: "/nginx"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     cooldown:
       default-days: 7
 
@@ -58,6 +89,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     cooldown:
       default-days: 7
     # init/analyze di codeql-action devono avere la stessa versione: PR separate

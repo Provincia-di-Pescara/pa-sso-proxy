@@ -1,0 +1,66 @@
+name: CI gate
+
+# Unico required check del ruleset di main. Gli altri workflow sono filtrati
+# per path e non possono essere required (un check mai partito blocca la PR
+# per sempre); questo job parte su OGNI PR, aspetta che tutti gli altri
+# workflow avviati per lo stesso commit finiscano e fallisce se uno fallisce.
+# Senza, l'auto-merge dependabot scavalcherebbe test e Trivy.
+
+on:
+  pull_request:
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+
+concurrency:
+  group: ci-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: CI gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Wait for all checks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          SELF_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # I workflow run vengono creati all'evento (stato "queued"), quindi
+          # basta un breve margine per vederli tutti; poi serve stabilità per
+          # due letture consecutive prima di concludere.
+          sleep 45
+          stable=0
+          while :; do
+            runs="$(gh api "repos/$REPO/actions/runs?head_sha=$SHA&per_page=100" \
+              --jq "[.workflow_runs[] | select(.id != $SELF_RUN_ID and .event != \"dynamic\")]")"
+            # Check di app esterne ad Actions (es. validazione .github/dependabot.yml).
+            ext="$(gh api "repos/$REPO/commits/$SHA/check-runs?per_page=100" \
+              --jq '[.check_runs[] | select(.app.slug != "github-actions")]')"
+            pending="$(jq -n --argjson r "$runs" --argjson e "$ext" \
+              '[$r[], $e[] | select(.status != "completed")] | length')"
+            failed="$(jq -rn --argjson r "$runs" --argjson e "$ext" \
+              '[$r[], $e[] | select(.status == "completed")
+                | select((.conclusion // "") | IN("success","skipped","neutral") | not)
+                | (.name + "=" + (.conclusion // "?"))] | join(", ")')"
+            if [ -n "$failed" ]; then
+              echo "::error::Check falliti: $failed"
+              exit 1
+            fi
+            if [ "$pending" -eq 0 ]; then
+              stable=$((stable + 1))
+              [ "$stable" -ge 2 ] && break
+            else
+              stable=0
+              echo "In attesa di $pending check..."
+            fi
+            sleep 30
+          done
+          jq -rn --argjson r "$runs" '$r[] | "ok: " + .name'
+          echo "Tutti i check sono verdi."
