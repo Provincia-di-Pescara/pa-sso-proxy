@@ -37,12 +37,18 @@ jobs:
         env:
           DEPS: ${{ steps.meta.outputs.dependency-names }}
           UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+          ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
         run: |
           # Dipendenze che toccano firma SAML/JWT o il core SPID/CIE.
           manual_re='(^|[ ,])(pysaml2|cryptojwt|cryptography|pyeudiw|satosa|ghcr\.io/italia/iam-proxy-italia|italia/iam-proxy-italia)([ ,]|$)'
           reason=""
           if printf '%s' "$DEPS" | grep -qiE "$manual_re"; then
             reason="dipendenza SPID/CIE o immagine base iam-proxy-italia"
+          elif [ "$ECOSYSTEM" = "docker" ] && printf '%s' "$DEPS" | grep -qiE '(^|[ ,])(library/)?python([ ,]|$)'; then
+            # python:3.14-slim → 3.15-slim è "minor" per semver, ma cambia
+            # l'interprete (wheel, ABI): va trattato come una major. Prima di
+            # mergiare, il job pytest della versione "next" in ci.yml deve essere verde.
+            reason="cambio versione Python dell'immagine base"
           elif [ "$UPDATE_TYPE" = "version-update:semver-major" ]; then
             reason="aggiornamento major"
           elif [ -z "$UPDATE_TYPE" ]; then
