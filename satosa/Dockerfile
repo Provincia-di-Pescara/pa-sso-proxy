@@ -23,7 +23,10 @@ RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
 # sulla copia transitiva 4.13.0 portata dal venv upstream del fork.
 # certifi>=2026.10.19 forza fix GHSA-6q48-6c7w-9gw2 (CRITICAL, root CA emSign
 # compromesse nel bundle) sulla copia 2026.4.22 del venv upstream.
-RUN . /.venv/bin/activate && pip install redis==8.1.0 sentry-sdk==2.68.1 "anyio>=4.14.2" "certifi>=2026.10.19" --quiet
+# pillow: orfano nel venv upstream (nessun pacchetto lo richiede, mai importato)
+# e porta CVE-2026-112403 (CRITICAL, fix solo in 13.0.0 major) → rimosso.
+RUN . /.venv/bin/activate && pip install redis==8.1.0 sentry-sdk==2.68.1 "anyio>=4.14.2" "certifi>=2026.10.19" --quiet \
+    && pip uninstall -y pillow --quiet
 
 # Sentry WSGI wrapper
 COPY wsgi_sentry.py /satosa_proxy/wsgi_sentry.py
