@@ -10,7 +10,7 @@ docker compose logs -f config-api
 docker compose logs -f satosa
 docker compose restart satosa  # dopo modifica manuale a satosa-conf
 
-# Test (da eseguire nella directory config-api/)
+# Test (da eseguire nella directory config-api/; dipendenze: pip install -r requirements-dev.txt)
 cd config-api && pytest                              # tutti i test
 cd config-api && pytest tests/test_satosa_config_generator.py -v  # singolo file
 cd config-api && pytest tests/test_eidas.py::test_name -v         # singolo test
@@ -243,6 +243,10 @@ Comando reale che funziona (quello sopra fallisce con `pytest: not found` — ni
 Per testare modifiche ai plugin senza rebuild: montali sopra l'immagine (`-v "<repo>/satosa/plugins/spidsaml2.py:/satosa_proxy/backends/spidsaml2.py"`, `-v ".../cieoidc-backend/cieoidc.py:/satosa_proxy/backends/cieoidc/cieoidc.py"`) e usa `--ignore=/tests/test_redis_storage.py` come la CI (quel file fallisce nel container con `No module named 'redis_storage'`, gira nel job pytest separato).
 
 Su Windows/Git Bash, `-v "$PWD/...":...` nel `docker run` non risolve il path — usa `MSYS_NO_PATHCONV=1` e path assoluto `/c/Users/...`.
+
+**Venv satosa ripulito** (`satosa/Dockerfile`, `pip uninstall`): l'immagine upstream porta tool dev/packaging (poetry, pipx, flake8, pdbpp…) e orfani (pillow, satosa-oidcop/idpyoidc — il frontend OIDC è pyop —, httpx) con relative dipendenze: 118 → 65 pacchetti, Trivy HIGH 28 → 15. Lista = pacchetti non raggiungibili dalle radici (`satosa`, `pyeudiw`, `redis`, `sentry-sdk`, `uwsgi`) né importati (AST) da `/satosa_proxy` o `satosa/plugins`, poi verificata cercando pacchetti TENUTI che importano un rimosso senza dichiararlo. `device-detector`/`regex` restano (`pyeudiw/tools/mobile.py`), `pip` resta (la CI installa i test nell'immagine). Dopo un bump dell'immagine base, se `pip uninstall` segnala pacchetti mancanti va bene (`--quiet`, non fallisce); se Trivy trova un CVE su un pacchetto nuovo, prima verificare se è orfano (`pip show X` → `Required-by:` vuoto) e rimuoverlo invece di forzare un bump. Verifica: i test nel container NON bastano (`requirements-test.txt` reinstalla pygments/responses/…): fare anche import check dei moduli backend e boot reale della stack con CIE abilitato.
+
+**config-api `requirements.txt` = solo runtime**; pytest/pytest-asyncio/pytest-cov/aiosqlite stanno in `requirements-dev.txt` (`-r requirements.txt` + test), usato da CI e pip-audit.
 
 **Parsing XML da input non fidato (upload admin, ecc.)**: usare sempre `defusedxml.ElementTree`, mai `xml.etree.ElementTree` stdlib (XXE/billion-laughs anche da utente autenticato). Dipendenza già in `config-api/requirements.txt`.
 
