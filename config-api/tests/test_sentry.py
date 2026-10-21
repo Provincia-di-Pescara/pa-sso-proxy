@@ -23,7 +23,7 @@ def test_init_sentry_enabled():
         "SENTRY_TRACES_SAMPLE_RATE": "0.5",
     }
     with patch.dict(os.environ, env, clear=True), \
-         patch("app.version.get_display_version", return_value="v1.2.3"):
+         patch("app.version.get_release_version", return_value="v1.2.3"):
         mock_sentry_sdk.reset_mock()
         init_sentry()
         mock_sentry_sdk.init.assert_called_once_with(
@@ -40,7 +40,7 @@ def test_init_sentry_fallback_sample_rate():
         "SENTRY_TRACES_SAMPLE_RATE": "invalid_float",
     }
     with patch.dict(os.environ, env, clear=True), \
-         patch("app.version.get_display_version", return_value="v1.2.3"):
+         patch("app.version.get_release_version", return_value="v1.2.3"):
         mock_sentry_sdk.reset_mock()
         init_sentry()
         mock_sentry_sdk.init.assert_called_once_with(

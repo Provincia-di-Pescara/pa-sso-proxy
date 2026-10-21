@@ -1,0 +1,53 @@
+name: Upstream check
+
+# Dependabot non vede il codice upstream clonato a build-time
+# (ARG IAM_PROXY_REF in satosa/Dockerfile). Ogni settimana confronta il ref
+# fissato con l'ultima release di italia/iam-proxy-italia e, se ce n'è una
+# più recente, apre (una sola volta) una issue di promemoria.
+
+on:
+  schedule:
+    - cron: "30 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  iam-proxy-italia:
+    name: iam-proxy-italia release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Compare pinned ref with latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pinned="$(sed -nE 's/^ARG IAM_PROXY_REF=(.+)$/\1/p' satosa/Dockerfile)"
+          latest="$(gh api repos/italia/iam-proxy-italia/releases/latest --jq .tag_name)"
+          echo "fissato=$pinned ultima release=$latest"
+          # v3.3 e v3.3.0 indicano la stessa release.
+          norm() { printf '%s' "${1#v}" | awk -F. '{printf "%d.%d.%d", $1, $2, $3}'; }
+          if [ "$(printf '%s\n%s\n' "$(norm "$pinned")" "$(norm "$latest")" | sort -V | tail -n1)" = "$(norm "$pinned")" ]; then
+            echo "Nessuna release più recente."
+            exit 0
+          fi
+          title="iam-proxy-italia ${latest} disponibile (fissato: ${pinned})"
+          if gh issue list --state open --search "in:title \"iam-proxy-italia ${latest}\"" --json number --jq 'length' | grep -qv '^0$'; then
+            echo "Issue già aperta."
+            exit 0
+          fi
+          gh label create upstream --color 5319E7 --description "Aggiornamento componente upstream" 2>/dev/null || true
+          gh issue create --title "$title" --label upstream --body "$(cat <<EOF
+          È uscita **${latest}** di [italia/iam-proxy-italia](https://github.com/italia/iam-proxy-italia/releases/tag/${latest}); \`satosa/Dockerfile\` usa ancora \`IAM_PROXY_REF=${pinned}\`.
+
+          Da fare in una PR:
+          1. leggere le note di rilascio (cambi ai backend SPID/CIE, config, breaking change);
+          2. aggiornare \`ARG IAM_PROXY_REF\` **e** il digest di \`FROM ghcr.io/italia/iam-proxy-italia\` alla stessa release, perché codice clonato e venv dell'immagine devono corrispondere;
+          3. verificare la lista dei pacchetti rimossi in \`pip uninstall\` (vedi CLAUDE.md, "Venv satosa ripulito") e i test nel container.
+          EOF
+          )"

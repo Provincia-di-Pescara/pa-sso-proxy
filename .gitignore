@@ -11,3 +11,5 @@ satosa/conf/generated/
 
 .superpowers/
 .worktrees/
+config-api/app_version.txt
+config-api/app_release.txt
