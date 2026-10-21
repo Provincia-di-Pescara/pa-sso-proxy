@@ -1,0 +1,7 @@
+# Dipendenze di test/sviluppo: NON installate nell'immagine di produzione.
+# Uso locale/CI: pip install -r requirements-dev.txt
+-r requirements.txt
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-cov==7.1.0
+aiosqlite==0.22.1

@@ -19,9 +19,31 @@ RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
     && rm -rf /tmp/upstream
 
 # Install redis client and sentry-sdk inside the venv
-# anyio>=4.14.2 forza fix CVE-2026-63374 (CRITICAL, TLSStream IDNA host encoding)
-# sulla copia transitiva 4.13.0 portata dal venv upstream del fork
-RUN . /.venv/bin/activate && pip install redis==8.1.0 sentry-sdk==2.68.1 "anyio>=4.14.2" --quiet
+# certifi>=2026.10.19 forza fix GHSA-6q48-6c7w-9gw2 (CRITICAL, root CA emSign
+# compromesse nel bundle) sulla copia 2026.4.22 del venv upstream.
+#
+# Il venv upstream porta tool di sviluppo/packaging mai usati a runtime
+# (poetry, pipx, flake8, pdbpp, …) con le loro dipendenze, più pacchetti
+# orfani (pillow, satosa-oidcop/idpyoidc: il frontend OIDC qui è pyop, httpx:
+# import solo opzionali in sentry-sdk/dnspython). Rimossi: meno superficie e
+# meno CVE (pillow CRITICAL, dulwich/virtualenv/msgpack/soupsieve HIGH).
+# Lista = pacchetti non raggiungibili dalle radici (satosa, pyeudiw, redis,
+# sentry-sdk, uwsgi) né importati da /satosa_proxy o satosa/plugins.
+# device-detector/regex restano: pyeudiw/tools/mobile.py li importa.
+# pip resta: la CI installa i requirement dei test dentro l'immagine.
+RUN . /.venv/bin/activate && pip install redis==8.1.0 sentry-sdk==2.68.1 "certifi>=2026.10.19" --quiet \
+    && pip uninstall -y --quiet \
+        pillow \
+        poetry poetry-core pipx flake8 pdbpp \
+        satosa-oidcop idpyoidc \
+        httpx httpcore h11 anyio \
+        argcomplete beautifulsoup4 soupsieve build cachecontrol cleo crashtest \
+        distlib dulwich fancycompleter fastjsonschema filelock findpython \
+        installer jaraco.classes jaraco.context jaraco.functools jeepney keyring \
+        mccabe more-itertools msgpack pbs-installer pkginfo platformdirs \
+        pycodestyle pyflakes pygments pyproject_hooks pyrepl python-discovery \
+        rapidfuzz requests-toolbelt responses secretstorage setuptools \
+        shellingham tomlkit trove-classifiers userpath virtualenv zstandard
 
 # Sentry WSGI wrapper
 COPY wsgi_sentry.py /satosa_proxy/wsgi_sentry.py

@@ -10,7 +10,7 @@ docker compose logs -f config-api
 docker compose logs -f satosa
 docker compose restart satosa  # dopo modifica manuale a satosa-conf
 
-# Test (da eseguire nella directory config-api/)
+# Test (da eseguire nella directory config-api/; dipendenze: pip install -r requirements-dev.txt)
 cd config-api && pytest                              # tutti i test
 cd config-api && pytest tests/test_satosa_config_generator.py -v  # singolo file
 cd config-api && pytest tests/test_eidas.py::test_name -v         # singolo test
@@ -112,8 +112,8 @@ config-api/
     metadata_watcher.py   Cron aggiornamento metadata IdP + retention access_log
   alembic/versions/       Migrazioni DB (001–019)
 nginx/
-  conf.d/
-    proxy.conf            Route: /verifica → config-api, /admin → config-api, / → satosa
+  templates/
+    proxy.conf.template   Route: /verifica → config-api, /admin → config-api, / → satosa (envsubst → conf.d/)
 docs/
   architecture.md, deployment.md, spid-registration.md, cie-oidc-registration.md
 ```
@@ -132,6 +132,7 @@ Tutte in `.env` (vedi `.env.example`). Le variabili sono passate dal compose a s
 | `SATOSA_INTERNAL_URL` | config-api → health check SATOSA (dashboard) |
 | `CONFIG_API_INTERNAL_URL` | SATOSA plugins → POST /internal/access-log |
 | `SATOSA_HASH_SALT` | CF pseudonymization (HMAC key); deriva anche secret del client `__spid_verifica__` |
+| `SATOSA_LOG_LEVEL` | config-api → blocco `LOGGING` di `proxy.yaml` (default `INFO`; mai `DEBUG` in prod, vedi "Log SATOSA") |
 | `CF_HASH_KEY` | Alias di SATOSA_HASH_SALT usato in `access_log_reporter.py` generato; generare con `openssl rand -hex 32`, mai committare |
 
 ## Relazione con altri repository
@@ -243,6 +244,10 @@ Per testare modifiche ai plugin senza rebuild: montali sopra l'immagine (`-v "<r
 
 Su Windows/Git Bash, `-v "$PWD/...":...` nel `docker run` non risolve il path — usa `MSYS_NO_PATHCONV=1` e path assoluto `/c/Users/...`.
 
+**Venv satosa ripulito** (`satosa/Dockerfile`, `pip uninstall`): l'immagine upstream porta tool dev/packaging (poetry, pipx, flake8, pdbpp…) e orfani (pillow, satosa-oidcop/idpyoidc — il frontend OIDC è pyop —, httpx) con relative dipendenze: 118 → 65 pacchetti, Trivy HIGH 28 → 15. Lista = pacchetti non raggiungibili dalle radici (`satosa`, `pyeudiw`, `redis`, `sentry-sdk`, `uwsgi`) né importati (AST) da `/satosa_proxy` o `satosa/plugins`, poi verificata cercando pacchetti TENUTI che importano un rimosso senza dichiararlo. `device-detector`/`regex` restano (`pyeudiw/tools/mobile.py`), `pip` resta (la CI installa i test nell'immagine). Dopo un bump dell'immagine base, se `pip uninstall` segnala pacchetti mancanti va bene (`--quiet`, non fallisce); se Trivy trova un CVE su un pacchetto nuovo, prima verificare se è orfano (`pip show X` → `Required-by:` vuoto) e rimuoverlo invece di forzare un bump. Verifica: i test nel container NON bastano (`requirements-test.txt` reinstalla pygments/responses/…): fare anche import check dei moduli backend e boot reale della stack con CIE abilitato.
+
+**config-api `requirements.txt` = solo runtime**; pytest/pytest-asyncio/pytest-cov/aiosqlite stanno in `requirements-dev.txt` (`-r requirements.txt` + test), usato da CI e pip-audit.
+
 **Parsing XML da input non fidato (upload admin, ecc.)**: usare sempre `defusedxml.ElementTree`, mai `xml.etree.ElementTree` stdlib (XXE/billion-laughs anche da utente autenticato). Dipendenza già in `config-api/requirements.txt`.
 
 ### Disaster recovery (volumi/container azzerati)
@@ -251,6 +256,12 @@ Procedura testata end-to-end (volumi DB/`proxy_satosa_conf` distrutti con `docke
 Due prerequisiti, entrambi già a posto in questo repo:
 - `backup_import` deve scrivere `write_spid_cert()`/`write_jwks_files()` su `/satosa-conf/` (non solo il DB) — `generate_and_write()` da solo non lo fa.
 - `nginx` in `docker-compose.yaml` deve dipendere da `satosa` con `condition: service_started`, **non** `service_healthy` — altrimenti deadlock al primo boot da volumi vuoti (nginx aspetta satosa sano, satosa diventa sano solo dopo un restore che passa da nginx) che richiede `docker start <container>` manuale per sbloccare.
+
+### nginx: upstream risolti a runtime
+`proxy_pass` passa sempre da variabile (`$config_api_upstream`/`$satosa_upstream`) + `resolver ${NGINX_LOCAL_RESOLVERS} valid=10s`, mai hostname fisso. Con hostname fisso nginx risolve il nome una volta all'avvio: un redeploy (git pull → stack ricreata) che cambia IP a un upstream lascia nginx sul vecchio IP → `502 connect() failed (113: Host is unreachable)` finché nginx non viene riavviato (incidente prod 2026-10-21, config-api irraggiungibile, satosa salvo per caso). `NGINX_LOCAL_RESOLVERS` viene da `/etc/resolv.conf` (entrypoint ufficiale, abilitato da `NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1` nel Dockerfile): funziona sia su Docker (`127.0.0.11`) sia su Podman (aardvark-dns, la prod gira su Podman/RHEL). Non hardcodare `127.0.0.11`: è solo Docker. Healthcheck nginx in compose verifica entrambi gli upstream passando da nginx.
+
+### Log SATOSA
+Senza `LOGGING` in `proxy.yaml` il fork SATOSA (`proxy_server.make_app`) applica un default **DEBUG hardcoded**, e a DEBUG `generate_configuration_plugin` del backend CIE stampa la config completa, **chiavi private JWK (`jwks_core`/`jwks_federation`) incluse**. `_satosa_logging()` in `satosa_config_generator.py` scrive sempre `LOGGING` (livello da `SATOSA_LOG_LEVEL`, default `INFO`, valore invalido → `INFO`). Log satosa di istanze < v0.9.16 vanno trattati come contenenti segreti.
 
 ### PostgreSQL 18
 `postgres:18` con volume `proxy_db_data_pg18` montato su `/var/lib/postgresql` (non `/data`): dalla 18 l'immagine usa `PGDATA=/var/lib/postgresql/18/docker` e **si rifiuta di partire** se trova dati sul vecchio mount `/var/lib/postgresql/data`.
@@ -278,6 +289,6 @@ Merge PR: repo usa solo squash (`gh pr merge --squash --delete-branch`), nessun 
 
 **`main` protetto** (ruleset "Main Branch", `enforcement:active`): required check `Analyze (python)` (CodeQL) SOLO — è l'unico check non path-filtrato. Gli altri (ci.yml/satosa-tests.yml/docker.yml) girano solo se cambia il path relativo (`config-api/**`/`satosa/**`/...) — richiederli come required bloccherebbe per sempre una PR che non tocca quel componente (GitHub non skippa un required check path-filtrato mai partito).
 **Tutte le Action pinnate per commit SHA** (`# vX` a commento) in tutti e 5 i workflow — dependabot ecosistema `github-actions` apre PR per bump.
-**`dependabot.yml` cooldown**: `default-days: 7` (minimo accettato, valori più bassi restano segnalati come "mancanti" da tool di audit), `semver-major-days: 14`, su tutti gli update block.
+**`dependabot.yml` cooldown**: `default-days: 7` (minimo accettato, valori più bassi restano segnalati come "mancanti" da tool di audit), `default-days` su tutti gli update block, `semver-major-days: 14` **solo sui block `pip`**: per `docker`/`docker-compose`/`github-actions` Dependabot lo rifiuta ("not supported for the package ecosystem") e invalida il file — errore visibile solo nel check `.github/dependabot.yml` di una PR che tocca quel file. `codeql-action` ha un gruppo dedicato (init+analyze nella stessa PR).
 **`.trivyignore` a root, wired con `trivyignores:` nello step trivy-action** (mancava — il file esisteva ma non veniva letto). CVE su package `pip/_vendor/*` (es. `setuptools`/`msgpack` vendorizzati DENTRO pip stesso, mai importati dal codice app) sono falsi positivi comuni su immagini `python:3.14-slim` con pip 26.x — verificare con `pip show <pkg>` (→ "not found" se è solo vendored) prima di ignorare o meglio: se pip non serve a runtime (solo l'app WSGI/ASGI), rimuoverlo fisicamente nel Dockerfile (`python -m pip uninstall -y pip setuptools`) elimina il CVE alla radice invece di ignorarlo.
 **`gh run rerun --failed` NON rilegge il workflow YAML aggiornato** — resta pinnato alla versione del file al momento del trigger originale. Un fix al workflow richiede un nuovo push/evento (su una PR dependabot: commentare `@dependabot rebase`, aspetta il bot — force-push manuale su branch dependabot è bloccato dal classificatore di sicurezza di Claude Code).

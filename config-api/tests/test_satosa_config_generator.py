@@ -56,6 +56,39 @@ async def test_proxy_yaml_uses_backend_modules_format(full_db, tmp_path, monkeyp
     assert "/satosa-conf/oidc_frontend.yaml" in proxy["FRONTEND_MODULES"]
 
 
+async def test_proxy_yaml_logging_defaults_to_info(full_db, tmp_path, monkeypatch):
+    # Senza LOGGING il fork SATOSA usa un default DEBUG hardcoded, che stampa
+    # su stdout l'intera config dei backend (chiavi private CIE comprese).
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    monkeypatch.delenv("SATOSA_LOG_LEVEL", raising=False)
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+    proxy = yaml.safe_load((tmp_path / "proxy.yaml").read_text())
+    logging_cfg = proxy["LOGGING"]
+    assert logging_cfg["root"]["level"] == "INFO"
+    assert logging_cfg["loggers"]["satosa"]["level"] == "INFO"
+    assert logging_cfg["handlers"]["stdout"]["level"] == "INFO"
+
+
+async def test_proxy_yaml_logging_level_from_env(full_db, tmp_path, monkeypatch):
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    monkeypatch.setenv("SATOSA_LOG_LEVEL", "debug")
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+    proxy = yaml.safe_load((tmp_path / "proxy.yaml").read_text())
+    assert proxy["LOGGING"]["root"]["level"] == "DEBUG"
+
+
+async def test_proxy_yaml_logging_invalid_level_falls_back_to_info(full_db, tmp_path, monkeypatch):
+    # Un valore non valido farebbe fallire dictConfig all'avvio di SATOSA.
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    monkeypatch.setenv("SATOSA_LOG_LEVEL", "verbose")
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+    proxy = yaml.safe_load((tmp_path / "proxy.yaml").read_text())
+    assert proxy["LOGGING"]["root"]["level"] == "INFO"
+
+
 async def test_cie_oidc_not_in_backend_modules_when_disabled(full_db, tmp_path, monkeypatch):
     monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
     from app.satosa_config_generator import generate_satosa_config

@@ -1,9 +1,28 @@
+# Template elaborato da /docker-entrypoint.d/20-envsubst-on-templates.sh
+# → /etc/nginx/conf.d/proxy.conf. envsubst sostituisce solo le variabili
+# d'ambiente definite: le variabili nginx ($host, $remote_addr, …) restano intatte.
+
+# Risoluzione DNS dinamica degli upstream. Con un hostname fisso in proxy_pass
+# nginx risolve il nome UNA volta all'avvio: se il container upstream viene
+# ricreato (redeploy, restart) e cambia IP, nginx continua a puntare al vecchio
+# IP → 502 "Host is unreachable" finché nginx non viene riavviato.
+# Passando l'upstream tramite variabile il nome viene ri-risolto a runtime.
+# NGINX_LOCAL_RESOLVERS è letto da /etc/resolv.conf dall'entrypoint ufficiale
+# (15-local-resolvers.envsh): funziona sia con Docker (127.0.0.11) sia con
+# Podman (aardvark-dns).
+resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+
 server {
     listen 80;
 
+    # Senza URI nella variabile, proxy_pass inoltra la request URI originale
+    # (stesso comportamento del vecchio proxy_pass con hostname fisso).
+    set $config_api_upstream http://config-api:8000;
+    set $satosa_upstream http://satosa:8080;
+
     # Admin UI → config-api
     location /admin {
-        proxy_pass http://config-api:8000;
+        proxy_pass $config_api_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -12,7 +31,7 @@ server {
 
     # Health check config-api
     location /health {
-        proxy_pass http://config-api:8000;
+        proxy_pass $config_api_upstream;
     }
 
     # Shortcut: root well-known → CIE OIDC backend
@@ -36,7 +55,7 @@ server {
 
     # Pagina pubblica verifica SPID (attiva solo con validator/demo IdP)
     location /verifica {
-        proxy_pass http://config-api:8000;
+        proxy_pass $config_api_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -45,7 +64,7 @@ server {
 
     # SATOSA OIDC/SAML endpoints
     location / {
-        proxy_pass http://satosa:8080;
+        proxy_pass $satosa_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -57,7 +76,7 @@ server {
 
     # Disable caching for json configurations
     location ~* \.json$ {
-        proxy_pass http://satosa:8080;
+        proxy_pass $satosa_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -68,4 +87,3 @@ server {
         expires 0;
     }
 }
-

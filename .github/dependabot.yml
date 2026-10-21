@@ -32,7 +32,6 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
-      semver-major-days: 14
 
   - package-ecosystem: "docker"
     directory: "/config-api"
@@ -40,7 +39,6 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
-      semver-major-days: 14
 
   - package-ecosystem: "docker"
     directory: "/satosa"
@@ -48,7 +46,6 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
-      semver-major-days: 14
 
   - package-ecosystem: "docker"
     directory: "/nginx"
@@ -56,7 +53,6 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
-      semver-major-days: 14
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -64,4 +60,9 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
-      semver-major-days: 14
+    # init/analyze di codeql-action devono avere la stessa versione: PR separate
+    # rompono il required check "Analyze (python)" (version mismatch).
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
