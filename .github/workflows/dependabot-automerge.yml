@@ -5,6 +5,13 @@ name: Dependabot auto-merge
 # dopo test, build, smoke e Trivy. Le librerie di firma/identità SPID e CIE e
 # l'immagine base iam-proxy-italia restano manuali: la PR riceve l'etichetta
 # "revisione-manuale" e un commento con il motivo.
+#
+# L'auto-merge è attivato con il token della GitHub App pa-sso-proxy-bot, non
+# con GITHUB_TOKEN: così il merge risulta fatto dall'App e il push su main
+# avvia CI, CodeQL, Docker Publish (:main) e update-behind.yml. Con
+# GITHUB_TOKEN nessun workflow partirebbe. Secret APP_CLIENT_ID/APP_PRIVATE_KEY
+# vanno salvati anche tra i secret Dependabot: i workflow avviati da una PR
+# dependabot vedono solo quelli.
 
 on:
   pull_request:
@@ -44,10 +51,18 @@ jobs:
           echo "deps=$DEPS type=$UPDATE_TYPE reason=${reason:-auto}"
           echo "reason=$reason" >> "$GITHUB_OUTPUT"
 
+      - name: GitHub App token
+        id: app-token
+        if: steps.decide.outputs.reason == ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Enable auto-merge
         if: steps.decide.outputs.reason == ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --auto --squash "$PR_URL"
 

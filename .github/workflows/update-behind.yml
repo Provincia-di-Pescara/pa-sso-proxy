@@ -1,0 +1,71 @@
+name: Update behind PRs
+
+# Il ruleset di main richiede branch aggiornati (strict). Dopo un merge le
+# altre PR dependabot con auto-merge attivo restano "behind" e l'auto-merge
+# resta in attesa: GitHub non le aggiorna da solo e dependabot ribasa solo in
+# caso di conflitti. Questo workflow aggiorna il branch con il token della
+# GitHub App: il push dell'App (a differenza di GITHUB_TOKEN) fa ripartire CI
+# e CI gate sulla base aggiornata, poi l'auto-merge procede.
+# Una PR aggiornata da altri non viene più ribasata da dependabot: va bene,
+# viene mergiata subito dopo; una versione ancora più nuova arriva come PR nuova.
+
+on:
+  # Push dell'App (merge da auto-merge) su main.
+  push:
+    branches: ["main"]
+  # Rete di sicurezza: PR rimaste indietro per un evento perso.
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-behind
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update behind dependabot PRs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Update branches
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Una alla volta: aggiornarle tutte insieme le farebbe ripartire in
+          # parallelo e, al primo merge, tornerebbero subito "behind".
+          pr="$(gh pr list --repo "$REPO" --author "app/dependabot" --state open \
+            --json number,mergeStateStatus,autoMergeRequest,createdAt \
+            --jq '[.[] | select(.autoMergeRequest != null and .mergeStateStatus == "BEHIND")]
+                  | sort_by(.createdAt) | .[0].number // empty')"
+          if [ -z "$pr" ]; then
+            echo "Nessuna PR dependabot con auto-merge rimasta indietro."
+            exit 0
+          fi
+          # Se un'altra PR con auto-merge ha check ancora in corso, aspetta il
+          # suo esito. Solo "in corso": una PR con gate fallito resta BLOCKED per
+          # sempre e non deve fermare le altre.
+          busy="$(gh pr list --repo "$REPO" --author "app/dependabot" --state open \
+            --json number,mergeStateStatus,autoMergeRequest,statusCheckRollup \
+            --jq '[.[] | select(.autoMergeRequest != null and .mergeStateStatus != "BEHIND")
+                  | select([.statusCheckRollup[]? | (.status // .state)
+                            | select(IN("QUEUED","IN_PROGRESS","PENDING","WAITING","REQUESTED","EXPECTED"))] | length > 0)]
+                  | length')"
+          if [ "$busy" -gt 0 ]; then
+            echo "Un'altra PR con auto-merge è in verifica: riprovo al prossimo giro."
+            exit 0
+          fi
+          echo "Aggiorno #$pr"
+          gh pr update-branch "$pr" --repo "$REPO"
