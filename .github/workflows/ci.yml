@@ -27,10 +27,20 @@ jobs:
     name: pytest (${{ matrix.python-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # La versione successiva (next) è informativa: dice quando è sicuro
+    # aggiornare l'immagine base, ma un suo fallimento non blocca il gate
+    # (con continue-on-error il workflow run resta success).
+    continue-on-error: ${{ matrix.next }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # Allineata all'immagine di produzione (config-api/Dockerfile:
+        # python:3.14-slim) + versione successiva. Aggiornare insieme al FROM.
+        include:
+          - python-version: "3.14"
+            next: false
+          - python-version: "3.15"
+            next: true
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -65,7 +75,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Run pip-audit
         run: pipx run pip-audit -r config-api/requirements-dev.txt
