@@ -45,8 +45,8 @@ Ogni workflow: permessi minimi a livello di job, `persist-credentials: false`,
 ## Immagini e runtime
 
 - Firma cosign keyless, attestazioni provenance e SBOM CycloneDX su ogni immagine pubblicata.
-- (F6, PR in revisione) Container non-root, `cap_drop: ALL`, `no-new-privileges`, filesystem read-only.
-- (F6, PR in revisione) `VERIFY_IMAGES=true`: lo stack parte solo con firme valide di `release.yml`.
+- Container non-root, `cap_drop: ALL`, `no-new-privileges`, filesystem read-only.
+- `VERIFY_IMAGES=true`: lo stack parte solo con firme valide di `release.yml`.
 - Verifica manuale e rollback: `docs/deployment.md`.
 
 ## Aperto
