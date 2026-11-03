@@ -17,7 +17,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
   group: publiccode-validate-${{ github.ref }}
@@ -28,9 +27,19 @@ jobs:
     runs-on: ubuntu-latest
     name: publiccode.yml validation
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Validate publiccode.yml
         uses: italia/publiccode-parser-action@f370d239aa3ec57b819909b467ff77679b6dc721 # v1
