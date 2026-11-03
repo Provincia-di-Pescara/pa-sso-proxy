@@ -1,13 +1,15 @@
 name: CI gate
 
 # Unico required check del ruleset di main. Gli altri workflow sono filtrati
-# per path e non possono essere required (un check mai partito blocca la PR
-# per sempre); questo job parte su OGNI PR, aspetta che tutti gli altri
-# workflow avviati per lo stesso commit finiscano e fallisce se uno fallisce.
-# Senza, l'auto-merge dependabot scavalcherebbe test e Trivy.
+# per path sulla PR e non possono essere required (un check mai partito blocca
+# la PR per sempre); questo job parte su OGNI PR e su ogni gruppo della merge
+# queue, aspetta che tutti gli altri workflow avviati per lo stesso commit
+# finiscano e fallisce se uno fallisce. In coda (merge_group) i filtri path non
+# valgono: girano tutti i workflow, compresi build immagini e smoke.
 
 on:
   pull_request:
+  merge_group:
 
 permissions:
   actions: read
@@ -15,14 +17,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-gate-${{ github.event.pull_request.number }}
+  group: ci-gate-${{ github.event.pull_request.number || github.event.merge_group.head_ref }}
   cancel-in-progress: true
 
 jobs:
   gate:
     name: CI gate
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # Sotto il timeout dei check della merge queue (60 min).
+    timeout-minutes: 55
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -33,7 +36,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          SHA: ${{ github.event.pull_request.head.sha }}
+          SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
           SELF_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail

@@ -1,15 +1,12 @@
 name: SATOSA plugin tests
 
+# Come ci.yml: PR filtrata per path, merge queue sempre, niente push su main.
 on:
-  push:
-    branches: ["main", "dev"]
-    paths:
-      - "satosa/**"
-      - ".github/workflows/satosa-tests.yml"
   pull_request:
     paths:
       - "satosa/**"
       - ".github/workflows/satosa-tests.yml"
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -78,6 +75,9 @@ jobs:
 
   test-satosa-plugins-docker:
     name: pytest inside satosa image (CIE OIDC / SPID SAML)
+    # Pesante: solo in merge queue (e dispatch). Sulla PR girano i controlli
+    # leggeri; il commit che entra in main è comunque testato così com'è.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

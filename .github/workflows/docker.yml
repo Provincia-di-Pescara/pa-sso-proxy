@@ -9,12 +9,9 @@ on:
       - "config-api/**"
       - "nginx/**"
       - ".github/workflows/docker.yml"
-  pull_request:
-    paths:
-      - "satosa/**"
-      - "config-api/**"
-      - "nginx/**"
-      - ".github/workflows/docker.yml"
+  # Build + smoke + Trivy in merge queue, senza push: un'immagine che non si
+  # costruisce o non passa Trivy non entra in main. Sulla PR non gira (pesante).
+  merge_group:
   # Rebuild settimanale da main → :latest. Porta in produzione le patch delle
   # immagini base flottanti (nginx:alpine, python:3.14-slim, apk/apt upgrade) e
   # le dipendenze mergiate da dependabot, senza bisogno di un tag. Lunedì 04:00 UTC.
@@ -89,7 +86,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -107,9 +104,10 @@ jobs:
             type=ref,event=branch
             type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
             type=ref,event=pr
+            type=raw,value=queue,enable=${{ github.event_name == 'merge_group' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-,format=short,enable=${{ github.event_name != 'pull_request' }}
+            type=sha,prefix=sha-,format=short,enable=${{ github.event_name != 'pull_request' && github.event_name != 'merge_group' }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') || (github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) }}
 
       # Footer WebUI: solo l'ultimo tag (v0.9.16). Sentry/GlitchTip: tag +
@@ -171,7 +169,7 @@ jobs:
           trivyignores: ${{ github.workspace }}/.trivyignore
 
       - name: Push
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |

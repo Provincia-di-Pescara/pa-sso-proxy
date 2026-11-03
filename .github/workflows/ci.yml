@@ -1,15 +1,14 @@
 name: CI
 
+# Sulla PR solo se cambia config-api (filtro path); in merge queue gira sempre
+# (merge_group non supporta i filtri path) sul commit che entrerà in main, quindi
+# niente push su main: sarebbe un doppione.
 on:
-  push:
-    branches: ["main", "dev"]
-    paths:
-      - "config-api/**"
-      - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "config-api/**"
       - ".github/workflows/ci.yml"
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -99,6 +98,9 @@ jobs:
   # command del compose (alembic upgrade head && uvicorn) + /health.
   smoke-config-api-postgres:
     name: smoke (image + alembic su postgres)
+    # Pesante: solo in merge queue (e dispatch). Sulla PR girano i controlli
+    # leggeri; il commit che entra in main è comunque testato così com'è.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
