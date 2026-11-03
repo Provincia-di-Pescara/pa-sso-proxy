@@ -1,0 +1,17 @@
+# Proprietari del codice (revisione richiesta quando il ruleset la attiva).
+# Oggi un solo maintainer: le righe dedicate segnano le aree sensibili, così
+# un secondo revisore si aggiunge in un punto solo.
+*                               @mirkochipdotcom
+
+# Identità SPID/CIE e firma: mai auto-merge (decisione baseline §2.3).
+/satosa/plugins/                @mirkochipdotcom
+/satosa/Dockerfile              @mirkochipdotcom
+/satosa/requirements-runtime.*  @mirkochipdotcom
+/config-api/app/satosa_config_generator.py @mirkochipdotcom
+
+# Pipeline, supply chain e runtime.
+/.github/                       @mirkochipdotcom
+/scripts/                       @mirkochipdotcom
+/docker-compose.yaml            @mirkochipdotcom
+/.trivyignore.yaml              @mirkochipdotcom
+/SECURITY.md                    @mirkochipdotcom

@@ -1,5 +1,7 @@
 # pa-sso-proxy
 
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Provincia-di-Pescara/pa-sso-proxy/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Provincia-di-Pescara/pa-sso-proxy)
+
 SPID/CIE SSO proxy per Pubblica Amministrazione italiana.
 
 Permette a qualsiasi applicativo dell'ente di autenticare i cittadini tramite SPID e CIE, esponendo una singola interfaccia OIDC standard. L'ente configura il proxy una volta sola; ogni app si collega come client OIDC con PKCE.
