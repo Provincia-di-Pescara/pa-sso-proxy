@@ -1,4 +1,5 @@
-FROM nginx:alpine
+# Digest fisso (aggiornato da dependabot): ciò che è stato scansionato è ciò che gira.
+FROM nginx:alpine@sha256:785835ea65db4bba6f021acc0f3be91b0fef76a53fe41f8588c6698d2aed0606
 # Data del giorno passata dalla CI (build-arg): invalida la cache del layer di
 # upgrade dei pacchetti di sistema almeno una volta al giorno. Senza, la cache
 # GHA riusa il layer vecchio e le patch OS (es. libexpat) non arrivano finché

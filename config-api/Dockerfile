@@ -1,4 +1,5 @@
-FROM python:3.14-slim
+# Digest fisso (aggiornato da dependabot): ciò che è stato scansionato è ciò che gira.
+FROM python:3.14-slim@sha256:930e1abba7c4e8f96ed93e8012c35d174d7732752731bbd5e8e757d7ec6f3966
 
 WORKDIR /app
 
@@ -7,10 +8,13 @@ WORKDIR /app
 # GHA riusa il layer vecchio e le patch OS (es. libexpat) non arrivano finché
 # non cambia l'immagine base.
 ARG PKG_REFRESH=
-RUN echo "pkg refresh: ${PKG_REFRESH}" && apt-get update -qq && apt-get upgrade -y -qq && apt-get install -y -qq curl && rm -rf /var/lib/apt/lists/*
+RUN echo "pkg refresh: ${PKG_REFRESH}" && apt-get update -qq && apt-get upgrade -y -qq && apt-get install -y -qq --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
+# Lock completo con hash (dirette + transitive): installa esattamente ciò che è
+# stato verificato; --no-deps perché il lock è già chiuso, pip check lo conferma.
+RUN pip install --no-cache-dir --require-hashes --no-deps -r requirements.txt \
+    && pip check \
     # pip non serve a runtime (solo uvicorn nel CMD) — lo rimuoviamo insieme al suo
     # bundle vendorizzato interno (pip/_vendor/), che porta con se' copie di setuptools/
     # msgpack in versioni vulnerabili (CVE-2025-47273, GHSA-6v7p-g79w-8964) non ancora

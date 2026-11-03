@@ -1,6 +1,0 @@
-# Trivy ignore list — falsi positivi verificati, non CVE reali ignorate alla cieca.
-# Rivalutare quando la causa sottostante cambia (nuova versione base image/pip).
-#
-# CVE-2025-47273 / GHSA-6v7p-g79w-8964 (setuptools/msgpack vendorizzati da pip in
-# config-api) rimosse da qui il 2026-09-07: risolte fisicamente eliminando pip
-# dall'immagine finale (config-api/Dockerfile), non serve piu' ignorarle.

@@ -1,4 +1,7 @@
 version: 2
+# Giornaliero alle 01:00 (il cooldown resta: le versioni nuove entrano dopo 7
+# giorni; gli advisory di sicurezza arrivano subito dai security updates).
+# Lock pip: dependabot aggiorna il .in e rigenera il .txt con hash (pip-compile).
 # Patch/minor: raggruppate e mergiate da dependabot-automerge.yml dopo il CI gate.
 # Major: PR singola, mai raggruppata (update-types), lasciata aperta con label
 # "revisione-manuale" come promemoria. Limite PR alzato a 10 perché le major
@@ -7,7 +10,9 @@ updates:
   - package-ecosystem: "pip"
     directory: "/config-api"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+      time: "01:00"
+      timezone: "Europe/Rome"
     open-pull-requests-limit: 10
     cooldown:
       default-days: 7
@@ -26,7 +31,9 @@ updates:
   - package-ecosystem: "pip"
     directory: "/satosa"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+      time: "01:00"
+      timezone: "Europe/Rome"
     open-pull-requests-limit: 10
     cooldown:
       default-days: 7
@@ -40,7 +47,9 @@ updates:
   - package-ecosystem: "pip"
     directory: "/satosa/tests"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+      time: "01:00"
+      timezone: "Europe/Rome"
     open-pull-requests-limit: 10
     cooldown:
       default-days: 7
@@ -52,11 +61,17 @@ updates:
         update-types: ["minor", "patch"]
 
   # Immagini in docker-compose.yaml (postgres, redis). Major PostgreSQL = migrazione
-  # dati (docs/deployment.md), non un semplice bump del tag.
+  # dati (docs/deployment.md), non un semplice bump del tag:
+  # ignorate (la migrazione si fa a mano, vedi CLAUDE.md "PostgreSQL 18").
   - package-ecosystem: "docker-compose"
     directory: "/"
+    ignore:
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
     schedule:
-      interval: "weekly"
+      interval: "daily"
+      time: "01:00"
+      timezone: "Europe/Rome"
     open-pull-requests-limit: 10
     cooldown:
       default-days: 7
@@ -64,7 +79,9 @@ updates:
   - package-ecosystem: "docker"
     directory: "/config-api"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+      time: "01:00"
+      timezone: "Europe/Rome"
     open-pull-requests-limit: 10
     cooldown:
       default-days: 7
@@ -72,7 +89,9 @@ updates:
   - package-ecosystem: "docker"
     directory: "/satosa"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+      time: "01:00"
+      timezone: "Europe/Rome"
     open-pull-requests-limit: 10
     cooldown:
       default-days: 7
@@ -80,7 +99,9 @@ updates:
   - package-ecosystem: "docker"
     directory: "/nginx"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+      time: "01:00"
+      timezone: "Europe/Rome"
     open-pull-requests-limit: 10
     cooldown:
       default-days: 7
@@ -88,7 +109,9 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+      time: "01:00"
+      timezone: "Europe/Rome"
     open-pull-requests-limit: 10
     cooldown:
       default-days: 7

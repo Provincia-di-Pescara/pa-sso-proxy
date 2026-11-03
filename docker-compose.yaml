@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:18
+    image: postgres:18@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
     restart: unless-stopped
     environment:
       POSTGRES_DB: proxy
@@ -22,7 +22,7 @@ services:
     # Major fissata: con "Re-pull image" su Portainer un tag flottante (redis:alpine)
     # porterebbe in produzione una nuova major senza PR né test. Le major arrivano
     # come PR dependabot in revisione manuale.
-    image: redis:8-alpine
+    image: redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
     restart: unless-stopped
     networks:
       - proxy-internal
