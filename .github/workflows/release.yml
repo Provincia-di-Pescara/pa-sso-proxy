@@ -1,0 +1,407 @@
+name: Release
+
+# Unico workflow che pubblica immagini su GHCR. Portainer riscarica :latest da
+# solo, quindi pubblicare = andare in produzione: ogni controllo sta PRIMA dei
+# tag.
+#
+#   setup        tag v* o dispatch rebuild_latest → tutte le immagini;
+#                schedule/dispatch → scripts/rebuild-check.sh: ricostruisce solo
+#                le immagini con una causa reale (a commit, b patch OS,
+#                c CVE OS con fix). Nessuna causa = nessun digest nuovo.
+#   build ×N     build → push SOLO per digest (nessun tag) → smoke immagine →
+#                Trivy (nessuna regressione HIGH/CRITICAL rispetto a :latest;
+#                sui tag v* anche soglia assoluta) → SBOM CycloneDX →
+#                attestazioni provenance + SBOM → firma cosign keyless
+#   smoke-stack  docker-compose.yaml di produzione con i digest nuovi (e :latest
+#                per le immagini non ricostruite) → scripts/smoke-stack.sh
+#   publish ×N   solo se tutto verde: latest, latest-YYYYMMDD (rollback),
+#                sha-<commit>; sui tag anche X.Y.Z e X.Y
+#
+# Un digest che non arriva a publish resta orfano (mai raggiungibile per tag) e
+# lo rimuove ghcr-cleanup.yml.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  # 03:30 UTC = 04:30 ora solare / 05:30 ora legale, dopo security-autofix.
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Solo controllo di rebuild: stampa le cause, non costruisce"
+        type: boolean
+        default: false
+      rebuild_latest:
+        description: "Ricostruisci e ripubblica tutte le immagini anche senza cause"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Mai interrompere una release a metà: lascerebbe tag incompleti.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  IMAGE_BASE: ghcr.io/provincia-di-pescara/pa-sso-proxy
+  TRIVY_VERSION: v0.76.1
+
+jobs:
+  setup:
+    name: Rebuild check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      images: ${{ steps.decide.outputs.images }}
+      reasons: ${{ steps.decide.outputs.reasons }}
+      date: ${{ steps.decide.outputs.date }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          cache: true
+
+      - name: Decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          REBUILD_LATEST: ${{ inputs.rebuild_latest }}
+        run: |
+          set -euo pipefail
+          all='["satosa","config-api","nginx"]'
+          echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = "push" ]; then
+            reasons="$(jq -c --arg r "tag $REF_NAME" '[.[] | {image: ., reason: $r}]' <<< "$all")"
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$REBUILD_LATEST" = "true" ]; then
+            reasons="$(jq -c '[.[] | {image: ., reason: "dispatch rebuild_latest"}]' <<< "$all")"
+          else
+            reasons="$(scripts/rebuild-check.sh "$IMAGE_BASE" satosa config-api nginx)"
+          fi
+          {
+            echo "### Rebuild check ($EVENT)"
+            echo
+            echo "| Immagine | Causa |"
+            echo "|---|---|"
+            for img in satosa config-api nginx; do
+              r="$(jq -r --arg i "$img" '.[] | select(.image == $i) | .reason' <<< "$reasons")"
+              echo "| $img | ${r:-nessuna: latest invariato} |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: nessuna build." >> "$GITHUB_STEP_SUMMARY"
+            reasons="[]"
+          fi
+          echo "reasons=$reasons" >> "$GITHUB_OUTPUT"
+          echo "images=$(jq -c '[.[].image]' <<< "$reasons")" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.image }}
+    needs: setup
+    if: needs.setup.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: true
+      matrix:
+        image: ${{ fromJSON(needs.setup.outputs.images) }}
+    env:
+      IMG: ghcr.io/provincia-di-pescara/pa-sso-proxy-${{ matrix.image }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Footer WebUI: solo l'ultimo tag. Sentry/GlitchTip: tag + commit + data
+      # build (v0.9.16-4-gabc1234+20261026). Niente spazi né "/".
+      - name: Compute app version
+        id: version
+        env:
+          REASONS: ${{ needs.setup.outputs.reasons }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          display="$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HEAD)"
+          release="$(git describe --tags --long --always)+$(date -u +%Y%m%d)"
+          reason="$(jq -r --arg i "$IMAGE" '.[] | select(.image == $i) | .reason' <<< "$REASONS")"
+          {
+            echo "display=${display}"
+            echo "release=${release}"
+            echo "pkg_refresh=$(date -u +%Y%m%d)"
+            echo "reason=${reason}"
+          } >> "$GITHUB_OUTPUT"
+          if [ "$IMAGE" = "config-api" ]; then
+            echo "$display" > config-api/app_version.txt
+            echo "$release" > config-api/app_release.txt
+          fi
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: ./${{ matrix.image }}
+          # Nessun tag: l'immagine diventa raggiungibile per tag solo in publish.
+          outputs: type=image,name=${{ env.IMG }},push-by-digest=true,name-canonical=true,push=true
+          # Provenance e SBOM come attestazioni firmate (sotto), non quelle di buildx.
+          provenance: false
+          sbom: false
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.display }}
+            pa-sso-proxy.rebuild.reason=${{ steps.version.outputs.reason }}
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.release }}
+            PKG_REFRESH=${{ steps.version.outputs.pkg_refresh }}
+          cache-from: type=gha,scope=release-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.image }}
+
+      - name: Smoke test immagine
+        env:
+          IMAGE: ${{ env.IMG }}@${{ steps.build.outputs.digest }}
+          NAME: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          docker pull -q "$IMAGE"
+          case "$NAME" in
+            satosa)
+              # I backend si importano con il venv effettivo dell'immagine.
+              docker run --rm --entrypoint sh "$IMAGE" -c \
+                'cd /satosa_proxy && PYTHONPATH=/satosa_proxy /.venv/bin/python -W ignore -c "import satosa.proxy_server, satosa.frontends.openid_connect, backends.spidsaml2, backends.cieoidc.cieoidc"' ;;
+            config-api)
+              docker run --rm -e DATABASE_URL=postgresql+asyncpg://u:p@127.0.0.1:5432/db "$IMAGE" python -c "import app.main" ;;
+            nginx)
+              # L'entrypoint ufficiale elabora il template (resolver) prima di nginx -t.
+              docker run --rm "$IMAGE" nginx -t ;;
+          esac
+
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          cache: true
+
+      # Differenziale: blocca le HIGH/CRITICAL con fix presenti nella nuova
+      # immagine e assenti nella :latest pubblicata. Un rebuild che corregge
+      # qualcosa non resta fermo per una CVE che nessun rebuild può correggere.
+      # Sui tag v* anche soglia assoluta: satosa solo CRITICAL (il venv del
+      # fork upstream porta HIGH non correggibili da qui, vedi CLAUDE.md).
+      - name: Trivy (differenziale vs latest, assoluto sui tag)
+        env:
+          NEW: ${{ env.IMG }}@${{ steps.build.outputs.digest }}
+          OLD: ${{ env.IMG }}:latest
+          NAME: ${{ matrix.image }}
+          IS_TAG: ${{ github.event_name == 'push' }}
+          TRIVY_IGNOREFILE: .trivyignore.yaml
+        run: |
+          set -euo pipefail
+          scan() { trivy image --quiet --severity HIGH,CRITICAL --ignore-unfixed --format json "$1"; }
+          ids() { jq -r '[.Results[]?.Vulnerabilities[]? | "\(.VulnerabilityID) \(.PkgName) \(.Severity)"] | unique[]' "$1"; }
+          scan "$NEW" > new.json
+          ids new.json > new.txt
+          if docker buildx imagetools inspect "$OLD" >/dev/null 2>&1; then
+            scan "$OLD" > old.json
+            ids old.json > old.txt
+          else
+            echo "::warning::$OLD non esiste: nessun confronto possibile"
+            : > old.txt
+          fi
+          comm -23 <(sort new.txt) <(sort old.txt) > regressions.txt
+          {
+            echo "### Trivy $NAME"
+            echo "HIGH/CRITICAL con fix: nuova $(wc -l < new.txt), latest $(wc -l < old.txt), regressioni $(wc -l < regressions.txt)"
+            if [ -s new.txt ]; then echo '```'; cat new.txt; echo '```'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          if [ -s regressions.txt ]; then
+            echo "::error::Regressioni rispetto a :latest:"; cat regressions.txt; status=1
+          fi
+          if [ "$IS_TAG" = "true" ]; then
+            sev="CRITICAL,HIGH"; [ "$NAME" = "satosa" ] && sev="CRITICAL"
+            if ! trivy image --quiet --severity "$sev" --ignore-unfixed --exit-code 1 --format table "$NEW"; then
+              echo "::error::Tag: vulnerabilità $sev con fix nell'immagine"; status=1
+            fi
+          fi
+          exit "$status"
+
+      - name: SBOM CycloneDX
+        env:
+          IMAGE: ${{ env.IMG }}@${{ steps.build.outputs.digest }}
+        run: trivy image --quiet --format cyclonedx --output sbom.cdx.json "$IMAGE"
+
+      - name: Attest provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMG }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ env.IMG }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.cdx.json
+          push-to-registry: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.4
+
+      # Keyless: identità OIDC di questo workflow, registrata in Rekor.
+      - name: Sign
+        env:
+          IMAGE: ${{ env.IMG }}@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE"
+
+      - name: Save digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          NAME: ${{ matrix.image }}
+        run: |
+          mkdir -p digests
+          echo "$DIGEST" > "digests/$NAME"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digest-${{ matrix.image }}
+          path: digests/${{ matrix.image }}
+          retention-days: 7
+
+  smoke-stack:
+    name: Smoke stack
+    needs: [setup, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Immagini nuove per digest; quelle non ricostruite = :latest attuale (per
+      # digest), cioè la combinazione che andrà davvero in produzione.
+      - name: Resolve images
+        run: |
+          set -euo pipefail
+          for img in satosa config-api nginx; do
+            if [ -f "digests/$img" ]; then
+              d="$(cat "digests/$img")"
+            else
+              d="$(docker buildx imagetools inspect "${IMAGE_BASE}-${img}:latest" --format '{{json .Manifest}}' | jq -r .digest)"
+            fi
+            var="$(echo "$img" | tr 'a-z-' 'A-Z_')_IMAGE"
+            echo "$var=${IMAGE_BASE}-${img}@${d}" | tee -a "$GITHUB_ENV"
+          done
+
+      - name: Smoke test stack
+        run: scripts/smoke-stack.sh
+
+  publish:
+    name: Publish ${{ matrix.image }}
+    needs: [setup, build, smoke-stack]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.setup.outputs.images) }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: digest-${{ matrix.image }}
+          path: digests
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag
+        env:
+          IMG: ${{ env.IMAGE_BASE }}-${{ matrix.image }}
+          NAME: ${{ matrix.image }}
+          DATE: ${{ needs.setup.outputs.date }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          digest="$(cat "digests/$NAME")"
+          tags=(-t "$IMG:latest" -t "$IMG:latest-$DATE" -t "$IMG:sha-${SHA:0:7}")
+          if [ "$EVENT" = "push" ]; then
+            v="${REF_NAME#v}"
+            tags+=(-t "$IMG:$v" -t "$IMG:${v%.*}")
+          fi
+          docker buildx imagetools create "${tags[@]}" "$IMG@$digest"
+          printf '%s\n' "${tags[@]}" | grep -v '^-t$' | sed "s|^|$NAME → |" >> "$GITHUB_STEP_SUMMARY"
