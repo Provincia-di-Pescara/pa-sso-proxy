@@ -82,7 +82,12 @@ COPY public/templates/           /satosa_proxy/templates/
 
 
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh \
+    && addgroup -S -g 10001 sso && adduser -S -D -H -u 10001 -G sso sso
+
+# Runtime non-root. /satosa-conf (volume condiviso con config-api, stesso uid)
+# lo rende scrivibile il servizio one-shot init-perms del compose.
+USER 10001:10001
 
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]

@@ -1,18 +1,12 @@
 # Eccezioni Trivy: per ID e limitate per percorso, ognuna con motivazione e
-# condizione di rimozione. Letto da security.yml (fs) e docker.yml (immagini)
-# via TRIVY_IGNOREFILE. Mai eccezioni generiche senza "paths".
+# condizione di rimozione. Letto da security.yml (fs), docker.yml e release.yml
+# (immagini) via TRIVY_IGNOREFILE. Mai eccezioni generiche senza "paths".
 #
-# Storico: CVE-2025-47273 / GHSA-6v7p-g79w-8964 (setuptools/msgpack vendorizzati
-# da pip in config-api) rimosse il 2026-09-07 eliminando pip dall'immagine finale.
+# Storico:
+# - CVE-2025-47273 / GHSA-6v7p-g79w-8964 (setuptools/msgpack vendorizzati da pip
+#   in config-api) rimosse il 2026-09-07 eliminando pip dall'immagine finale.
+# - DS-0002 (container root) sui 3 Dockerfile rimossa con F6: satosa e
+#   config-api girano come uid 10001, nginx è nginx-unprivileged (uid 101).
 
-misconfigurations:
-  - id: DS-0002
-    paths:
-      - "config-api/Dockerfile"
-      - "satosa/Dockerfile"
-      - "nginx/Dockerfile"
-    statement: >-
-      Container ancora root. Passaggio a utente non-root pianificato in F6
-      (docs/superpowers/specs/2026-11-03-ci-cd-security-baseline-design.md):
-      satosa e config-api condividono il volume /satosa-conf, serve un uid
-      comune e un test di disaster recovery. Rimuovere l'eccezione con F6.
+misconfigurations: []
+vulnerabilities: []
