@@ -1,15 +1,15 @@
 name: Dependabot auto-merge
 
-# Abilita l'auto-merge (squash) sulle PR dependabot patch/minor. Il merge vero
-# avviene solo quando il required check "CI gate" è verde (ci-gate.yml), cioè
-# dopo test, build, smoke e Trivy. Le librerie di firma/identità SPID e CIE e
+# Abilita l'auto-merge sulle PR dependabot patch/minor: con "CI gate" verde la
+# PR entra in merge queue, dove ci-gate.yml rigira tutti i controlli (test,
+# build, smoke, Trivy) sul commit che entrerà in main. Le librerie di
+# firma/identità SPID e CIE e
 # l'immagine base iam-proxy-italia restano manuali: la PR riceve l'etichetta
 # "revisione-manuale" e un commento con il motivo.
 #
 # L'auto-merge è attivato con il token della GitHub App pa-sso-proxy-bot, non
-# con GITHUB_TOKEN: così il merge risulta fatto dall'App e il push su main
-# avvia CI, CodeQL, Docker Publish (:main) e update-behind.yml. Con
-# GITHUB_TOKEN nessun workflow partirebbe. Secret APP_CLIENT_ID/APP_PRIVATE_KEY
+# con GITHUB_TOKEN (le azioni fatte con GITHUB_TOKEN non avviano workflow).
+# Il merge su main lo esegue poi la merge queue. Secret APP_CLIENT_ID/APP_PRIVATE_KEY
 # vanno salvati anche tra i secret Dependabot: i workflow avviati da una PR
 # dependabot vedono solo quelli.
 
@@ -82,7 +82,9 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge --auto --squash "$PR_URL"
+        # Con la merge queue --auto accoda la PR quando i check sono verdi;
+        # il metodo (squash) lo impone la coda.
+        run: gh pr merge --auto "$PR_URL"
 
       - name: Flag for manual review
         if: steps.decide.outputs.reason != '' && github.event.action != 'synchronize'
