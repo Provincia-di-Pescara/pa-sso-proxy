@@ -1,0 +1,64 @@
+name: Security alerts
+
+# Controllo periodico degli alert code scanning APERTI su main (CodeQL, Trivy…),
+# non solo di quelli nuovi (che blocca già la regola code_scanning del ruleset).
+# Se ci sono alert high/critical: il job fallisce e apre/aggiorna una issue;
+# quando non ce ne sono più la issue viene chiusa. NON è un check richiesto:
+# bloccherebbe anche la PR che corregge l'alert.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-alerts
+  cancel-in-progress: false
+
+jobs:
+  alerts:
+    name: Open security alerts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: read
+      issues: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Check open alerts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          title="Alert di sicurezza aperti su main"
+          alerts="$(gh api --paginate "repos/$REPO/code-scanning/alerts?state=open&ref=refs/heads/main&per_page=100" \
+            --jq '.[] | select(.tool.name != "Scorecard")
+                      | select((.rule.security_severity_level // "") | IN("high","critical"))
+                      | "- [#\(.number)](\(.html_url)) **\(.rule.security_severity_level)** \(.tool.name) `\(.rule.id)` — \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)"')"
+          issue="$(gh issue list --repo "$REPO" --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')"
+          if [ -z "$alerts" ]; then
+            echo "Nessun alert high/critical aperto."
+            [ -n "$issue" ] && gh issue close "$issue" --repo "$REPO" --comment "Nessun alert high/critical aperto su main."
+            exit 0
+          fi
+          body="$(printf 'Alert code scanning high/critical aperti su `main` (aggiornato %s):\n\n%s\n\nCorreggere o, se falsi positivi verificati, chiudere con motivazione scritta.\n' "$(date -u +%Y-%m-%d)" "$alerts")"
+          gh label create security --color B60205 --description "Sicurezza" --repo "$REPO" 2>/dev/null || true
+          if [ -n "$issue" ]; then
+            gh issue edit "$issue" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --title "$title" --label security --body "$body"
+          fi
+          echo "$alerts"
+          echo "::error::Alert di sicurezza high/critical aperti su main"
+          exit 1

@@ -47,6 +47,35 @@ da console e riattiva il 2FA.
 Il TOTP **non** è incluso nel backup JSON: dopo un ripristino su DB nuovo il 2FA va riattivato
 al primo login.
 
+## Immagini: verifica e rollback
+
+Le immagini su GHCR le pubblica solo `release.yml`: ogni digest taggato è stato
+scansionato con Trivy, provato con lo stack completo e **firmato** (cosign keyless,
+identità del workflow) con attestazioni di provenance e SBOM.
+
+Tag disponibili per ogni immagine (`satosa`, `config-api`, `nginx`):
+
+| Tag | Significato |
+|---|---|
+| `latest` | ultima build verificata (Portainer la riscarica da solo) |
+| `latest-YYYYMMDD` | build di quel giorno: **rollback immediato** al giorno prima |
+| `sha-<commit>` | build di un commit preciso |
+| `X.Y.Z`, `X.Y` | release taggate |
+
+**Rollback**: nello stack Portainer impostare `SATOSA_IMAGE`, `CONFIG_API_IMAGE`,
+`NGINX_IMAGE` a `ghcr.io/provincia-di-pescara/pa-sso-proxy-<immagine>:latest-YYYYMMDD`
+e ridistribuire; per tornare agli aggiornamenti automatici rimuovere le variabili.
+
+**Verifica firma e attestazioni** (facoltativa, da una macchina con `cosign` e `gh`):
+
+```sh
+IMG=ghcr.io/provincia-di-pescara/pa-sso-proxy-satosa:latest
+cosign verify "$IMG" \
+  --certificate-identity-regexp '^https://github.com/Provincia-di-Pescara/pa-sso-proxy/\.github/workflows/release\.yml@refs/(tags/v.*|heads/main)$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify "oci://$IMG" --repo Provincia-di-Pescara/pa-sso-proxy
+```
+
 ## Docker Compose (manuale)
 
 ```bash

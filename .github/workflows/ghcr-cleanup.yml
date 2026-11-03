@@ -1,0 +1,101 @@
+name: GHCR cleanup
+
+# Rimuove da GHCR i digest orfani: build di release.yml mai arrivate a publish
+# (smoke o Trivy falliti) e le loro firme/attestazioni. Non tocca mai:
+#   - versioni con almeno un tag (latest, latest-YYYYMMDD, X.Y.Z, sha-…);
+#   - manifest figli di un indice taggato (piattaforme, attestazioni buildx);
+#   - referrer (firme cosign, attestazioni provenance/SBOM) di un digest tenuto;
+#   - firme cosign legacy (tag sha256-<digest>.sig/.att) di un digest tenuto;
+#   - versioni più giovani di MIN_AGE_DAYS (release in corso).
+# Cancella davvero solo con la variabile di repository GHCR_CLEANUP_DELETE=true
+# (o dispatch con delete=true); altrimenti stampa l'elenco nel summary.
+# Serve che il repo abbia ruolo "Admin" sui package (Package settings →
+# Manage Actions access), altrimenti la DELETE risponde 403.
+
+on:
+  schedule:
+    - cron: "0 5 * * 0"
+  workflow_dispatch:
+    inputs:
+      delete:
+        description: "Cancella davvero (altrimenti solo report)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghcr-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: GHCR cleanup
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Log in to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Cleanup orphan digests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORG: provincia-di-pescara
+          DELETE: ${{ inputs.delete == true || vars.GHCR_CLEANUP_DELETE == 'true' }}
+          MIN_AGE_DAYS: "14"
+        run: |
+          set -euo pipefail
+          cutoff="$(date -u -d "${MIN_AGE_DAYS} days ago" +%s)"
+          echo "### GHCR cleanup (delete=$DELETE)" >> "$GITHUB_STEP_SUMMARY"
+          for img in satosa config-api nginx; do
+            pkg="pa-sso-proxy-$img"
+            ref="ghcr.io/$ORG/$pkg"
+            gh api --paginate "orgs/$ORG/packages/container/$pkg/versions" \
+              --jq '.[] | {id, digest: .name, created: .created_at, tags: .metadata.container.tags}' \
+              | jq -s . > versions.json
+            # Tag "veri" (non firme legacy sha256-<d>.sig/.att/.sbom).
+            jq -r '.[] | select([.tags[] | select(test("^sha256-[0-9a-f]{64}\\.(sig|att|sbom)$") | not)] | length > 0) | .digest' \
+              versions.json > keep.txt
+            # Figli degli indici taggati.
+            for d in $(cat keep.txt); do
+              docker buildx imagetools inspect --raw "$ref@$d" 2>/dev/null \
+                | jq -r '.manifests[]?.digest' >> keep.txt || true
+            done
+            sort -u -o keep.txt keep.txt
+            total=0; del=0
+            while IFS=$'\t' read -r id digest created tags; do
+              total=$((total + 1))
+              [ "$(date -u -d "$created" +%s)" -gt "$cutoff" ] && continue
+              grep -qx "$digest" keep.txt && continue
+              # Firma legacy: tenuta se il digest firmato è tenuto.
+              if [ -n "$tags" ]; then
+                signed="sha256:$(sed -nE 's/^sha256-([0-9a-f]{64})\..*/\1/p' <<< "${tags%%,*}")"
+                grep -qx "$signed" keep.txt && continue
+              fi
+              # Referrer (subject) di un digest tenuto: firma/attestazione valida.
+              subject="$(docker buildx imagetools inspect --raw "$ref@$digest" 2>/dev/null | jq -r '.subject.digest // empty' || true)"
+              [ -n "$subject" ] && grep -qx "$subject" keep.txt && continue
+              del=$((del + 1))
+              echo "- $pkg $digest ($created${tags:+, tag $tags})" >> "$GITHUB_STEP_SUMMARY"
+              if [ "$DELETE" = "true" ]; then
+                gh api -X DELETE "orgs/$ORG/packages/container/$pkg/versions/$id" >/dev/null
+              fi
+            done < <(jq -r '.[] | [.id, .digest, .created, (.tags | join(","))] | @tsv' versions.json)
+            echo "$pkg: $del orfani su $total versioni" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
