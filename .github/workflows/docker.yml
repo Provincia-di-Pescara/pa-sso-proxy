@@ -17,16 +17,13 @@ on:
       - ".github/workflows/docker.yml"
   # Rebuild settimanale da main → :latest. Porta in produzione le patch delle
   # immagini base flottanti (nginx:alpine, python:3.14-slim, apk/apt upgrade) e
-  # le dipendenze mergiate da dependabot, senza bisogno di un tag. I merge fatti
-  # dall'auto-merge (GITHUB_TOKEN) non fanno partire il push su main: è questo
-  # cron a pubblicarli. Lunedì dopo CodeQL (03:17).
+  # le dipendenze mergiate da dependabot, senza bisogno di un tag. Lunedì 04:00 UTC.
   schedule:
     - cron: "0 4 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
 
 env:
   REGISTRY: ghcr.io
@@ -42,6 +39,9 @@ jobs:
     name: Build ${{ matrix.image }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -75,8 +75,14 @@ jobs:
             smoke: docker run --rm "$IMAGE" nginx -t
 
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Set up Docker Buildx
@@ -154,7 +160,7 @@ jobs:
       - name: Scan image for vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          version: v0.76.0
+          version: v0.76.1
           image-ref: ${{ steps.first-tag.outputs.tag }}
           format: table
           exit-code: "1"

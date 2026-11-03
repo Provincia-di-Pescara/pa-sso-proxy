@@ -1,0 +1,73 @@
+name: Tool version check
+
+# Trivy e pip-audit sono fissati a una versione nei workflow (dependabot non li
+# vede: non sono action né dipendenze). Ogni lunedì confronta la versione
+# fissata con l'ultima release e, se ce n'è una più recente pubblicata da
+# almeno 7 giorni (stesso cooldown di dependabot), apre una issue (una sola per
+# versione).
+
+on:
+  schedule:
+    - cron: "45 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tool-version-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Tool version check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Compare pinned versions with latest releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cutoff="$(date -u -d '7 days ago' +%s)"
+          gh label create toolchain --color 1D76DB --description "Aggiornamento tool CI fissati" 2>/dev/null || true
+
+          open_issue() { # $1=tool $2=fissata $3=ultima $4=dove
+            title="$1 $3 disponibile (fissata: $2)"
+            if [ "$(gh issue list --state open --search "in:title \"$1 $3\"" --json number --jq 'length')" != "0" ]; then
+              echo "$1: issue già aperta."; return
+            fi
+            gh issue create --title "$title" --label toolchain --body "$(printf 'È disponibile **%s %s** (pubblicata da almeno 7 giorni); i workflow usano ancora `%s`.\n\nDa aggiornare in una PR: %s.\n' "$1" "$3" "$2" "$4")"
+          }
+
+          newer() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1)" = "$2" ]; }
+
+          # Trivy (versione binario in trivy-action)
+          trivy_pinned="$(grep -hoE 'version: v[0-9]+\.[0-9]+\.[0-9]+' .github/workflows/*.yml | sort -u | sed 's/version: //' | head -n1)"
+          read -r trivy_latest trivy_date < <(gh api repos/aquasecurity/trivy/releases/latest --jq '[.tag_name, .published_at] | @tsv')
+          echo "trivy fissata=$trivy_pinned ultima=$trivy_latest ($trivy_date)"
+          if newer "${trivy_pinned#v}" "${trivy_latest#v}" && [ "$(date -u -d "$trivy_date" +%s)" -le "$cutoff" ]; then
+            open_issue Trivy "$trivy_pinned" "$trivy_latest" "\`version:\` dello step trivy-action in tutti i workflow"
+          fi
+
+          # pip-audit (pipx run --spec pip-audit==X)
+          pa_pinned="$(grep -hoE 'pip-audit==[0-9.]+' .github/workflows/*.yml | sort -u | sed 's/pip-audit==//' | head -n1)"
+          pa_json="$(curl -fsS https://pypi.org/pypi/pip-audit/json)"
+          pa_latest="$(jq -r .info.version <<< "$pa_json")"
+          pa_date="$(jq -r --arg v "$pa_latest" '.releases[$v][0].upload_time_iso_8601' <<< "$pa_json")"
+          echo "pip-audit fissata=$pa_pinned ultima=$pa_latest ($pa_date)"
+          if newer "$pa_pinned" "$pa_latest" && [ "$(date -u -d "$pa_date" +%s)" -le "$cutoff" ]; then
+            open_issue pip-audit "$pa_pinned" "$pa_latest" "\`pip-audit==\` in ci.yml e satosa-tests.yml"
+          fi
