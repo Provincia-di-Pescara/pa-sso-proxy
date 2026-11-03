@@ -64,7 +64,8 @@ updates:
   # dati (docs/deployment.md), non un semplice bump del tag:
   # ignorate (la migrazione si fa a mano, vedi CLAUDE.md "PostgreSQL 18").
   - package-ecosystem: "docker-compose"
-    directory: "/"
+    # /tests/e2e: spid-saml-check del test e2e SPID (F8).
+    directories: ["/", "/tests/e2e"]
     ignore:
       - dependency-name: "postgres"
         update-types: ["version-update:semver-major"]

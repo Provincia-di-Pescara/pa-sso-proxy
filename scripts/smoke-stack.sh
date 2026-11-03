@@ -40,7 +40,13 @@ VERIFY_IMAGES=${VERIFY_IMAGES:-false}
 EOF
 admin_password="$(sed -n 's/^ADMIN_PASSWORD=//p' "$envfile")"
 
-dc() { docker compose -p "$project" --env-file "$envfile" -f docker-compose.yaml "$@"; }
+# SMOKE_E2E_SPID=true: aggiunge spid-saml-check e il login SPID end-to-end.
+e2e="${SMOKE_E2E_SPID:-false}"
+compose_files=(-f docker-compose.yaml)
+[ "$e2e" = "true" ] && compose_files+=(-f tests/e2e/docker-compose.yaml)
+e2e_python="$(sed -n 's/^FROM //p' config-api/Dockerfile | head -1)"
+
+dc() { docker compose -p "$project" --env-file "$envfile" "${compose_files[@]}" "$@"; }
 
 ok=0
 cleanup() {
@@ -72,6 +78,7 @@ wait_healthy() { # $1=servizio $2=secondi
 
 step "avvio stack (volumi vuoti)"
 dc pull -q postgres redis
+[ "$e2e" = "true" ] && dc pull -q spid-saml-check
 # satosa su volumi vuoti non ha cert/chiavi e riparte in loop finché non vengono
 # generati: è il comportamento atteso di una nuova installazione.
 dc up -d
@@ -94,7 +101,8 @@ curl -fsS -b "$jar" "$base/admin/" -o /dev/null || fail "dashboard admin dopo lo
 
 step "impostazioni ente + certificato SPID (prima installazione)"
 code="$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" -c "$jar" \
-  --data-urlencode "org_name=Ente di prova smoke" --data-urlencode "proxy_hostname=localhost" \
+  --data-urlencode "org_name=Ente di prova smoke" --data-urlencode "org_display_name=Ente di prova smoke" \
+  --data-urlencode "org_url=https://ente.example.invalid" --data-urlencode "proxy_hostname=localhost" \
   --data-urlencode "ipa_code=c_smoke" --data-urlencode "org_city=Pescara" \
   --data-urlencode "contact_email=smoke@example.invalid" "$base/admin/settings")"
 [ "$code" = "303" ] || [ "$code" = "302" ] || [ "$code" = "200" ] || fail "salvataggio impostazioni: HTTP $code"
@@ -118,6 +126,41 @@ step "nessun traceback in satosa dopo l'avvio sano"
 if dc logs --no-color satosa --since 30s 2>&1 | grep -q "Traceback"; then
   dc logs --no-color --tail 80 satosa
   fail "traceback nei log di satosa"
+fi
+
+if [ "$e2e" = "true" ]; then
+  step "e2e SPID: IdP demo spid-saml-check al posto di demo.spid.gov.it"
+  wait_healthy spid-saml-check 180
+  psql() { dc exec -T postgres psql -U proxy -d proxy -tAc "$1" | head -1 | tr -d '[:space:]'; }
+  idp_id="$(psql "UPDATE spid_idps SET metadata_url='http://spid-saml-check:8443/demo/metadata.xml', metadata_hash=NULL, enabled=false WHERE alias='spid-demo' RETURNING id")"
+  [ -n "$idp_id" ] || fail "IdP spid-demo assente nel DB"
+  # SATOSA legge il metadata dei test IdP da remote-metadata/<alias>.xml, scaricato
+  # una volta sola (all'avvio dall'URL originale): va tolto per riscaricarlo.
+  dc exec -T config-api rm -f /satosa-conf/remote-metadata/spid-demo.xml
+  curl -fsS -o /dev/null -b "$jar" -X POST "$base/admin/idps/$idp_id/refresh" || fail "refresh metadata IdP demo"
+  curl -fsS -o /dev/null -b "$jar" -X POST "$base/admin/idps/$idp_id/toggle" || fail "abilitazione IdP demo"
+  [ "$(psql "SELECT enabled AND metadata_cache IS NOT NULL FROM spid_idps WHERE id=$idp_id")" = "t" ] \
+    || fail "IdP demo non abilitato o senza metadata"
+
+  step "e2e SPID: metadata SP registrato su spid-saml-check"
+  # L'API di download accetta solo URL https: il metadata SP (già scaricato
+  # sopra) va direttamente nello store dell'IdP demo, utente "validator".
+  sp_entity="$(grep -o 'entityID="[^"]*"' "$work/metadata.xml" | head -1 | cut -d'"' -f2)"
+  [ -n "$sp_entity" ] || fail "entityID SP non trovato nel metadata"
+  dc exec -T -e SP_ENTITY="$sp_entity" spid-saml-check bash -c '. ~/.nvm/nvm.sh >/dev/null; cd /spid-saml-check/src && node -e "
+    const D = require(\"./server/lib/database\");
+    const xml = require(\"fs\").readFileSync(0, \"utf8\");
+    new D().connect().setup().setMetadata(\"validator\", \"e2e\", process.env.SP_ENTITY, \"\", \"main\", \"e2e\", xml);
+  "' < "$work/metadata.xml" || fail "registrazione metadata SP su spid-saml-check"
+
+  # Reload graceful di satosa dopo il toggle: attesa che torni sano.
+  sleep 15
+  wait_healthy satosa 180
+
+  step "e2e SPID: login utente demo via /verifica (PKCE, token, userinfo)"
+  docker run --rm -i --network "${project}_proxy-internal" \
+    -e E2E_EXPECT="${E2E_EXPECT:-LVLDAA85T50G702B}" -e E2E_ALLOWED_HOSTS="nginx:8080,spid-saml-check:8443" -e E2E_IDP_ENTITY="http://spid-saml-check:8443/demo" -e E2E_USER="${E2E_USER:-ada}" \
+    "$e2e_python" python - < tests/e2e/spid_login.py || fail "login SPID end-to-end"
 fi
 
 ok=1
