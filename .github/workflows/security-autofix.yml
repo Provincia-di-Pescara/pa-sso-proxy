@@ -1,0 +1,175 @@
+name: Security autofix
+
+# Rete di sicurezza per le vulnerabilità pip HIGH/CRITICAL con versione corretta,
+# quando Dependabot non apre la PR (alert assente, cooldown, gruppo bloccato).
+# scripts/security/pip_fix.py sceglie la versione più bassa che corregge,
+# pubblicata da >= 48 h, con provenienza PEP 740 dallo stesso repository della
+# versione attuale (--force salta solo le 48 h, mai la provenienza).
+#
+# Le correzioni passano dagli stessi cancelli di tutti: PR aperta dalla GitHub
+# App (commit verificati via GraphQL createCommitOnBranch), CI gate, merge queue.
+#   gruppo auto    → auto-merge
+#   gruppo manual  → librerie SPID/CIE (pysaml2, cryptojwt, cryptography,
+#                    pyeudiw, satosa, pyop): PR senza auto-merge, revisione umana
+# Il commit fallisce se tocca file fuori da requirements*.in/.txt.
+# Stato (in attesa / non correggibili / PR aperte) in una issue, chiusa quando
+# non resta nulla. Le patch di sistema delle immagini le copre release.yml
+# (rebuild-check, causa b/c); i digest delle immagini base dependabot.
+
+on:
+  # 01:30 UTC = 02:30 ora solare: prima del rebuild di release.yml (03:30 UTC).
+  schedule:
+    - cron: "30 1 * * *"
+  workflow_run:
+    workflows: ["Security"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Salta l'età minima di 48 h (mai la verifica di provenienza)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Solo piano: nessuna PR"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-autofix
+  cancel-in-progress: false
+
+jobs:
+  autofix:
+    name: Security autofix
+    # Da workflow_run solo se i controlli di sicurezza su main sono falliti.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.14"
+
+      - name: Plan
+        env:
+          FORCE: ${{ inputs.force && '--force' || '' }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          python scripts/security/pip_fix.py plan --output "$RUNNER_TEMP/plan.json" $FORCE
+          jq -r '
+            def rows(k): .[k][] | "| \(k) | `\(.infile)` | \(.name) \(.current) | \(.severity) | \(.advisories | join(", ")) | \(.reason) |";
+            "### Security autofix", "",
+            "| Gruppo | File | Pacchetto | Severità | Advisory | Esito |", "|---|---|---|---|---|---|",
+            rows("auto"), rows("manual"), rows("pending"), rows("unfixable")' \
+            "$RUNNER_TEMP/plan.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Status issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          title="security-autofix: vulnerabilità in attesa di correzione"
+          body="$(jq -r '
+            def list(k; h): if (.[k] | length) > 0 then "## \(h)\n" + ([.[k][] | "- `\(.infile)` **\(.name) \(.current)** (\(.severity), \(.advisories | join(", "))): \(.reason)"] | join("\n")) + "\n" else empty end;
+            [list("pending"; "In attesa (versione corretta pubblicata da meno di 48 h)"),
+             list("unfixable"; "Non correggibili in autonomia (serve intervento)"),
+             list("manual"; "Librerie SPID/CIE: PR con revisione manuale"),
+             list("auto"; "In correzione automatica")] | join("\n")' "$RUNNER_TEMP/plan.json")"
+          issue="$(gh issue list --repo "$REPO" --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')"
+          if [ -z "$body" ]; then
+            [ -n "$issue" ] && gh issue close "$issue" --repo "$REPO" --comment "Nessuna vulnerabilità pip HIGH/CRITICAL aperta."
+            exit 0
+          fi
+          gh label create security --color B60205 --description "Sicurezza" --repo "$REPO" 2>/dev/null || true
+          if [ -n "$issue" ]; then
+            gh issue edit "$issue" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --title "$title" --label security --body "$body"
+          fi
+
+      - name: GitHub App token
+        id: app-token
+        if: ${{ !inputs.dry_run }}
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Open fix PRs
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          BASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/plan.json"
+          allowed='^(config-api/requirements(-dev)?|satosa/requirements-runtime|satosa/tests/requirements-test)\.(in|txt)$'
+          base="$(git rev-parse HEAD)"
+          for group in auto manual; do
+            n="$(jq --arg g "$group" '.[$g] | length' "$plan")"
+            [ "$n" -gt 0 ] || continue
+            branch="security-autofix/$group"
+            if [ -n "$(gh pr list --repo "$REPO" --head "$branch" --state open --json number --jq '.[0].number // empty')" ]; then
+              echo "$group: PR già aperta su $branch, salto (lo stato è nella issue)."
+              continue
+            fi
+            git checkout -q -- . && git clean -qfd -- config-api satosa
+            python scripts/security/pip_fix.py apply --plan "$plan" --group "$group"
+            scripts/compile-requirements.sh
+            changed="$(git status --porcelain | awk '{print $2}')"
+            [ -n "$changed" ] || { echo "$group: nessuna modifica"; continue; }
+            if bad="$(grep -vE "$allowed" <<< "$changed")"; then
+              echo "::error::File fuori dall'elenco consentito: $bad"; exit 1
+            fi
+            # Branch nuovo da main (eventuale branch vecchio senza PR: ricreato).
+            gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1 || true
+            gh api "repos/$REPO/git/refs" -f "ref=refs/heads/$branch" -f "sha=$base" >/dev/null
+            pkgs="$(jq -r --arg g "$group" '[.[$g][] | "\(.name)==\(.version)"] | join(", ")' "$plan")"
+            details="$(jq -r --arg g "$group" '.[$g][] | "- `\(.infile)`: \(.name) \(.current) → \(.version) (\(.severity); \(.advisories | join(", "))). \(.reason)"' "$plan")"
+            jq -n --arg repo "$REPO" --arg branch "$branch" --arg oid "$base" \
+                  --arg head "fix(deps): correzioni di sicurezza ($pkgs)" --arg body "$details" \
+                  --argjson files "$(for f in $changed; do jq -n --arg p "$f" --arg c "$(base64 -w0 "$f")" '{path:$p, contents:$c}'; done | jq -s .)" \
+              '{query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+                variables: {input: {branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                                    expectedHeadOid: $oid,
+                                    message: {headline: $head, body: $body},
+                                    fileChanges: {additions: $files}}}}' > "$RUNNER_TEMP/commit.json"
+            gh api graphql --input "$RUNNER_TEMP/commit.json" --jq '.data.createCommitOnBranch.commit.oid'
+            if [ "$group" = "auto" ]; then
+              note="Auto-merge attivo: entra in merge queue quando il CI gate è verde."
+            else
+              note="**Revisione manuale**: librerie di firma/identità SPID/CIE. Leggere il changelog e verificare login SPID/CIE prima del merge."
+            fi
+            url="$(gh pr create --repo "$REPO" --base main --head "$branch" \
+              --title "fix(deps): correzioni di sicurezza ($pkgs)" \
+              --body "$(printf 'Aperta da `security-autofix.yml`.\n\n%s\n\n%s\n\nVersione più bassa che corregge, pubblicata da almeno 48 h, provenienza PEP 740 dallo stesso repository della versione precedente.\n' "$details" "$note")")"
+            echo "$group: $url"
+            if [ "$group" = "auto" ]; then
+              gh pr merge --auto "$url"
+            else
+              gh pr edit "$url" --add-label revisione-manuale || true
+            fi
+          done
