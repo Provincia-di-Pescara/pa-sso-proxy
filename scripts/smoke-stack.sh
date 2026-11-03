@@ -142,25 +142,51 @@ if [ "$e2e" = "true" ]; then
   [ "$(psql "SELECT enabled AND metadata_cache IS NOT NULL FROM spid_idps WHERE id=$idp_id")" = "t" ] \
     || fail "IdP demo non abilitato o senza metadata"
 
+  # L'API di download di spid-saml-check accetta solo URL https: il metadata SP
+  # va direttamente nello store dell'IdP demo, utente "validator". Da rifare a
+  # ogni cambio del metadata SP (es. ACS persona giuridica).
+  register_sp() { # $1 = file metadata SP
+    local sp_entity
+    sp_entity="$(grep -o 'entityID="[^"]*"' "$1" | head -1 | cut -d'"' -f2)"
+    [ -n "$sp_entity" ] || fail "entityID SP non trovato nel metadata"
+    dc exec -T -e SP_ENTITY="$sp_entity" spid-saml-check bash -c '. ~/.nvm/nvm.sh >/dev/null; cd /spid-saml-check/src && node -e "
+      const D = require(\"./server/lib/database\");
+      const xml = require(\"fs\").readFileSync(0, \"utf8\");
+      new D().connect().setup().setMetadata(\"validator\", \"e2e\", process.env.SP_ENTITY, \"\", \"main\", \"e2e\", xml);
+    "' < "$1" || fail "registrazione metadata SP su spid-saml-check"
+  }
+
+  # Login via /verifica in un container sulla rete dello stack.
+  spid_login() { # $1 = soggetto (pf|pg) $2 = utente demo $3 = testo atteso nel risultato
+    docker run --rm -i --network "${project}_proxy-internal" \
+      -e E2E_SUBJECT="$1" -e E2E_USER="$2" -e E2E_EXPECT="$3" \
+      -e E2E_ALLOWED_HOSTS="nginx:8080,spid-saml-check:8443" \
+      -e E2E_IDP_ENTITY="http://spid-saml-check:8443/demo" \
+      "$e2e_python" python - < tests/e2e/spid_login.py
+  }
+
   step "e2e SPID: metadata SP registrato su spid-saml-check"
-  # L'API di download accetta solo URL https: il metadata SP (già scaricato
-  # sopra) va direttamente nello store dell'IdP demo, utente "validator".
-  sp_entity="$(grep -o 'entityID="[^"]*"' "$work/metadata.xml" | head -1 | cut -d'"' -f2)"
-  [ -n "$sp_entity" ] || fail "entityID SP non trovato nel metadata"
-  dc exec -T -e SP_ENTITY="$sp_entity" spid-saml-check bash -c '. ~/.nvm/nvm.sh >/dev/null; cd /spid-saml-check/src && node -e "
-    const D = require(\"./server/lib/database\");
-    const xml = require(\"fs\").readFileSync(0, \"utf8\");
-    new D().connect().setup().setMetadata(\"validator\", \"e2e\", process.env.SP_ENTITY, \"\", \"main\", \"e2e\", xml);
-  "' < "$work/metadata.xml" || fail "registrazione metadata SP su spid-saml-check"
+  register_sp "$work/metadata.xml"
 
   # Reload graceful di satosa dopo il toggle: attesa che torni sano.
   sleep 15
   wait_healthy satosa 180
 
-  step "e2e SPID: login utente demo via /verifica (PKCE, token, userinfo)"
-  docker run --rm -i --network "${project}_proxy-internal" \
-    -e E2E_EXPECT="${E2E_EXPECT:-LVLDAA85T50G702B}" -e E2E_ALLOWED_HOSTS="nginx:8080,spid-saml-check:8443" -e E2E_IDP_ENTITY="http://spid-saml-check:8443/demo" -e E2E_USER="${E2E_USER:-ada}" \
-    "$e2e_python" python - < tests/e2e/spid_login.py || fail "login SPID end-to-end"
+  step "e2e SPID: login persona fisica (ada) via /verifica (PKCE, token, userinfo)"
+  spid_login pf ada LVLDAA85T50G702B || fail "login SPID persona fisica"
+
+  step "e2e SPID: persona giuridica abilitata (ACS index 4 nel metadata SP)"
+  curl -fsS -o /dev/null -b "$jar" --data-urlencode "legal_entity_enabled=yes" \
+    --data-urlencode "confirmed=yes" "$base/admin/legal-entity/toggle" || fail "abilitazione persona giuridica"
+  sleep 15
+  wait_healthy satosa 180
+  curl -fsS "$base/spidSaml2/metadata" -o "$work/metadata-pg.xml" || fail "metadata SPID dopo persona giuridica"
+  grep -Eq 'AttributeConsumingService[^>]*index="4"' "$work/metadata-pg.xml" \
+    || fail "ACS index 4 (persona giuridica) assente nel metadata SP"
+  register_sp "$work/metadata-pg.xml"
+
+  step "e2e SPID: login persona giuridica (leonardo, spid:Purpose=PG) con claim aziendali"
+  spid_login pg leonardo "Bottega Verrocchio" || fail "login SPID persona giuridica"
 fi
 
 ok=1
