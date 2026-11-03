@@ -3,7 +3,8 @@ name: SPID e2e
 # Login SPID end-to-end (F8) con spid-saml-check come IdP demo, tutto in locale
 # (nessuna rete esterna): stack di produzione da volumi vuoti, AuthnRequest
 # validata in modo strict da spid-sp-test, login utente demo, SAMLResponse
-# all'ACS, scambio code → token e userinfo via /verifica.
+# all'ACS, scambio code → token e userinfo via /verifica; persona fisica e
+# persona giuridica (ACS 4, spid:Purpose=PG, claim aziendali).
 # Vedi scripts/smoke-stack.sh (SMOKE_E2E_SPID=true) e tests/e2e/.
 #
 # Quando: PR e merge queue solo se cambia codice SPID/OIDC (in coda il filtro

@@ -53,7 +53,6 @@ Ogni workflow: permessi minimi a livello di job, `persist-credentials: false`,
 ## Aperto
 
 - Auto-merge delle librerie SPID: possibile solo dopo qualche settimana di `spid-e2e.yml`
-  stabile e con il job in coda; CIE resta manuale (nessun OP CIE di test locale). Variante
-  persona giuridica non ancora coperta dall'e2e.
+  stabile e con il job in coda; CIE resta manuale (nessun OP CIE di test locale).
 - Approvazioni obbligatorie in review: oggi 0 (un solo maintainer); CODEOWNERS pronto.
 - harden-runner da `audit` a `block` dopo aver raccolto gli endpoint reali.

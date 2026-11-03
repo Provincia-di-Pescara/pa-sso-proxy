@@ -262,7 +262,7 @@ Servizio one-shot **`verify-images`** (cosign `-dev`, ha la shell): con `VERIFY_
 Debug in container non-root: `docker compose exec -u 0 <servizio> sh` se serve root; i test plugin nel container satosa girano con `--user 0` (installano nel venv).
 
 ### Test e2e SPID (F8)
-`SMOKE_E2E_SPID=true scripts/smoke-stack.sh` (workflow `spid-e2e.yml`: PR/coda solo se cambia codice SPID/OIDC, settimanale su `:latest`): override `tests/e2e/docker-compose.yaml` aggiunge **spid-saml-check** come IdP demo nella rete interna, poi `tests/e2e/spid_login.py` (solo stdlib, container sulla rete dello stack) fa `/verifica/start` → discovery → AuthnRequest → login `ada` → ACS → callback, e verifica il CF nella pagina risultato. Nessuna rete esterna: il client rifiuta host fuori da `E2E_ALLOWED_HOSTS`.
+`SMOKE_E2E_SPID=true scripts/smoke-stack.sh` (workflow `spid-e2e.yml`: PR/coda solo se cambia codice SPID/OIDC, settimanale su `:latest`): override `tests/e2e/docker-compose.yaml` aggiunge **spid-saml-check** come IdP demo nella rete interna, poi `tests/e2e/spid_login.py` (solo stdlib, container sulla rete dello stack) fa `/verifica/start` → discovery → AuthnRequest → login → ACS → callback due volte: persona fisica (`ada`, verifica il CF) e, dopo `POST /admin/legal-entity/toggle` (ACS index 4 nel metadata SP, metadata ri-registrato sull'IdP demo), persona giuridica (`subject=pg`, scope `legal_entity`, `spid:Purpose=PG`, utente `leonardo`, verifica la ragione sociale "Bottega Verrocchio"). Nessuna rete esterna: il client rifiuta host fuori da `E2E_ALLOWED_HOSTS`.
 
 Gotcha emersi (tutti già gestiti nello script):
 - spid-saml-check serve **HTTP** su 8443 (`useHttps: false`), non https.
@@ -270,7 +270,9 @@ Gotcha emersi (tutti già gestiti nello script):
 - `/api/metadata-sp/download` accetta solo URL **https** (`https.get`): il metadata SP va scritto nello store via `database.setMetadata` (node nel container), utente `validator`, store `main`.
 - SATOSA legge il metadata degli IdP di test/eIDAS da `/satosa-conf/remote-metadata/<alias>.xml`. `_ensure_remote_metadata` lo riscrive da `metadata_cache` (refresh/cron) o lo riscarica se l'URL cambia (`<alias>.xml.url`); fino a #90 era scritto solo se mancante (refresh e cambio URL mai arrivati a SATOSA). Lo script e2e cancella comunque il file prima del toggle.
 - Con un solo backend (CIE spento) l'authorization endpoint è `/<backend>/OIDC/authorization`: `/verifica` lo legge dalla discovery di SATOSA (fix trovato dall'e2e).
-- Utenti demo in `src/config/spid_users.json` dell'immagine (password `password123`); `ada` = livello 2.
+- Utenti demo in `src/config/spid_users.json` dell'immagine (password `password123`); `ada` = livello 2; con azienda: `leonardo` (livello 2), `montessori` (livello 3).
+- Metadata SP cambiato (es. persona giuridica on) = va ri-registrato nello store dell'IdP demo, altrimenti la request con ACS 4 non supera i controlli.
+- Smoke in locale con immagini `:latest`: fare prima `docker pull` — lo script non ripesca le immagini applicative e una `:latest` vecchia in cache sembra una regressione.
 
 ### Disaster recovery (volumi/container azzerati)
 Procedura testata end-to-end (volumi DB/`proxy_satosa_conf` distrutti con `docker compose down -v`, rebuild, restore): `docker compose up -d` → login WebUI → `POST /admin/backup/import` con l'ultimo bundle JSON → **nessun accesso console necessario**, `satosa` si auto-guarisce entro ~1-2 minuti (crash iniziale su cert mancante → `restart: unless-stopped` lo rilancia → al riavvio trova cert/chiavi già scritti dal restore).
