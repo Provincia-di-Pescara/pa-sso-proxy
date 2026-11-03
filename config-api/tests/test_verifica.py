@@ -124,3 +124,36 @@ async def test_start_does_not_force_language(verifica_app, db_session):
     await _setup(db_session, legal_entity_enabled=False)
     params = await _authorize_params(verifica_app)
     assert "ui_locales" not in params
+
+
+async def _authorize_location(app) -> str:
+    async with _client(app) as c:
+        r = await c.get("/verifica/start", follow_redirects=False)
+    assert r.status_code == 302
+    return r.headers["location"]
+
+
+async def test_start_uses_authorization_endpoint_from_satosa_discovery(verifica_app, db_session, monkeypatch):
+    # Con un solo backend (CIE spento) SATOSA espone l'endpoint come
+    # /<backend>/OIDC/authorization: /OIDC/authorization darebbe 404.
+    await _setup(db_session, legal_entity_enabled=False)
+    from app.routes import verifica
+
+    async def fake_discovery():
+        return {"authorization_endpoint": "https://proxy.ente.it/spidSaml2/OIDC/authorization"}
+
+    monkeypatch.setattr(verifica, "_satosa_discovery", fake_discovery)
+    loc = await _authorize_location(verifica_app)
+    assert loc.startswith("https://proxy.ente.it/spidSaml2/OIDC/authorization?")
+
+
+async def test_start_falls_back_when_discovery_unavailable(verifica_app, db_session, monkeypatch):
+    await _setup(db_session, legal_entity_enabled=False)
+    from app.routes import verifica
+
+    async def no_discovery():
+        return None
+
+    monkeypatch.setattr(verifica, "_satosa_discovery", no_discovery)
+    loc = await _authorize_location(verifica_app)
+    assert loc.startswith("https://proxy.ente.it/OIDC/authorization?")

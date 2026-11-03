@@ -4,7 +4,7 @@ import hmac
 import json
 import os
 import secrets
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -47,6 +47,28 @@ async def _satosa_base(db: AsyncSession) -> str:
     settings = (await db.execute(select(EnteSettings).where(EnteSettings.id == 1))).scalar_one_or_none()
     hostname = settings.proxy_hostname if settings else "localhost"
     return f"https://{hostname}"
+
+
+async def _satosa_discovery() -> dict | None:
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as http:
+            resp = await http.get(f"{SATOSA_INTERNAL_URL}/.well-known/openid-configuration")
+            resp.raise_for_status()
+            return resp.json()
+    except Exception:
+        return None
+
+
+async def _authorization_path() -> str:
+    """Path dell'authorization endpoint pubblicato da SATOSA.
+
+    Con un solo backend (es. CIE disattivato) il frontend OIDC lo espone come
+    /<backend>/OIDC/authorization, con più backend come /OIDC/authorization:
+    va letto dalla discovery, non fissato.
+    """
+    endpoint = ((await _satosa_discovery()) or {}).get("authorization_endpoint") or ""
+    path = urlsplit(endpoint).path
+    return path if path.startswith("/") and path.endswith("/authorization") else "/OIDC/authorization"
 
 
 async def _get_test_idp(db: AsyncSession):
@@ -110,7 +132,7 @@ async def verifica_start(request: Request, db: AsyncSession = Depends(get_db)):
             "iva_code": {"essential": True},
         })
 
-    auth_url = f"{satosa_base}/OIDC/authorization?" + urlencode({
+    auth_url = f"{satosa_base}{await _authorization_path()}?" + urlencode({
         "client_id": VERIFICA_CLIENT_ID,
         "response_type": "code",
         "scope": scope,
