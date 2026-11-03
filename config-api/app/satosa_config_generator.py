@@ -189,43 +189,65 @@ _REMOTE_META_DIR = "/satosa-conf/remote-metadata"
 _EMPTY_META = '<?xml version="1.0"?><EntitiesDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"/>'
 
 
-async def _ensure_remote_metadata(conf_dir: str, remote_meta_urls: dict) -> None:
-    """Ensure pre-downloaded metadata files exist for all remote IdPs.
+def _download_metadata(url: str) -> bytes:
+    ctx = ssl.create_default_context()
+    req = urllib.request.Request(url, headers={"User-Agent": "config-api/1.0"})
+    with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+        return resp.read()
 
-    entrypoint.sh only runs at container start, so when a new remote IdP is
-    enabled mid-session the file won't exist yet. This function downloads any
-    missing files (or writes an empty placeholder on failure) so SATOSA can
-    reload without a FileNotFoundError.
+
+def _write_atomic(path: str, data: bytes) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, path)
+
+
+async def _ensure_remote_metadata(conf_dir: str, idps: list) -> None:
+    """Allinea remote-metadata/<alias>.xml (letti da pysaml2) per IdP di test/eIDAS.
+
+    Fonte, in ordine:
+    1. metadata_cache in DB (aggiornato da refresh manuale e cron notturno):
+       il file viene riscritto se diverso, così un refresh arriva davvero a SATOSA;
+    2. senza cache valida: download da metadata_url se il file manca o se l'URL
+       è cambiato rispetto all'ultimo download (<alias>.xml.url);
+    3. download fallito: file esistente tenuto (stale-but-valid), altrimenti
+       placeholder vuoto, così SATOSA ricarica senza FileNotFoundError.
+    Prima il file veniva scritto solo se mancante: né refresh né cambio di URL
+    arrivavano mai a SATOSA.
     """
     remote_meta_dir = os.path.join(conf_dir, "remote-metadata")
     os.makedirs(remote_meta_dir, exist_ok=True)
 
-    for alias, url in remote_meta_urls.items():
+    for idp in idps:
+        alias, url = idp.alias, idp.metadata_url
         dest = os.path.join(remote_meta_dir, f"{_meta_slug(alias)}.xml")
-        if os.path.exists(dest):
+        marker = dest + ".url"
+
+        cache = getattr(idp, "metadata_cache", None) or ""
+        if "EntityDescriptor" in cache:
+            data = cache.encode("utf-8")
+            current = open(dest, "rb").read() if os.path.exists(dest) else None
+            if current != data:
+                _write_atomic(dest, data)
+                logger.info("remote metadata written from DB cache: %s", alias)
+            _write_atomic(marker, url.encode("utf-8"))
             continue
 
-        def _fetch(url: str = url, dest: str = dest, alias: str = alias) -> bool:
-            try:
-                ctx = ssl.create_default_context()
-                req = urllib.request.Request(url, headers={"User-Agent": "config-api/1.0"})
-                with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
-                    data = resp.read()
-                tmp = dest + ".tmp"
-                with open(tmp, "wb") as f:
-                    f.write(data)
-                os.replace(tmp, dest)
-                logger.info("remote metadata downloaded: %s <- %s", alias, url)
-                return True
-            except Exception as e:
-                logger.warning("remote metadata fetch failed for %s (%s): %s", alias, url, e)
-                return False
+        last_url = open(marker, encoding="utf-8").read() if os.path.exists(marker) else None
+        if os.path.exists(dest) and last_url == url:
+            continue
 
-        ok = await asyncio.to_thread(_fetch)
-        if not ok and not os.path.exists(dest):
-            with open(dest, "w", encoding="utf-8") as f:
-                f.write(_EMPTY_META)
-            logger.warning("wrote empty metadata placeholder for %s", alias)
+        try:
+            data = await asyncio.to_thread(_download_metadata, url)
+            _write_atomic(dest, data)
+            _write_atomic(marker, url.encode("utf-8"))
+            logger.info("remote metadata downloaded: %s <- %s", alias, url)
+        except Exception as e:
+            logger.warning("remote metadata fetch failed for %s (%s): %s", alias, url, e)
+            if not os.path.exists(dest):
+                _write_atomic(dest, _EMPTY_META.encode("utf-8"))
+                logger.warning("wrote empty metadata placeholder for %s", alias)
 
 
 def _meta_slug(alias: str) -> str:
@@ -981,7 +1003,10 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         if idp.metadata_url and idp.alias in (_TEST_ALIASES | _EIDAS_ALIASES)
     }
     _write_json(conf_dir, "remote-metadata-urls.json", remote_meta_urls)
-    await _ensure_remote_metadata(conf_dir, remote_meta_urls)
+    await _ensure_remote_metadata(
+        conf_dir,
+        [i for i in enabled_idps if i.metadata_url and i.alias in (_TEST_ALIASES | _EIDAS_ALIASES)],
+    )
 
     if include_cie_oidc:
         _write(
