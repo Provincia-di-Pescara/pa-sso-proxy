@@ -1,0 +1,7 @@
+{"dependencies": [
+  {"name": "starlette", "version": "0.50.0", "vulns": [
+    {"id": "GHSA-aaaa-bbbb-cccc", "aliases": ["CVE-2026-0001"], "fix_versions": ["0.50.2", "0.51.0"]}]},
+  {"name": "fastapi", "version": "0.158.1", "vulns": []},
+  {"name": "cryptography", "version": "50.0.2", "vulns": [
+    {"id": "GHSA-cryp-tooo-0001", "aliases": [], "fix_versions": ["50.0.3"]}]}
+]}

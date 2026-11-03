@@ -6,6 +6,7 @@ name: Security
 # giorno (le CVE nuove escono anche senza commit).
 #   dependency-review  solo PR: blocca dipendenze nuove HIGH+ (pip, Actions)
 #   trivy-fs           vulnerabilità nei lock, segreti, misconfig Dockerfile
+#   autofix-tests      test di scripts/security/pip_fix.py (fixture fisse)
 # Eccezioni: .trivyignore.yaml (per ID e percorso, con motivazione).
 
 on:
@@ -72,8 +73,32 @@ jobs:
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          skip-dirs: .git
+          # fixture dei test autofix: lock finti, non dipendenze reali
+          skip-dirs: .git,scripts/security/test/fixtures
           format: table
           exit-code: "1"
         env:
           TRIVY_IGNOREFILE: .trivyignore.yaml
+
+  autofix-tests:
+    name: test script di sicurezza
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.14"
+
+      # Test su copie fisse (scripts/security/test/fixtures), nessuna rete.
+      - name: Unit test pip_fix.py
+        run: python -m unittest discover -s scripts/security/test -v

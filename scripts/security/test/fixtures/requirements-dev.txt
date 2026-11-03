@@ -1,0 +1,6 @@
+fastapi==0.158.1 \
+    --hash=sha256:bbbb
+pytest==9.1.1 \
+    --hash=sha256:eeee
+starlette==0.50.0 \
+    --hash=sha256:cccc

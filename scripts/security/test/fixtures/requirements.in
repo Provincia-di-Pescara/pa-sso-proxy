@@ -1,0 +1,4 @@
+# Dipendenze dirette di runtime (copia fissa per i test: NON il file vivo).
+fastapi==0.158.1
+uvicorn[standard]==0.54.0
+cryptography==50.0.2
