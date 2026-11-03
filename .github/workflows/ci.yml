@@ -62,7 +62,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r config-api/requirements-dev.txt
+          pip install --require-hashes -r config-api/requirements-dev.txt
 
       - name: Run tests
         working-directory: config-api
@@ -90,7 +90,7 @@ jobs:
           python-version: "3.14"
 
       - name: Run pip-audit
-        run: pipx run --spec pip-audit==2.10.1 pip-audit -r config-api/requirements-dev.txt
+        run: pipx run --spec pip-audit==2.10.1 pip-audit --require-hashes --disable-pip -r config-api/requirements-dev.txt
 
   # I test pytest girano su SQLite e non eseguono mai Alembic: un bump che rompe
   # le migrazioni su Postgres (es. SQLAlchemy 2.1 → driver di default psycopg v3,
@@ -103,20 +103,6 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_USER: proxy
-          POSTGRES_PASSWORD: ci-password
-          POSTGRES_DB: proxy
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U proxy"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -126,6 +112,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+
+      # Postgres con la stessa immagine (tag + digest) di docker-compose.yaml,
+      # letta dal compose: dependabot aggiorna solo il compose e la CI lo segue
+      # senza un secondo digest da tenere allineato.
+      - name: Start postgres (immagine del compose)
+        run: |
+          set -euo pipefail
+          img="$(grep -oE 'postgres:[0-9]+@sha256:[0-9a-f]{64}' docker-compose.yaml | head -n1)"
+          [ -n "$img" ] || { echo "::error::immagine postgres con digest non trovata in docker-compose.yaml"; exit 1; }
+          echo "postgres: $img"
+          docker run -d --name postgres -p 127.0.0.1:5432:5432 \
+            -e POSTGRES_USER=proxy -e POSTGRES_PASSWORD=ci-password -e POSTGRES_DB=proxy "$img"
+          for i in $(seq 1 30); do
+            docker exec postgres pg_isready -U proxy -d proxy && exit 0
+            sleep 2
+          done
+          echo "::error::postgres non pronto"; docker logs postgres; exit 1
 
       - name: Build config-api image
         run: docker build -t config-api:ci config-api

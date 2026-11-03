@@ -1,0 +1,79 @@
+name: Security
+
+# Controlli di sicurezza sul repository (non sulle immagini: quelle le scansiona
+# docker.yml). Girano su ogni PR (niente filtro path: un segreto o una
+# misconfigurazione possono stare ovunque), in merge queue, su main e ogni
+# giorno (le CVE nuove escono anche senza commit).
+#   dependency-review  solo PR: blocca dipendenze nuove HIGH+ (pip, Actions)
+#   trivy-fs           vulnerabilità nei lock, segreti, misconfig Dockerfile
+# Eccezioni: .trivyignore.yaml (per ID e percorso, con motivazione).
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: dependency-review
+    # Confronta base e testa della PR: in coda e su main non ha senso (job
+    # saltato = verde per il gate).
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          # Anche le dipendenze di sviluppo/test e le Actions.
+          fail-on-scopes: runtime, development, unknown
+
+  trivy-fs:
+    name: trivy-fs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Trivy fs (vuln, secret, misconfig)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          skip-dirs: .git
+          format: table
+          exit-code: "1"
+        env:
+          TRIVY_IGNOREFILE: .trivyignore.yaml
