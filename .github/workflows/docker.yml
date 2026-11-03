@@ -121,6 +121,7 @@ jobs:
           display="$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HEAD)"
           release="$(git describe --tags --long --always)+$(date -u +%Y%m%d)"
           echo "display=${display}" >> "$GITHUB_OUTPUT"
+          echo "pkg_refresh=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
           echo "release=${release}" >> "$GITHUB_OUTPUT"
           echo "footer=${display} | sentry=${release}"
 
@@ -143,6 +144,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=${{ steps.version.outputs.release }}
+            PKG_REFRESH=${{ steps.version.outputs.pkg_refresh }}
           cache-from: type=gha,scope=${{ matrix.scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.scope }}
 

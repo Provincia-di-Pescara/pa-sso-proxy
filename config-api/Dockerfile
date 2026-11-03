@@ -2,7 +2,12 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
-RUN apt-get update -qq && apt-get upgrade -y -qq && apt-get install -y -qq curl && rm -rf /var/lib/apt/lists/*
+# Data del giorno passata dalla CI (build-arg): invalida la cache del layer di
+# upgrade dei pacchetti di sistema almeno una volta al giorno. Senza, la cache
+# GHA riusa il layer vecchio e le patch OS (es. libexpat) non arrivano finché
+# non cambia l'immagine base.
+ARG PKG_REFRESH=
+RUN echo "pkg refresh: ${PKG_REFRESH}" && apt-get update -qq && apt-get upgrade -y -qq && apt-get install -y -qq curl && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \

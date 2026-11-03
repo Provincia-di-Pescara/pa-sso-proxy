@@ -12,7 +12,12 @@ ENV APP_VERSION=${APP_VERSION}
 
 # Base image contains only /.venv/ — no project files. Clone them.
 # Alpine-based image — use apk
-RUN apk update && apk upgrade --no-cache
+# Data del giorno passata dalla CI (build-arg): invalida la cache del layer di
+# upgrade dei pacchetti di sistema almeno una volta al giorno. Senza, la cache
+# GHA riusa il layer vecchio e le patch OS (es. libexpat) non arrivano finché
+# non cambia l'immagine base.
+ARG PKG_REFRESH=
+RUN echo "pkg refresh: ${PKG_REFRESH}" && apk update && apk upgrade --no-cache
 RUN apk add --no-cache git
 
 # Non visto da dependabot: upstream-check.yml apre una issue a ogni nuova release.
