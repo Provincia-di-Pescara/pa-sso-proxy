@@ -1,0 +1,104 @@
+name: SPID e2e
+
+# Login SPID end-to-end (F8) con spid-saml-check come IdP demo, tutto in locale
+# (nessuna rete esterna): stack di produzione da volumi vuoti, AuthnRequest
+# validata in modo strict da spid-sp-test, login utente demo, SAMLResponse
+# all'ACS, scambio code → token e userinfo via /verifica.
+# Vedi scripts/smoke-stack.sh (SMOKE_E2E_SPID=true) e tests/e2e/.
+#
+# Quando: PR e merge queue solo se cambia codice SPID/OIDC (in coda il filtro
+# è fatto a mano su git diff: un run assente non va bene per il CI gate, uno
+# con job verde senza passi sì), settimanale sulle immagini :latest pubblicate
+# (rotture da immagini base/digest nuovi), dispatch.
+
+on:
+  pull_request:
+    paths:
+      - "satosa/**"
+      - "config-api/app/satosa_config_generator.py"
+      - "config-api/app/satosa_generator.py"
+      - "config-api/app/routes/verifica.py"
+      - "nginx/**"
+      - "docker-compose.yaml"
+      - "scripts/smoke-stack.sh"
+      - "tests/e2e/**"
+      - ".github/workflows/spid-e2e.yml"
+  merge_group:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spid-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_BASE: ghcr.io/provincia-di-pescara/pa-sso-proxy
+
+jobs:
+  e2e:
+    name: SPID e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Serve il test?
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+        run: |
+          set -euo pipefail
+          run=true
+          if [ "$EVENT" = "merge_group" ]; then
+            pattern='^(satosa/|nginx/|tests/e2e/|config-api/app/(satosa_config_generator|satosa_generator)\.py$|config-api/app/routes/verifica\.py$|docker-compose\.yaml$|scripts/smoke-stack\.sh$|\.github/workflows/spid-e2e\.yml$)'
+            if ! git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -qE "$pattern"; then
+              run=false
+              echo "Nessuna modifica a codice SPID/OIDC: test e2e non necessario." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      # Settimanale: le immagini realmente in produzione. Altrimenti quelle del commit.
+      - name: Immagini pubblicate (:latest)
+        if: steps.scope.outputs.run == 'true' && github.event_name == 'schedule'
+        run: |
+          {
+            echo "SATOSA_IMAGE=${IMAGE_BASE}-satosa:latest"
+            echo "CONFIG_API_IMAGE=${IMAGE_BASE}-config-api:latest"
+            echo "NGINX_IMAGE=${IMAGE_BASE}-nginx:latest"
+          } >> "$GITHUB_ENV"
+
+      - name: Build immagini del commit
+        if: steps.scope.outputs.run == 'true' && github.event_name != 'schedule'
+        run: |
+          set -euo pipefail
+          for img in satosa config-api nginx; do
+            docker build -q -t "e2e-$img" "$img" > /dev/null
+          done
+          {
+            echo "SATOSA_IMAGE=e2e-satosa"
+            echo "CONFIG_API_IMAGE=e2e-config-api"
+            echo "NGINX_IMAGE=e2e-nginx"
+          } >> "$GITHUB_ENV"
+
+      - name: Stack + login SPID end-to-end
+        if: steps.scope.outputs.run == 'true'
+        env:
+          SMOKE_E2E_SPID: "true"
+        run: scripts/smoke-stack.sh

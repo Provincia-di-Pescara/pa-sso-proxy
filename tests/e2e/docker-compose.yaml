@@ -1,0 +1,27 @@
+# Override del test e2e SPID (scripts/smoke-stack.sh con SMOKE_E2E_SPID=true):
+# aggiunge spid-saml-check come IdP demo nella rete interna dello stack.
+# Solo test: mai usato in produzione.
+#
+# - entityID http://spid-saml-check:8443/demo, endpoint SSO <entityID>/samlsso
+#   (HTTP, rete interna). spid-sp-test, con cui l'IdP demo valida in modo strict
+#   ogni AuthnRequest, accetta come Destination solo <entityID>/samlsso o
+#   l'entityID: i due devono combaciare. Il client e2e sceglie l'IdP da sé,
+#   la lista della discovery (entity https://demo.spid.gov.it) non conta.
+services:
+  spid-saml-check:
+    image: italia/spid-saml-check:v.2.2.5@sha256:d5ebdeedb6d655f2fdf2f5e280bd6145f9188bd69e88a302f9e4828aef5dd3bf
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        set -e
+        cd /spid-saml-check/src/config
+        sed -i 's#"host": *"[^"]*"#"host": "http://spid-saml-check"#' server.json
+        sed -i 's#"entityID": *"https://localhost:8443/demo"#"entityID": "http://spid-saml-check:8443/demo"#' idp_demo.json
+        exec /entrypoint.sh
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8443/demo/metadata.xml"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks:
+      - proxy-internal

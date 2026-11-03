@@ -23,6 +23,7 @@ Stato dell'allineamento alla baseline ComunicaPA
 | `ci-gate.yml` | PR, merge queue | aspetta tutti i run dello stesso SHA; unico required check |
 | `ci.yml` | PR (path), coda | pytest config-api, pip-audit, smoke Alembic su postgres |
 | `satosa-tests.yml` | PR (path), coda | test host + test plugin nel container satosa (solo coda) |
+| `spid-e2e.yml` | PR/coda se cambia codice SPID/OIDC, settimanale (`:latest`) | login SPID end-to-end con spid-saml-check locale (AuthnRequest validata strict da spid-sp-test) |
 | `docker.yml` | coda, dispatch | build 3 immagini, smoke, Trivy — senza push |
 | `security.yml` | PR, coda, main, giornaliero | dependency-review, Trivy fs (vuln/segreti/misconfig), test autofix |
 | `security-autofix.yml` | giornaliero, Security fallito su main | PR di correzione pip HIGH/CRITICAL (SPID/CIE solo revisione manuale) |
@@ -51,7 +52,8 @@ Ogni workflow: permessi minimi a livello di job, `persist-credentials: false`,
 
 ## Aperto
 
-- F8: test e2e di login SPID con spid-saml-check in container (solo su modifiche al codice SPID
-  + settimanale). Fino ad allora le librerie SPID/CIE non vanno mai in auto-merge.
+- Auto-merge delle librerie SPID: possibile solo dopo qualche settimana di `spid-e2e.yml`
+  stabile e con il job in coda; CIE resta manuale (nessun OP CIE di test locale). Variante
+  persona giuridica non ancora coperta dall'e2e.
 - Approvazioni obbligatorie in review: oggi 0 (un solo maintainer); CODEOWNERS pronto.
 - harden-runner da `audit` a `block` dopo aver raccolto gli endpoint reali.
