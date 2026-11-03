@@ -24,6 +24,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
       - name: Wait for all checks
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -10,8 +10,10 @@ Versioni precedenti non sono mantenute.
 **Non aprire una issue pubblica** per una vulnerabilità di sicurezza — potrebbe esporre il
 problema prima che sia disponibile una correzione.
 
-Segnala privatamente a:
+Segnala privatamente tramite:
 
+- **GitHub** (preferito): [Report a vulnerability](https://github.com/Provincia-di-Pescara/pa-sso-proxy/security/advisories/new)
+  (private vulnerability reporting)
 - **Email**: info@provincia.pescara.it
 - Oggetto: `[SECURITY] <breve descrizione>`
 

@@ -92,9 +92,3 @@ updates:
     open-pull-requests-limit: 10
     cooldown:
       default-days: 7
-    # init/analyze di codeql-action devono avere la stessa versione: PR separate
-    # rompono il required check "Analyze (python)" (version mismatch).
-    groups:
-      codeql-action:
-        patterns:
-          - "github/codeql-action*"
