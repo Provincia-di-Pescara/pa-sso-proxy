@@ -351,7 +351,12 @@ jobs:
             echo "$var=${IMAGE_BASE}-${img}@${d}" | tee -a "$GITHUB_ENV"
           done
 
+      # VERIFY_IMAGES=true: il servizio verify-images del compose verifica con
+      # cosign le firme appena apposte (e quelle delle :latest non ricostruite),
+      # esattamente come farà la produzione.
       - name: Smoke test stack
+        env:
+          VERIFY_IMAGES: "true"
         run: scripts/smoke-stack.sh
 
   publish:

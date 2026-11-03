@@ -106,8 +106,10 @@ jobs:
           cache-to: type=gha,mode=max,scope=satosa-test
 
       - name: Run tests inside container
+        # --user 0: l'immagine gira come uid 10001, ma qui si installano i
+        # requirement dei test nel venv (di root).
         run: |
-          docker run --rm -v "$PWD/satosa/tests:/tests" --entrypoint sh satosa-test -c \
+          docker run --rm --user 0 -v "$PWD/satosa/tests:/tests" --entrypoint sh satosa-test -c \
             ". /.venv/bin/activate && \
              pip install -q --require-hashes -r /tests/requirements-test.txt && \
              cd /satosa_proxy && \

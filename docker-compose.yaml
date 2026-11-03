@@ -1,15 +1,93 @@
+# Hardening runtime (F6, baseline ComunicaPA §8): su ogni servizio
+# no-new-privileges, cap_drop ALL, filesystem in sola lettura con tmpfs/volumi
+# espliciti. satosa, config-api e nginx girano non-root (uid 10001 / 101) senza
+# alcuna capability; postgres e redis (immagini ufficiali: partono root e
+# passano all'utente dedicato) riaggiungono solo le 5 che servono all'entrypoint.
+# Segreti obbligatori (${VAR:?}): lo stack non parte se mancano, invece di
+# girare con valori di default noti.
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  read_only: true
+
+x-official-entrypoint-caps: &official-entrypoint-caps
+  cap_add:
+    - CHOWN
+    - DAC_OVERRIDE
+    - FOWNER
+    - SETUID
+    - SETGID
+
 services:
+  # Verifica delle firme cosign prima dell'avvio (attiva con VERIFY_IMAGES=true).
+  # Firma assente o non emessa da release.yml di questo repo → satosa,
+  # config-api e nginx vengono creati ma non avviati. Variabile e non profilo:
+  # con un profilo opzionale una verifica fallita darebbe solo un warning.
+  verify-images:
+    image: ghcr.io/sigstore/cosign/cosign:v3.1.4-dev@sha256:8af1a2cf9fba903fdfc6bdafdc25f7b13ef34ad722095543ea787fb96f7240c1
+    <<: *hardening
+    restart: "no"
+    environment:
+      VERIFY_IMAGES: ${VERIFY_IMAGES:-false}
+      SATOSA_IMAGE: ${SATOSA_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-satosa:latest}
+      CONFIG_API_IMAGE: ${CONFIG_API_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-config-api:latest}
+      NGINX_IMAGE: ${NGINX_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-nginx:latest}
+      HOME: /tmp
+    tmpfs:
+      - /tmp:mode=1777
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ "$$VERIFY_IMAGES" != "true" ]; then
+          echo "VERIFY_IMAGES non attivo: verifica firme saltata"; exit 0
+        fi
+        for img in "$$SATOSA_IMAGE" "$$CONFIG_API_IMAGE" "$$NGINX_IMAGE"; do
+          echo "verifica $$img"
+          cosign verify "$$img" \
+            --certificate-identity-regexp '^https://github.com/Provincia-di-Pescara/pa-sso-proxy/\.github/workflows/release\.yml@refs/(tags/v.*|heads/main)$$' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+        done
+        echo "firme verificate"
+
+  # One-shot: rende il volume condiviso /satosa-conf (e i file scritti come root
+  # dalle versioni precedenti) dell'uid 10001 con cui girano satosa e config-api.
+  # Unico servizio applicativo con root, solo per il chown, senza rete.
+  init-perms:
+    image: ${CONFIG_API_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-config-api:latest}
+    <<: *hardening
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    user: "0:0"
+    restart: "no"
+    network_mode: none
+    depends_on:
+      verify-images:
+        condition: service_completed_successfully
+    entrypoint: ["sh", "-c", "chown -R 10001:10001 /satosa-conf"]
+    volumes:
+      - proxy_satosa_conf:/satosa-conf
+
   postgres:
     image: postgres:18@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
+    <<: [*hardening, *official-entrypoint-caps]
     restart: unless-stopped
     environment:
       POSTGRES_DB: proxy
       POSTGRES_USER: proxy
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD obbligatoria}
     volumes:
       # PG18+: dati in /var/lib/postgresql/18/docker, mount sulla directory padre
       # (l'immagine rifiuta di partire con il vecchio mount /var/lib/postgresql/data).
       - proxy_db_data_pg18:/var/lib/postgresql
+    tmpfs:
+      - /var/run/postgresql:mode=1777
+      - /tmp:mode=1777
     networks:
       - proxy-internal
     healthcheck:
@@ -23,7 +101,12 @@ services:
     # porterebbe in produzione una nuova major senza PR né test. Le major arrivano
     # come PR dependabot in revisione manuale.
     image: redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
+    <<: [*hardening, *official-entrypoint-caps]
     restart: unless-stopped
+    # Nessuna persistenza (stato di sessione CIE OIDC): /data in tmpfs.
+    tmpfs:
+      - /data:mode=1777
+      - /tmp:mode=1777
     networks:
       - proxy-internal
     healthcheck:
@@ -34,15 +117,18 @@ services:
 
   satosa:
     image: ${SATOSA_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-satosa:latest}
+    <<: *hardening
     restart: unless-stopped
     depends_on:
+      init-perms:
+        condition: service_completed_successfully
       config-api:
         condition: service_healthy
       redis:
         condition: service_healthy
     environment:
       - SATOSA_CONFIG=/satosa-conf/proxy.yaml
-      - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
+      - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:?SATOSA_HASH_SALT obbligatoria}
       - REDIS_URL=redis://redis:6379/0
       - CF_HASH_KEY=${CF_HASH_KEY:-}
       - SENTRY_DSN=${SENTRY_DSN:-}
@@ -50,6 +136,8 @@ services:
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     volumes:
       - proxy_satosa_conf:/satosa-conf
+    tmpfs:
+      - /tmp:mode=1777
     networks:
       - proxy-internal
     healthcheck:
@@ -61,23 +149,26 @@ services:
 
   config-api:
     image: ${CONFIG_API_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-config-api:latest}
+    <<: *hardening
     restart: unless-stopped
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     depends_on:
+      init-perms:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql+asyncpg://proxy:${POSTGRES_PASSWORD}@postgres:5432/proxy
-      - ADMIN_USER=${ADMIN_USER}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - SESSION_SECRET=${SESSION_SECRET:-changeme-generate-random-32chars}
+      - DATABASE_URL=postgresql+asyncpg://proxy:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD obbligatoria}@postgres:5432/proxy
+      - ADMIN_USER=${ADMIN_USER:?ADMIN_USER obbligatoria}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD obbligatoria}
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET obbligatoria}
       - SESSION_MAX_AGE=${SESSION_MAX_AGE:-1800}
       - ADMIN_2FA_ENABLED=${ADMIN_2FA_ENABLED:-true}
       - ADMIN_2FA_RESET=${ADMIN_2FA_RESET:-false}
-      - PROXY_HOSTNAME=${PROXY_HOSTNAME}
+      - PROXY_HOSTNAME=${PROXY_HOSTNAME:?PROXY_HOSTNAME obbligatoria}
       - SATOSA_CONF_DIR=/satosa-conf
-      - SATOSA_STATE_ENCRYPTION_KEY=${SATOSA_STATE_ENCRYPTION_KEY:-changeme-generate-random-state-key-32chars}
-      - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:-changeme-generate-random-32chars}
+      - SATOSA_STATE_ENCRYPTION_KEY=${SATOSA_STATE_ENCRYPTION_KEY:?SATOSA_STATE_ENCRYPTION_KEY obbligatoria}
+      - SATOSA_HASH_SALT=${SATOSA_HASH_SALT:?SATOSA_HASH_SALT obbligatoria}
       - SATOSA_LOG_LEVEL=${SATOSA_LOG_LEVEL:-INFO}
       - PROXY_BASE_URL=${PROXY_BASE_URL:-}
       - CF_HASH_KEY=${CF_HASH_KEY:-}
@@ -87,6 +178,8 @@ services:
 
     volumes:
       - proxy_satosa_conf:/satosa-conf
+    tmpfs:
+      - /tmp:mode=1777
     networks:
       - proxy-internal
     healthcheck:
@@ -98,6 +191,7 @@ services:
 
   nginx:
     image: ${NGINX_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-nginx:latest}
+    <<: *hardening
     restart: unless-stopped
     depends_on:
       config-api:
@@ -110,12 +204,18 @@ services:
       satosa:
         condition: service_started
     ports:
-      - "${PROXY_HOST_PORT:-127.0.0.1:18080}:80"
+      # nginx-unprivileged ascolta su 8080 nel container.
+      - "${PROXY_HOST_PORT:-127.0.0.1:18080}:8080"
+    # Config generata dal template (envsubst) in /etc/nginx/conf.d: tmpfs.
+    tmpfs:
+      - /tmp:mode=1777
+      - /var/cache/nginx:mode=1777
+      - /etc/nginx/conf.d:mode=1777
     # Verifica entrambi gli upstream PASSANDO da nginx: un 502 verso config-api
     # o satosa rende nginx unhealthy (visibile in `compose ps` / monitoraggio).
     # Nessun servizio dipende da nginx healthy → nessun rischio di deadlock.
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health && wget -q -O /dev/null http://127.0.0.1/.well-known/openid-configuration"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health && wget -q -O /dev/null http://127.0.0.1:8080/.well-known/openid-configuration"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -16,7 +16,7 @@ cd config-api && pytest tests/test_satosa_config_generator.py -v  # singolo file
 cd config-api && pytest tests/test_eidas.py::test_name -v         # singolo test
 ```
 
-`docker compose port nginx 80` per trovare la porta host esposta (es. `18080`) quando serve `curl`/testare form admin dal terminale — config-api non è esposto direttamente sull'host, solo dietro nginx.
+`docker compose port nginx 8080` (nginx-unprivileged, porta interna 8080) per trovare la porta host esposta (es. `18080`) quando serve `curl`/testare form admin dal terminale — config-api non è esposto direttamente sull'host, solo dietro nginx.
 
 Test flussi SATOSA via script su `http://localhost:<porta>`: il cookie `satosa_state` è `Secure; SameSite=None`, quindi httpx/curl non lo rimandano su http → SATOSA perde lo stato (scope, client) e il comportamento sembra sbagliato. Estrai `satosa_state=...` dal `Set-Cookie` della `/OIDC/authorization` e passalo a mano come header `Cookie`.
 
@@ -249,6 +249,17 @@ Su Windows/Git Bash, `-v "$PWD/...":...` nel `docker run` non risolve il path �
 **Dipendenze pip = file `.in` + lock con hash** (F3): si modificano SOLO i `.in` (`config-api/requirements.in` runtime, `requirements-dev.in` = runtime + test vincolato con `-c requirements.txt`, `satosa/requirements-runtime.in`, `satosa/tests/requirements-test.in`), poi `scripts/compile-requirements.sh` rigenera i `.txt` (pip-compile `--generate-hashes`, dirette + transitive). Lo script compila **dentro container Linux** con la Python di produzione (3.14 config-api, 3.12 satosa = venv upstream): compilare su Windows sbaglia i marker (es. `uvloop` sparisce). Install ovunque con `--require-hashes` (Dockerfile anche `--no-deps` + `pip check`; satosa: `pip check` dopo le rimozioni dal venv upstream, fallisce la build se un pacchetto tenuto perde una dipendenza). Dependabot riconosce l'header pip-compile e aggiorna `.in` + `.txt` insieme. `pip-audit --require-hashes --disable-pip` su dev config-api, test e runtime satosa.
 
 **Parsing XML da input non fidato (upload admin, ecc.)**: usare sempre `defusedxml.ElementTree`, mai `xml.etree.ElementTree` stdlib (XXE/billion-laughs anche da utente autenticato). Dipendenza già in `config-api/requirements.txt`.
+
+### Hardening runtime (F6)
+`docker-compose.yaml`: su TUTTI i servizi `no-new-privileges`, `cap_drop: ALL`, `read_only: true` (anchor `x-hardening`). satosa e config-api girano come **uid 10001** (`USER` nei Dockerfile), nginx = `nginxinc/nginx-unprivileged` (uid 101, **porta 8080** nel container; il template ascolta su 8080, compose mappa `${PROXY_HOST_PORT}:8080`): nessuna capability. postgres/redis (ufficiali, partono root) riaggiungono solo `CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID`. Scritture solo su volumi e tmpfs dichiarati; **i tmpfs vanno montati con `:mode=1777`** (senza, root 755 → nginx "conf.d is not writable", app non-root senza /tmp). redis senza persistenza: `/data` in tmpfs.
+
+Servizio one-shot **`init-perms`** (immagine config-api, `user: 0`, solo `CHOWN/DAC_OVERRIDE/FOWNER`, `network_mode: none`): `chown -R 10001:10001 /satosa-conf` a ogni avvio — sistema i file scritti come root dalle versioni precedenti (chiave SPID 600 inclusa); satosa e config-api dipendono da lui (`service_completed_successfully`). Senza, l'upgrade su un volume esistente rompe le scritture.
+
+Servizio one-shot **`verify-images`** (cosign `-dev`, ha la shell): con `VERIFY_IMAGES=true` verifica le firme keyless di `SATOSA_IMAGE`/`CONFIG_API_IMAGE`/`NGINX_IMAGE` (identità `release.yml@refs/(tags/v.*|heads/main)`); fallita → app create ma non avviate. Variabile, non profilo. Default `false` (immagini locali non firmate); lo smoke di `release.yml` la mette a `true`.
+
+**Segreti obbligatori** con `${VAR:?}`: `POSTGRES_PASSWORD`, `ADMIN_USER`, `ADMIN_PASSWORD`, `SESSION_SECRET`, `SATOSA_HASH_SALT`, `SATOSA_STATE_ENCRYPTION_KEY`, `PROXY_HOSTNAME` — prima i default `changeme-…` facevano partire lo stack con chiavi note. Uno stack Portainer senza una di queste variabili NON si avvia più.
+
+Debug in container non-root: `docker compose exec -u 0 <servizio> sh` se serve root; i test plugin nel container satosa girano con `--user 0` (installano nel venv).
 
 ### Disaster recovery (volumi/container azzerati)
 Procedura testata end-to-end (volumi DB/`proxy_satosa_conf` distrutti con `docker compose down -v`, rebuild, restore): `docker compose up -d` → login WebUI → `POST /admin/backup/import` con l'ultimo bundle JSON → **nessun accesso console necessario**, `satosa` si auto-guarisce entro ~1-2 minuti (crash iniziale su cert mancante → `restart: unless-stopped` lo rilancia → al riavvio trova cert/chiavi già scritti dal restore).

@@ -13,7 +13,8 @@
 resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
 
 server {
-    listen 80;
+    # nginx-unprivileged: niente porte < 1024 senza root.
+    listen 8080;
 
     # Senza URI nella variabile, proxy_pass inoltra la request URI originale
     # (stesso comportamento del vecchio proxy_pass con hostname fisso).

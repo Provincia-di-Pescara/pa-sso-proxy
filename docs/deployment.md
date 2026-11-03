@@ -47,6 +47,19 @@ da console e riattiva il 2FA.
 Il TOTP **non** è incluso nel backup JSON: dopo un ripristino su DB nuovo il 2FA va riattivato
 al primo login.
 
+## Variabili obbligatorie e hardening
+
+Il compose rifiuta di partire se manca una di: `POSTGRES_PASSWORD`, `ADMIN_USER`,
+`ADMIN_PASSWORD`, `SESSION_SECRET`, `SATOSA_HASH_SALT`, `SATOSA_STATE_ENCRYPTION_KEY`,
+`PROXY_HOSTNAME` (nessun default insicuro). **Prima di aggiornare uno stack esistente
+verificare che siano tutte impostate** nelle variabili dello stack Portainer.
+Non cambiare `SATOSA_HASH_SALT` su un'istanza esistente: cambia gli hash dei codici
+fiscali nel log accessi e il secret del client `__spid_verifica__`.
+
+I container girano non-root, senza capability e con filesystem in sola lettura; il
+servizio one-shot `init-perms` sistema i permessi del volume `proxy_satosa_conf` a ogni
+avvio. Con `VERIFY_IMAGES=true` le immagini partono solo se la firma cosign è valida.
+
 ## Immagini: verifica e rollback
 
 Le immagini su GHCR le pubblica solo `release.yml`: ogni digest taggato è stato
