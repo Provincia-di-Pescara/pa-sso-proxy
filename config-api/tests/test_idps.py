@@ -245,3 +245,18 @@ async def test_idps_page_shows_eidas_and_legal_entity_sections(auth_client, db_s
     assert 'id="persona-giuridica"' in response.text
     assert "Integrazione eIDAS" in response.text
     assert "Accesso SPID persona giuridica" in response.text
+
+
+@pytest.mark.parametrize("entity_id", ["", "..", ".", "javascript:alert(1)", "https://", "https://a b", "x" * 2000])
+async def test_registry_detail_rejects_invalid_entity_id(entity_id):
+    from app.routes import idps
+    with patch("app.routes.idps.httpx.AsyncClient") as client_cls:
+        result = await idps._fetch_spid_registry_idp_detail(entity_id)
+    assert result["ok"] is False
+    client_cls.assert_not_called()
+
+
+def test_registry_detail_accepts_entity_id_urls():
+    from app.routes import idps
+    assert idps._valid_registry_entity_id("https://identity.sieltecloud.it")
+    assert idps._valid_registry_entity_id("https://loginspid.aruba.it/../x")
