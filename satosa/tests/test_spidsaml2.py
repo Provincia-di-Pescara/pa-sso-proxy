@@ -344,13 +344,15 @@ class _LangCtx(_FakeContext):
 
 
 def _render_backend(tmp_path):
-    from jinja2 import Environment, FileSystemLoader
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
     (tmp_path / "e.html").write_text(
         "{{ lang }}|{{ message }}|{{ troubleshoot }}|{{ detail }}|{{ t('error.button.retry') }}",
         encoding="utf-8",
     )
     backend = MagicMock()
-    backend.error_page = Environment(loader=FileSystemLoader(str(tmp_path))).get_template("e.html")
+    backend.error_page = Environment(
+        loader=FileSystemLoader(str(tmp_path)), autoescape=select_autoescape(["html"])
+    ).get_template("e.html")
     return backend
 
 
@@ -364,13 +366,14 @@ def test_handle_error_renders_page_in_browser_language(tmp_path):
     resp = spidsaml2.SpidSAMLBackend.handle_error(
         backend, **spidsaml2.SPID_ANOMALIES[19], lang_context=ctx, detail="nr19"
     )
+    from markupsafe import escape
     lang, message, troubleshoot, detail, retry = _body(resp).split("|")
     assert lang == "de"
-    assert message == spidsaml2.i18n.t("de", "error.spid.19")
-    assert troubleshoot == spidsaml2.i18n.t("de", "error.spid.19.troubleshoot")
+    assert message == str(escape(spidsaml2.i18n.t("de", "error.spid.19")))
+    assert troubleshoot == str(escape(spidsaml2.i18n.t("de", "error.spid.19.troubleshoot")))
     assert detail == "nr19"
-    assert retry == spidsaml2.i18n.t("de", "error.button.retry")
-    assert message != spidsaml2.i18n.t("it", "error.spid.19")
+    assert retry == str(escape(spidsaml2.i18n.t("de", "error.button.retry")))
+    assert message != str(escape(spidsaml2.i18n.t("it", "error.spid.19")))
     assert resp.status.startswith("403")
 
 

@@ -1,7 +1,7 @@
 import asyncio
 import os
 from datetime import datetime, timezone
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, Request
@@ -89,7 +89,30 @@ async def _fetch_spid_registry_idps() -> dict:
         }
 
 
+def _valid_registry_entity_id(entity_id: str) -> bool:
+    """entityID SPID = URL http(s) assoluto. Finisce nel path di una richiesta
+    verso il registro AgID: niente segmenti '.'/'..', spazi o caratteri di
+    controllo che porterebbero la richiesta su un altro path del registro."""
+    if not entity_id or len(entity_id) > 1024:
+        return False
+    if any(c.isspace() or ord(c) < 32 for c in entity_id):
+        return False
+    try:
+        parts = urlsplit(entity_id)
+    except ValueError:
+        return False
+    return parts.scheme in ("http", "https") and bool(parts.hostname)
+
+
 async def _fetch_spid_registry_idp_detail(entity_id: str) -> dict:
+    if not _valid_registry_entity_id(entity_id):
+        return {
+            "request_url": "",
+            "ok": False,
+            "error": "entityID non valido",
+            "headers": {},
+            "detail": {},
+        }
     encoded_entity_id = quote(entity_id, safe="")
     request_url = SPID_REGISTRY_API_DETAIL_URL.format(entity_id=encoded_entity_id)
     try:
