@@ -408,5 +408,14 @@ jobs:
             v="${REF_NAME#v}"
             tags+=(-t "$IMG:$v" -t "$IMG:${v%.*}")
           fi
-          docker buildx imagetools create "${tags[@]}" "$IMG@$digest"
+          # --prefer-index=false: copia identica del manifest. Di default, con
+          # una sola sorgente, imagetools crea un index NUOVO (digest diverso):
+          # :latest finirebbe su un digest senza firma cosign né attestazioni
+          # e verify-images in produzione fallirebbe ("no signatures found").
+          docker buildx imagetools create --prefer-index=false "${tags[@]}" "$IMG@$digest"
+          for t in "${tags[@]}"; do
+            [ "$t" = "-t" ] && continue
+            got="$(docker buildx imagetools inspect "$t" --format '{{json .Manifest}}' | jq -r .digest)"
+            [ "$got" = "$digest" ] || { echo "::error::$t punta a $got, non al digest firmato $digest"; exit 1; }
+          done
           printf '%s\n' "${tags[@]}" | grep -v '^-t$' | sed "s|^|$NAME → |" >> "$GITHUB_STEP_SUMMARY"
