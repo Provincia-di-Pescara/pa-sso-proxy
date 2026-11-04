@@ -57,8 +57,8 @@ Non cambiare `SATOSA_HASH_SALT` su un'istanza esistente: cambia gli hash dei cod
 fiscali nel log accessi e il secret del client `__spid_verifica__`.
 
 I container girano non-root, senza capability e con filesystem in sola lettura; il
-servizio one-shot `init-perms` sistema i permessi del volume `proxy_satosa_conf` a ogni
-avvio. Con `VERIFY_IMAGES=true` le immagini partono solo se la firma cosign è valida.
+volume `proxy_satosa_conf` appartiene all'uid 10001 di satosa e config-api (impostato
+dalle immagini alla creazione del volume). Con `VERIFY_IMAGES=true` le immagini partono solo se la firma cosign è valida.
 
 ## Immagini: verifica e rollback
 

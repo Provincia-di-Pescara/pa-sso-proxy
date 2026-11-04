@@ -24,9 +24,10 @@ RUN pip install --no-cache-dir --require-hashes --no-deps -r requirements.txt \
 
 COPY . .
 
-# Runtime non-root, stesso uid di satosa: entrambi scrivono su /satosa-conf
-# (permessi sistemati dal servizio one-shot init-perms del compose).
-RUN groupadd -r -g 10001 sso && useradd -r -u 10001 -g sso -M -d /app -s /usr/sbin/nologin sso
+# Runtime non-root, stesso uid di satosa: entrambi scrivono su /satosa-conf.
+# Un volume nominato vuoto prende proprietario e permessi della directory
+# dell'immagine al primo mount (Docker e Podman).
+RUN groupadd -r -g 10001 sso && useradd -r -u 10001 -g sso -M -d /app -s /usr/sbin/nologin sso     && mkdir -p /satosa-conf && chown 10001:10001 /satosa-conf
 USER 10001:10001
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
