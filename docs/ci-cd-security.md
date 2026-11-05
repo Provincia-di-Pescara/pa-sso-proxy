@@ -24,7 +24,7 @@ Stato dell'allineamento alla baseline ComunicaPA
 | `ci.yml` | PR (path), coda | pytest config-api, pip-audit, smoke Alembic su postgres |
 | `satosa-tests.yml` | PR (path), coda | test host + test plugin nel container satosa (solo coda) |
 | `spid-e2e.yml` | PR/coda se cambia codice SPID/OIDC, settimanale (`:latest`) | login SPID end-to-end con spid-saml-check locale (AuthnRequest validata strict da spid-sp-test) |
-| `docker.yml` | coda, dispatch | build 3 immagini, smoke, Trivy — senza push |
+| `docker.yml` | coda, dispatch | build 3 immagini, smoke, Trivy (soglia assoluta + differenziale vs `:latest`, `scripts/trivy-diff.sh`) — senza push |
 | `security.yml` | PR, coda, main, giornaliero | dependency-review, Trivy fs (vuln/segreti/misconfig), test autofix |
 | `security-autofix.yml` | giornaliero, Security fallito su main | PR di correzione pip HIGH/CRITICAL (SPID/CIE solo revisione manuale) |
 | `release.yml` | tag `v*`, giornaliero 03:30 UTC, dispatch | rebuild condizionato, push per digest, Trivy differenziale, SBOM, attestazioni, firma cosign, smoke stack, tag `latest` |

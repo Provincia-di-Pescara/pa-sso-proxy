@@ -29,12 +29,11 @@ jobs:
       matrix:
         include:
           - image: satosa
-            # Dipendenze Python nel venv del fork upstream (iam-proxy-italia
-            # v3.3, ultima release disponibile) portano vulnerabilita' HIGH
-            # non ancora patchate a monte - blocchiamo solo su CRITICAL per
-            # non tenere l'immagine rossa in permanenza per un problema che
-            # non controlliamo. Le regressioni HIGH le blocca release.yml
-            # (Trivy differenziale rispetto a :latest).
+            # Dipendenze Python nel venv del fork upstream (iam-proxy-italia)
+            # portano vulnerabilita' HIGH non ancora patchate a monte - soglia
+            # assoluta solo CRITICAL per non tenere l'immagine rossa in
+            # permanenza per un problema che non controlliamo. Le regressioni
+            # HIGH le blocca lo step differenziale rispetto a :latest.
             trivy-severity: "CRITICAL"
             # Smoke: i backend si importano con il venv effettivo dell'immagine.
             smoke: >-
@@ -96,3 +95,14 @@ jobs:
           ignore-unfixed: true
         env:
           TRIVY_IGNOREFILE: .trivyignore.yaml
+
+      # Stesso controllo differenziale di release.yml: una HIGH/CRITICAL con
+      # fix assente in :latest (la produzione) blocca il merge, invece di
+      # fermare la release dopo il tag (successo con v0.10.0: tag protetto
+      # rimasto senza immagini). trivy è su PATH dallo step precedente.
+      - name: Trivy differenziale vs :latest
+        env:
+          OLD: ghcr.io/provincia-di-pescara/pa-sso-proxy-${{ matrix.image }}:latest
+          NAME: ${{ matrix.image }}
+          TRIVY_IGNOREFILE: .trivyignore.yaml
+        run: scripts/trivy-diff.sh "$IMAGE" "$OLD" "$NAME"
