@@ -53,26 +53,6 @@ services:
         done
         echo "firme verificate"
 
-  # One-shot: rende il volume condiviso /satosa-conf (e i file scritti come root
-  # dalle versioni precedenti) dell'uid 10001 con cui girano satosa e config-api.
-  # Unico servizio applicativo con root, solo per il chown, senza rete.
-  init-perms:
-    image: ${CONFIG_API_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-config-api:latest}
-    <<: *hardening
-    cap_add:
-      - CHOWN
-      - DAC_OVERRIDE
-      - FOWNER
-    user: "0:0"
-    restart: "no"
-    network_mode: none
-    depends_on:
-      verify-images:
-        condition: service_completed_successfully
-    entrypoint: ["sh", "-c", "chown -R 10001:10001 /satosa-conf"]
-    volumes:
-      - proxy_satosa_conf:/satosa-conf
-
   postgres:
     image: postgres:18@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
     <<: [*hardening, *official-entrypoint-caps]
@@ -120,7 +100,7 @@ services:
     <<: *hardening
     restart: unless-stopped
     depends_on:
-      init-perms:
+      verify-images:
         condition: service_completed_successfully
       config-api:
         condition: service_healthy
@@ -153,7 +133,7 @@ services:
     restart: unless-stopped
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     depends_on:
-      init-perms:
+      verify-images:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy

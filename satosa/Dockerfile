@@ -83,10 +83,11 @@ COPY public/templates/           /satosa_proxy/templates/
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh \
-    && addgroup -S -g 10001 sso && adduser -S -D -H -u 10001 -G sso sso
+    && addgroup -S -g 10001 sso && adduser -S -D -H -u 10001 -G sso sso     && mkdir -p /satosa-conf && chown 10001:10001 /satosa-conf
 
-# Runtime non-root. /satosa-conf (volume condiviso con config-api, stesso uid)
-# lo rende scrivibile il servizio one-shot init-perms del compose.
+# Runtime non-root. /satosa-conf (volume condiviso con config-api, stesso uid):
+# un volume nominato vuoto prende proprietario e permessi della directory
+# dell'immagine al primo mount (Docker e Podman).
 USER 10001:10001
 
 EXPOSE 8080
