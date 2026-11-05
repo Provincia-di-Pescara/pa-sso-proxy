@@ -50,7 +50,27 @@ jobs:
       - name: Harden runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            auth.docker.io:443
+            deb.debian.org:443
+            deb.debian.org:80
+            demo.spid.gov.it:443
+            dl-cdn.alpinelinux.org:443
+            docker-images-prod.s3.dualstack.us-east-1.amazonaws.com:443
+            files.pythonhosted.org:443
+            ghcr.io:443
+            github.com:443
+            pkg-containers.githubusercontent.com:443
+            production.cloudfront.docker.com:443
+            pypi.org:443
+            registry-1.docker.io:443
+            registry.spid.gov.it:443
+            release-assets.githubusercontent.com:443
+            sp-proxy.eid.gov.it:443
+            sp-proxy.pre.eid.gov.it:443
+            validator.spid.gov.it:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
