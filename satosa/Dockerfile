@@ -38,7 +38,10 @@ RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
 # Lista = pacchetti non raggiungibili dalle radici (satosa, pyeudiw, redis,
 # sentry-sdk, uwsgi) né importati da /satosa_proxy o satosa/plugins.
 # device-detector/regex restano: pyeudiw/tools/mobile.py li importa.
-# pip resta: la CI installa i requirement dei test dentro l'immagine.
+# pip rimosso per ultimo (dopo pip check): da 26.3 Trivy segnala il
+# pkg_resources vendorizzato (setuptools 70.3.0, CVE-2025-47273, codice non
+# vendorizzato) senza percorso, quindi non ignorabile per path. La CI dei test
+# lo reinstalla nel container con `python -m ensurepip`.
 # Lock con hash (requirements-runtime.txt, da .in): --no-deps perché il resto
 # del venv viene dall'immagine upstream; pip check alla fine verifica che le
 # versioni fissate e le rimozioni non rompano le dipendenze dei pacchetti tenuti.
@@ -56,7 +59,8 @@ RUN . /.venv/bin/activate && pip install --require-hashes --no-deps -r /tmp/requ
         pycodestyle pyflakes pygments pyproject_hooks pyrepl python-discovery \
         rapidfuzz requests-toolbelt responses secretstorage setuptools \
         shellingham tomlkit trove-classifiers userpath virtualenv zstandard \
-    && pip check
+    && pip check \
+    && python -m pip uninstall -y --quiet pip
 
 # Sentry WSGI wrapper
 COPY wsgi_sentry.py /satosa_proxy/wsgi_sentry.py

@@ -107,10 +107,12 @@ jobs:
 
       - name: Run tests inside container
         # --user 0: l'immagine gira come uid 10001, ma qui si installano i
-        # requirement dei test nel venv (di root).
+        # requirement dei test nel venv (di root). pip non è nell'immagine
+        # (vedi satosa/Dockerfile): ensurepip lo reinstalla dalla wheel di sistema.
         run: |
           docker run --rm --user 0 -v "$PWD/satosa/tests:/tests" --entrypoint sh satosa-test -c \
             ". /.venv/bin/activate && \
-             pip install -q --require-hashes -r /tests/requirements-test.txt && \
+             python -m ensurepip > /dev/null && \
+             python -m pip install -q --require-hashes -r /tests/requirements-test.txt && \
              cd /satosa_proxy && \
              PYTHONPATH=/satosa_proxy pytest /tests -q --ignore=/tests/test_redis_storage.py"
