@@ -231,27 +231,9 @@ jobs:
           TRIVY_IGNOREFILE: .trivyignore.yaml
         run: |
           set -euo pipefail
-          scan() { trivy image --quiet --severity HIGH,CRITICAL --ignore-unfixed --format json "$1"; }
-          ids() { jq -r '[.Results[]?.Vulnerabilities[]? | "\(.VulnerabilityID) \(.PkgName) \(.Severity)"] | unique[]' "$1"; }
-          scan "$NEW" > new.json
-          ids new.json > new.txt
-          if docker buildx imagetools inspect "$OLD" >/dev/null 2>&1; then
-            scan "$OLD" > old.json
-            ids old.json > old.txt
-          else
-            echo "::warning::$OLD non esiste: nessun confronto possibile"
-            : > old.txt
-          fi
-          comm -23 <(sort new.txt) <(sort old.txt) > regressions.txt
-          {
-            echo "### Trivy $NAME"
-            echo "HIGH/CRITICAL con fix: nuova $(wc -l < new.txt), latest $(wc -l < old.txt), regressioni $(wc -l < regressions.txt)"
-            if [ -s new.txt ]; then echo '```'; cat new.txt; echo '```'; fi
-          } >> "$GITHUB_STEP_SUMMARY"
           status=0
-          if [ -s regressions.txt ]; then
-            echo "::error::Regressioni rispetto a :latest:"; cat regressions.txt; status=1
-          fi
+          # Stesso controllo della merge queue (docker.yml).
+          scripts/trivy-diff.sh "$NEW" "$OLD" "$NAME" || status=1
           if [ "$IS_TAG" = "true" ]; then
             sev="CRITICAL,HIGH"; [ "$NAME" = "satosa" ] && sev="CRITICAL"
             if ! trivy image --quiet --severity "$sev" --ignore-unfixed --exit-code 1 --format table "$NEW"; then
