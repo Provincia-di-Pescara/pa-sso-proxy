@@ -1,7 +1,7 @@
 # Digest fisso: aggiornato da dependabot con una PR (revisione manuale, vedi
 # dependabot-automerge.yml). Deve corrispondere a IAM_PROXY_REF qui sotto:
 # venv dell'immagine e codice clonato vengono dalla stessa release upstream.
-FROM ghcr.io/italia/iam-proxy-italia:latest@sha256:48ffe2a3654737f6ccbb13ff3458cb6291cab3ebe484f06ed811f7fad6929af7
+FROM ghcr.io/italia/iam-proxy-italia:latest@sha256:aa3660abdad8ddb715fedc4abfda8a66133cec48e8c0c1886a5b83728edce572
 
 USER root
 
@@ -21,7 +21,7 @@ RUN echo "pkg refresh: ${PKG_REFRESH}" && apk update && apk upgrade --no-cache
 RUN apk add --no-cache git
 
 # Non visto da dependabot: upstream-check.yml apre una issue a ogni nuova release.
-ARG IAM_PROXY_REF=v3.3
+ARG IAM_PROXY_REF=v3.4.0
 RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
         https://github.com/italia/iam-proxy-italia.git /tmp/upstream \
     && cp -r /tmp/upstream/iam-proxy-italia-project/. /satosa_proxy/ \
@@ -48,7 +48,7 @@ RUN . /.venv/bin/activate && pip install --require-hashes --no-deps -r /tmp/requ
         pillow \
         poetry poetry-core pipx flake8 pdbpp \
         satosa-oidcop idpyoidc \
-        httpx httpcore h11 anyio \
+        httpx httpcore httpx2 httpcore2 truststore h11 anyio backports.zstd \
         argcomplete beautifulsoup4 soupsieve build cachecontrol cleo crashtest \
         distlib dulwich fancycompleter fastjsonschema filelock findpython \
         installer jaraco.classes jaraco.context jaraco.functools jeepney keyring \

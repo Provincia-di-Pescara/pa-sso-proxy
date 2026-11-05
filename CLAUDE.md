@@ -234,7 +234,7 @@ Pagina pubblica (no login admin) per validazione AgID. Gate: 404 se nessun IdP c
 Selettore persona fisica/giuridica su `/verifica` visibile solo con `legal_entity_enabled`: `subject=pg` aggiunge scope `legal_entity` + claim aziendali richiesti; il generatore dà lo scope `legal_entity` a `__spid_verifica__` solo in quel caso (senza ACS 4 nel metadata il login PG fallirebbe). `subject=pg` con persona giuridica disattivata → ricade silenziosamente su persona fisica.
 
 ### Test satosa/plugins/
-`satosa`/`pysaml2` da PyPI sono pacchetti sbagliati: il Dockerfile usa fork pinnati (`peppelinux/pysaml2`, `peppelinux/SATOSA`) via immagine base `ghcr.io/italia/iam-proxy-italia:latest`. `pyeudiw` ha un bug di packaging upstream (sottopacchetti `federation`/`trust`/ecc. assenti dal pacchetto installato). I file in `satosa/plugins/` sono override (`COPY` nel Dockerfile) sopra l'albero upstream clonato a build-time — non moduli autosufficienti.
+`satosa`/`pysaml2` da PyPI sono pacchetti sbagliati: il Dockerfile usa il venv dell'immagine base `ghcr.io/italia/iam-proxy-italia:latest` (da v3.4.0: fork `peppelinux/pysaml2` + `SATOSA` 8.5.1 da PyPI; fino a v3.3 anche SATOSA era il fork `peppelinux/SATOSA`). `pyeudiw` ha un bug di packaging upstream (sottopacchetti `federation`/`trust`/ecc. assenti dal pacchetto installato). I file in `satosa/plugins/` sono override (`COPY` nel Dockerfile) sopra l'albero upstream clonato a build-time — non moduli autosufficienti.
 
 Unico modo per testarli davvero: build dell'immagine satosa e pytest dentro il container (`docker build -t satosa-test -f satosa/Dockerfile satosa/`, poi `docker run --entrypoint sh satosa-test -c "... PYTHONPATH=/satosa_proxy pytest ..."`, import tipo `from backends.spidsaml2 import ...`). Vedi `.github/workflows/satosa-tests.yml` job `test-satosa-plugins-docker`.
 
@@ -297,7 +297,7 @@ Test locale dello stack con `-p <nome>` separato: l'immagine GHCR `:latest` in c
 ### CI/CD
 `docker/metadata-action` con `tags:` custom deve includere `type=ref,event=pr`, altrimenti su evento PR i tag sono vuoti (rompe step che dipendono da `steps.meta.outputs.tags`, es. scan Trivy).
 
-Trivy su immagine satosa: gate ristretto a `CRITICAL` (non `HIGH`) — il venv del fork upstream (`iam-proxy-italia` v3.3, ultima release) porta CVE HIGH non ancora patchate a monte, non risolvibili da questo repo. config-api/nginx restano bloccanti su HIGH+CRITICAL. Un CVE CRITICAL reale su dipendenza transitiva (es. `anyio`) va fissato forzando bump esplicito nella riga `pip install` del Dockerfile satosa (stesso pattern usato per `redis`/`sentry-sdk`), non ignorato in `.trivyignore`.
+Trivy su immagine satosa: gate ristretto a `CRITICAL` (non `HIGH`) — il venv del fork upstream (`iam-proxy-italia`) porta CVE HIGH non ancora patchate a monte, non risolvibili da questo repo. config-api/nginx restano bloccanti su HIGH+CRITICAL. Un CVE CRITICAL reale su dipendenza transitiva (es. `anyio`) va fissato forzando bump esplicito nella riga `pip install` del Dockerfile satosa (stesso pattern usato per `redis`/`sentry-sdk`), non ignorato in `.trivyignore`.
 
 **Piano di allineamento alla baseline ComunicaPA**: `docs/superpowers/specs/2026-11-03-ci-cd-security-baseline-design.md` (fasi F0–F8, decisioni, rischi). Leggerla prima di toccare workflow, ruleset o impostazioni repo.
 
