@@ -17,7 +17,7 @@ from ..utils.helpers.configuration_utils import ConfigurationPlugin
 from ..utils.clients.oauth2 import OAuth2AuthorizationCodeGrant
 from ..utils.clients.oidc import OidcUserInfo
 from ..storage.db_engine import OidcDbEngine
-from ..models.oidc_auth import OidcAuthentication
+from ..models.oidc_auth import OidcAuthentication, authorization_already_used
 from ..models.user import OidcUser
 from ..utils.exceptions import StorageUnreachable
 from ..utils.helpers.misc import get_jwks, get_jwk_from_jwt, process_user_attributes
@@ -137,13 +137,18 @@ class AuthorizationCallBackHandler(BaseEndpoint):
             return self._handle_lost_state(context)
 
         state: str = context.qs_params.get("state")
-        authorization = self.__get_authorization(state)
+        # Sessione monouso: consumata PRIMA di riscattare il code, così un
+        # callback ripetuto (URL trapelato, replay) non apre un'altra sessione
+        # sul client OIDC anche se l'OP accettasse ancora il code.
+        authorization = self.__consume_authorization(state)
 
         if not authorization:
+            existing = self.__get_authorization(state) or {}
+            if existing and authorization_already_used(existing):
+                logger.warning("CIE callback replay: authorization already used")
+                raise SATOSAAuthenticationError(context.state, "Authorization already used")
             logger.debug("Authorization empty")
             raise SATOSAAuthenticationError(context.state, "Authorization empty")
-
-        # todo validate authorization ->raise exc
 
         code: str = context.qs_params.get("code")
         iss: str = context.qs_params.get("iss")
@@ -378,6 +383,21 @@ class AuthorizationCallBackHandler(BaseEndpoint):
         })
         return Response(result.encode("utf-8"), content="text/html; charset=utf8", status="400 Bad Request")
 
+
+    def __consume_authorization(self, state: str) -> dict:
+        """Consuma la sessione monouso legata a ``state`` ({} se assente o già usata)."""
+        if not state:
+            return {}
+        try:
+            output = self._db_engine.consume_session(state)
+            if output:
+                consumed = output.model_dump(mode="json")
+                # Resta True a ogni update successivo: nessuna riapertura.
+                consumed["completed"] = True
+                return consumed
+        except ValidationError as e:
+            logger.debug(e)
+        return {}
 
     def __get_authorization(self, state: str) -> dict:
         """

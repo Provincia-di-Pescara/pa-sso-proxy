@@ -27,6 +27,7 @@ def _load_model():
             token_type: Optional[str] = None
             expires_in: Optional[int] = None
             revoked: bool = False
+            completed: bool = False
 
         return _Stub
 
@@ -70,6 +71,33 @@ class RedisStorage:
         ex = ttl if ttl > 0 else self._ttl
         self._client.set(key, entity.model_dump_json(), ex=ex)
         return 1
+
+    def consume_session(self, state: str) -> Any:
+        """Marca come usata la sessione legata a ``state`` e la restituisce.
+
+        Atomico tra worker e richieste concorrenti: il marker ``cie:used:<state>``
+        è scritto con SET NX, solo il primo chiamante lo ottiene. Un replay (o la
+        seconda di due richieste parallele) riceve None.
+        """
+        if not state:
+            return None
+        sid = self._client.get(f"cie:state:{state}")
+        if not sid:
+            return None
+        key = f"cie:sess:{sid.decode()}"
+        ttl = self._client.ttl(key)
+        if not self._client.set(f"cie:used:{state}", b"1", nx=True, ex=ttl if ttl > 0 else self._ttl):
+            return None
+        doc = self._client.get(key)
+        if not doc:
+            return None
+        model = self._model or _load_model()
+        entity = model.model_validate_json(doc)
+        if getattr(entity, "completed", False) or entity.code or entity.access_token or entity.user:
+            return None
+        entity.completed = True
+        self.update_session(entity)
+        return entity
 
     def get_sessions(self, state: str) -> list:
         sid = self._client.get(f"cie:state:{state}")
