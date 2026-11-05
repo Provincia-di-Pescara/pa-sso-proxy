@@ -35,7 +35,7 @@ Stato dell'allineamento alla baseline ComunicaPA
 | `scorecard.yml` | settimanale, main | OpenSSF Scorecard |
 
 Ogni workflow: permessi minimi a livello di job, `persist-credentials: false`,
-`step-security/harden-runner` (audit), `timeout-minutes`, `concurrency`, tool a versione fissa.
+`step-security/harden-runner` (`block`, endpoint consentiti per job), `timeout-minutes`, `concurrency`, tool a versione fissa.
 
 ## Dipendenze
 
@@ -52,7 +52,6 @@ Ogni workflow: permessi minimi a livello di job, `persist-credentials: false`,
 
 ## Aperto
 
-- Auto-merge delle librerie SPID: possibile solo dopo qualche settimana di `spid-e2e.yml`
-  stabile e con il job in coda; CIE resta manuale (nessun OP CIE di test locale).
+- Librerie SPID/CIE e immagine base iam-proxy-italia: revisione manuale, per scelta (non
+  si automatizza: vedi CLAUDE.md, checklist aggiornamento immagine base).
 - Approvazioni obbligatorie in review: oggi 0 (un solo maintainer); CODEOWNERS pronto.
-- harden-runner da `audit` a `block` dopo aver raccolto gli endpoint reali.
