@@ -171,6 +171,8 @@ Il backend CIE OIDC usa 3 JWK separati: `jwk-federation` (firma entity configura
 
 **cryptojwt e `use=federation`:** cryptojwt rifiuta chiavi con `use=federation` per signing (`alg_keys` accetta solo `use=sig` o assente). La chiave federation nel SATOSA config viene scritta senza campo `use` (RFC 7517: assente = qualsiasi uso). Il DB mantiene `use=federation` per il display nel portale.
 
+**Callback CIE monouso** (port di iam-proxy-italia v3.4.0, che da noi non arriva perché `authorization_callback_endpoint.py` è un override): la sessione legata a `state` è consumata PRIMA di riscattare il `code` (`consume_session`, in `redis_storage.py` atomico con marker `cie:used:<state>` SET NX); un secondo callback con lo stesso `state` → `Authorization already used`, nessuna richiesta al token endpoint. Upstream cambia questi file? Riportare le modifiche a mano negli override.
+
 **Istanza di riferimento funzionante:** `https://pagopa-prx.comune.montesilvano.pe.it/` (govpay-interaction-layer Comune di Montesilvano). Per debug confrontare `/.well-known/openid-federation` con quella istanza.
 
 ### eIDAS

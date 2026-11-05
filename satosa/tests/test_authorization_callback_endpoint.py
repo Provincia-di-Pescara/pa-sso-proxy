@@ -18,8 +18,7 @@ def mock_db_engine():
         instance = mock_engine.return_value
         instance.connect.return_value = None
         instance.is_connected.return_value = True
-        instance.get_sessions.return_value = [
-            MagicMock(
+        session = MagicMock(
                 model_dump=lambda mode: {
                     "state": "dummy_state",
                     "provider_id": "http://cie-provider.example.org:8002/oidc/op",
@@ -32,7 +31,8 @@ def mock_db_engine():
                     },
                 }
             )
-        ]
+        instance.get_sessions.return_value = [session]
+        instance.consume_session.return_value = session
         instance.update_session.return_value = True
         yield instance
 
@@ -132,9 +132,37 @@ def test_endpoint_raises_when_authorization_not_found(handler):
         "code": "code123",
         "iss": "http://cie-provider.example.org:8002/oidc/op",
     }
+    handler._db_engine.consume_session.return_value = None
     with patch.object(handler, "_AuthorizationCallBackHandler__get_authorization", return_value=None):
-        with pytest.raises(SATOSAAuthenticationError):
+        with pytest.raises(SATOSAAuthenticationError, match="Authorization empty"):
             handler.endpoint(context)
+
+
+def test_endpoint_rejects_replayed_callback(handler):
+    context = Context()
+    context.state = MagicMock()
+    context.qs_params = {
+        "state": "dummy_state",
+        "code": "code123",
+        "iss": "http://cie-provider.example.org:8002/oidc/op",
+    }
+    handler._db_engine.consume_session.return_value = None
+    used = {"state": "dummy_state", "completed": True, "code": "code123"}
+    with patch.object(handler, "_AuthorizationCallBackHandler__get_authorization", return_value=used), patch(
+        "backends.cieoidc.utils.clients.oauth2.OAuth2AuthorizationCodeGrant.access_token_request"
+    ) as token_request:
+        with pytest.raises(SATOSAAuthenticationError, match="already used"):
+            handler.endpoint(context)
+    token_request.assert_not_called()
+
+
+def test_endpoint_without_state_param_does_not_consume(handler):
+    context = Context()
+    context.state = MagicMock()
+    context.qs_params = {"code": "code123", "iss": "http://cie-provider.example.org:8002/oidc/op"}
+    with pytest.raises(SATOSAAuthenticationError):
+        handler.endpoint(context)
+    handler._db_engine.consume_session.assert_not_called()
 
 
 def test_endpoint_raises_when_client_id_mismatch(handler):
@@ -151,7 +179,7 @@ def test_endpoint_raises_when_client_id_mismatch(handler):
         "provider_configuration": {"openid_provider": {"token_endpoint": "x"}},
     }
     with patch.object(
-        handler, "_AuthorizationCallBackHandler__get_authorization", return_value=authorization
+        handler, "_AuthorizationCallBackHandler__consume_authorization", return_value=authorization
     ):
         with pytest.raises(SATOSABadRequestError):
             handler.endpoint(context)

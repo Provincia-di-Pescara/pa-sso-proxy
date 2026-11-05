@@ -24,6 +24,7 @@ class OidcAuthentication(BaseModel):
     token_type: Optional[str] = None
     expires_in: Optional[int] = None
     revoked: bool = False
+    completed: bool = False
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "plugins"))
@@ -87,3 +88,37 @@ def test_update_session_preserves_ttl():
     storage.update_session(entity)
     ttl_after = storage._client.ttl(b"cie:sess:abc123")
     assert ttl_after <= ttl_before
+
+
+def test_consume_session_is_single_use():
+    storage = _make_storage()
+    storage.add_session(OidcAuthentication(id="s1", state="st", client_id="c1"))
+    first = storage.consume_session("st")
+    assert first is not None and first.completed is True
+    assert storage.consume_session("st") is None
+    assert storage.get_sessions("st")[0].completed is True
+
+
+def test_consume_session_missing_state_returns_none():
+    storage = _make_storage()
+    assert storage.consume_session("nope") is None
+    assert storage.consume_session("") is None
+
+
+def test_consume_session_refuses_session_with_code_already_stored():
+    storage = _make_storage()
+    storage.add_session(OidcAuthentication(id="s1", state="st", client_id="c1", code="old"))
+    assert storage.consume_session("st") is None
+
+
+def test_consume_session_concurrent_only_one_wins():
+    import threading
+    storage = _make_storage()
+    storage.add_session(OidcAuthentication(id="s1", state="st", client_id="c1"))
+    results = []
+    threads = [threading.Thread(target=lambda: results.append(storage.consume_session("st"))) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sum(r is not None for r in results) == 1
