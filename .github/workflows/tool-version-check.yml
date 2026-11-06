@@ -60,7 +60,9 @@ jobs:
 
           # Trivy (versione binario in trivy-action)
           trivy_pinned="$(grep -hoE 'version: v[0-9]+\.[0-9]+\.[0-9]+' .github/workflows/*.yml | sort -u | sed 's/version: //' | head -n1)"
-          read -r trivy_latest trivy_date < <(gh api repos/aquasecurity/trivy/releases/latest --jq '[.tag_name, .published_at] | @tsv')
+          # Chiamata anonima: l'org aquasecurity ha un IP allow list che rifiuta
+          # le richieste autenticate (gh api col GITHUB_TOKEN) dai runner.
+          read -r trivy_latest trivy_date < <(curl -fsS https://api.github.com/repos/aquasecurity/trivy/releases/latest | jq -r '[.tag_name, .published_at] | @tsv')
           echo "trivy fissata=$trivy_pinned ultima=$trivy_latest ($trivy_date)"
           if newer "${trivy_pinned#v}" "${trivy_latest#v}" && [ "$(date -u -d "$trivy_date" +%s)" -le "$cutoff" ]; then
             open_issue Trivy "$trivy_pinned" "$trivy_latest" "\`version:\` dello step trivy-action in tutti i workflow"

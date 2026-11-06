@@ -97,7 +97,7 @@ jobs:
           build-args: |
             PKG_REFRESH=${{ steps.refresh.outputs.date }}
           cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }},ignore-error=true
 
       - name: Smoke test
         run: ${{ matrix.smoke }}
