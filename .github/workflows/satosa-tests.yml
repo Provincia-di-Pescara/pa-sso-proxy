@@ -130,7 +130,7 @@ jobs:
           tags: satosa-test:latest
           load: true
           cache-from: type=gha,scope=satosa-test
-          cache-to: type=gha,mode=max,scope=satosa-test
+          cache-to: type=gha,mode=max,scope=satosa-test,ignore-error=true
 
       - name: Run tests inside container
         # --user 0: l'immagine gira come uid 10001, ma qui si installano i
