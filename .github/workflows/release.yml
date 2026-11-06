@@ -229,7 +229,7 @@ jobs:
             APP_VERSION=${{ steps.version.outputs.release }}
             PKG_REFRESH=${{ steps.version.outputs.pkg_refresh }}
           cache-from: type=gha,scope=release-${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=release-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.image }},ignore-error=true
 
       - name: Smoke test immagine
         env:
