@@ -308,6 +308,13 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
             }
         ],
         "metadata": metadata_config,
+        # IdP di test (demo, validator): spidsaml2 li accetta solo dal client
+        # __spid_verifica__ (pagina /verifica), riconoscendoli dal file di origine.
+        "test_idp_metadata_files": [
+            f"{_REMOTE_META_DIR}/{_meta_slug(idp.alias)}.xml"
+            for idp in enabled_idps
+            if idp.metadata_url and idp.alias in _TEST_ALIASES
+        ],
         "ficep_enable": getattr(settings, "eidas_enabled", False) is True,
         "legal_entity_enable": getattr(settings, "legal_entity_enabled", False) is True,
         # ficep_entity_id: entity ID of the FICEP SP-proxy. Used by spidsaml2 backend
@@ -942,12 +949,14 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         if idp.alias == "spid-demo":
             spid_idps_json.append({
                 "organization_name": "Demo Provider",
+                "test": True,  # discovery: visibile solo da /verifica
                 "entity_id": "https://demo.spid.gov.it",
                 "logo_uri": "/static/spid/spid-agid-logo-lb.png"
             })
         elif idp.alias == "spid-validator":
             spid_idps_json.append({
                 "organization_name": "AgID Validator",
+                "test": True,  # discovery: visibile solo da /verifica
                 "entity_id": "https://validator.spid.gov.it",
                 "logo_uri": "/static/spid/spid-agid-logo-lb.png"
             })
@@ -961,9 +970,10 @@ async def generate_satosa_config(db: AsyncSession) -> None:
                 "logo_uri": idp.registry_logo_uri or ""
             })
 
-    if not spid_idps_json:
-        # Fallback list of production IdPs
-        spid_idps_json = [
+    if not any(not i.get("test") for i in spid_idps_json):
+        # Fallback list of production IdPs (also when only test IdPs are enabled:
+        # those are hidden outside /verifica, the apps would see an empty list).
+        spid_idps_json += [
             { "organization_name": "Aruba PEC", "entity_id": "https://loginspid.aruba.it", "logo_uri": "/static/img/spid-idp-arubaid.svg" },
             { "organization_name": "InfoCert ID", "entity_id": "https://identity.infocert.it", "logo_uri": "/static/img/spid-idp-infocertid.svg" },
             { "organization_name": "Poste ID", "entity_id": "https://posteid.poste.it", "logo_uri": "/static/img/spid-idp-posteid.svg" },

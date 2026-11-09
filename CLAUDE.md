@@ -233,6 +233,8 @@ Colonne tabella `access_log`: `provider_type`, `client_id`, `result`, `error_cod
 ### Pagina /verifica
 Pagina pubblica (no login admin) per validazione AgID. Gate: 404 se nessun IdP con alias `spid-demo` o `spid-validator` è abilitato. Flusso PKCE completo via `__spid_verifica__` client. URL: `https://<hostname>/verifica`. Mandare questo link ad AgID per la sessione di validazione.
 
+**IdP di test (demo, validator AgID) solo da `/verifica`**: accettano identità inventate, quindi un applicativo dell'ente non deve mai poterli usare. Discovery: `spid-idps-default.json` li marca `"test": true`, `disco_query` aggiunge `verifica=1` solo per il client `__spid_verifica__` e `disco.html` li mostra solo con quel flag. Guard server (URL di login aperti a mano): `authn_request` rifiuta un entity_id presente nei file `sp_config.test_idp_metadata_files` (scritti dal generatore) se il client non è `__spid_verifica__` → pagina d'errore del proxy `TEST_IDP_VERIFICA_ONLY_ERROR`. Vale anche per il test client admin (`__admin_test__`). Con solo IdP di test abilitati la discovery degli applicativi usa la lista fallback di produzione.
+
 Selettore persona fisica/giuridica su `/verifica` visibile solo con `legal_entity_enabled`: `subject=pg` aggiunge scope `legal_entity` + claim aziendali richiesti; il generatore dà lo scope `legal_entity` a `__spid_verifica__` solo in quel caso (senza ACS 4 nel metadata il login PG fallirebbe). `subject=pg` con persona giuridica disattivata → ricade silenziosamente su persona fisica.
 
 ### Test satosa/plugins/

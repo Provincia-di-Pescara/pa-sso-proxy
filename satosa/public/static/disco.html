@@ -338,6 +338,11 @@ if (LEGAL_ENTITY) {
   });
 }
 
+/* IdP di test (demo, validator AgID): solo dalla pagina /verifica. Il backend
+   SPID aggiunge verifica=1 all'URL della discovery per il client di /verifica
+   e rifiuta comunque gli IdP di test chiesti da altri client. */
+var VERIFICA = new URLSearchParams(window.location.search).get('verifica') === '1';
+
 /* Tab switching */
 function ssoTab(name) {
   document.querySelectorAll('.sso-tab').forEach(function(t) {
@@ -383,6 +388,7 @@ function ssoLoadIdps() {
     .then(function(r) { return r.json(); })
     .then(function(idps) {
       if (!container || !Array.isArray(idps)) return;
+      idps = idps.filter(function(idp) { return VERIFICA || !idp.test; });
       ssoShuffle(idps);
       idps.forEach(function(idp) {
         var href = DISCO_EP

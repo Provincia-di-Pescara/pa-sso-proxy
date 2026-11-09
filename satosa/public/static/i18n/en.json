@@ -67,6 +67,8 @@
 
   "error.legal_entity_spid_only": "Access on behalf of a business is available with SPID only.",
   "error.legal_entity_spid_only.troubleshoot": "Go back to the service and sign in with SPID using a professional-use identity of the legal entity. CIE and eIDAS do not support this type of access.",
+  "error.test_idp_verifica_only": "This identity provider is reserved for testing.",
+  "error.test_idp_verifica_only.troubleshoot": "The Demo Provider and the AgID validator can only be used from the proxy's verification page. Go back to the service and sign in with your SPID provider.",
 
   "error.cie.cancelled": "You cancelled the sign-in with CIE.",
   "error.cie.timeout": "The time allowed for authentication has expired. Please try again.",

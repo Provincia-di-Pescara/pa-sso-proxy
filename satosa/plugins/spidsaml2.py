@@ -136,21 +136,34 @@ SPID_ANOMALIES = {
     for n in (19, 20, 21, 22, 23, 25, 30)
 }
 
-def _legal_entity_requested(context) -> bool:
-    """True se la richiesta OIDC originale include lo scope 'legal_entity'."""
+def _oidc_request_params(context) -> dict:
+    """Parametri della richiesta OIDC originale salvata nello stato SATOSA."""
     for v in (getattr(context, "state", None) or {}).values():
         if isinstance(v, dict) and "oidc_request" in v:
             oidc_request = v["oidc_request"]
             if not oidc_request:
-                return False
+                return {}
             try:
-                params = urllib.parse.parse_qs(oidc_request)
+                return urllib.parse.parse_qs(oidc_request)
             except Exception as e:
                 logger.warning(f"Failed to parse oidc_request query params: {e}")
-                return False
-            scopes = params.get("scope", [""])[0].split()
-            return "legal_entity" in scopes
-    return False
+                return {}
+    return {}
+
+
+def _legal_entity_requested(context) -> bool:
+    """True se la richiesta OIDC originale include lo scope 'legal_entity'."""
+    scopes = _oidc_request_params(context).get("scope", [""])[0].split()
+    return "legal_entity" in scopes
+
+
+# Client OIDC della pagina pubblica /verifica (config-api, routes/verifica.py).
+VERIFICA_CLIENT_ID = "__spid_verifica__"
+
+
+def _verifica_requested(context) -> bool:
+    """True se il login parte dalla pagina /verifica (validazione AgID)."""
+    return _oidc_request_params(context).get("client_id", [""])[0] == VERIFICA_CLIENT_ID
 
 
 def _build_purpose_extension(purpose: str) -> "saml2.samlp.Extensions":
@@ -168,6 +181,13 @@ def _build_purpose_extension(purpose: str) -> "saml2.samlp.Extensions":
 LEGAL_ENTITY_SPID_ONLY_ERROR = {
     "message_key": "error.legal_entity_spid_only",
     "troubleshoot_key": "error.legal_entity_spid_only.troubleshoot",
+}
+
+# IdP di test (demo, validator AgID) accettano identità inventate: ammessi solo
+# dal client della pagina /verifica, mai dagli applicativi dell'ente.
+TEST_IDP_VERIFICA_ONLY_ERROR = {
+    "message_key": "error.test_idp_verifica_only",
+    "troubleshoot_key": "error.test_idp_verifica_only.troubleshoot",
 }
 
 
@@ -404,11 +424,23 @@ class SpidSAMLBackend(SAMLBackend):
                         context.state, "Selected IdP is blacklisted for this backend"
                     )
 
+    def _is_test_idp(self, entity_id) -> bool:
+        """entity_id presente in uno dei file metadata degli IdP di test
+        (sp_config.test_idp_metadata_files, scritti da config-api)."""
+        sources = getattr(getattr(self.sp, "metadata", None), "metadata", None) or {}
+        for path in self.config["sp_config"].get("test_idp_metadata_files", []):
+            md = sources.get(path)
+            if md is not None and entity_id in getattr(md, "entity", {}):
+                return True
+        return False
+
     def disco_query(self, context):
         response = super().disco_query(context)
         params = {}
         if _legal_entity_requested(context):
             params["legal_entity"] = "1"
+        if _verifica_requested(context):
+            params["verifica"] = "1"
         ui_lang = i18n.ui_locales_lang(context)
         if ui_lang:
             params["lang"] = ui_lang
@@ -441,6 +473,9 @@ class SpidSAMLBackend(SAMLBackend):
         ):
             logger.warning("eIDAS richiesto con scope legal_entity: rifiutato (solo SPID)")
             return self.handle_error(**LEGAL_ENTITY_SPID_ONLY_ERROR, lang_context=context)
+        if self._is_test_idp(entity_id) and not _verifica_requested(context):
+            logger.warning("IdP di test %s richiesto fuori da /verifica: rifiutato", entity_id)
+            return self.handle_error(**TEST_IDP_VERIFICA_ONLY_ERROR, lang_context=context)
 
         self.check_blacklist(context, entity_id)
         kwargs = {}

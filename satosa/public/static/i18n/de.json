@@ -67,6 +67,8 @@
 
   "error.legal_entity_spid_only": "Der Zugang im Namen eines Unternehmens ist nur mit SPID möglich.",
   "error.legal_entity_spid_only.troubleshoot": "Kehren Sie zum Dienst zurück und melden Sie sich mit SPID an, mit einer Identität zur beruflichen Nutzung der juristischen Person. CIE und eIDAS unterstützen diese Art des Zugangs nicht.",
+  "error.test_idp_verifica_only": "Dieser Identitätsanbieter ist für Tests reserviert.",
+  "error.test_idp_verifica_only.troubleshoot": "Der Demo Provider und der AgID-Validator können nur über die Prüfseite des Proxys verwendet werden. Kehren Sie zum Dienst zurück und melden Sie sich mit Ihrem SPID-Anbieter an.",
 
   "error.cie.cancelled": "Sie haben die Anmeldung mit der CIE abgebrochen.",
   "error.cie.timeout": "Die für die Authentifizierung verfügbare Zeit ist abgelaufen. Bitte versuchen Sie es erneut.",

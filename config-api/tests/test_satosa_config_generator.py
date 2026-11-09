@@ -395,11 +395,13 @@ async def test_satosa_config_generator_spid_testing_providers(db_session, tmp_pa
     
     await generate_satosa_config(db_session)
     
-    # Verify spid-idps-default.json has only demo provider
+    # Demo provider marked as test (shown only on /verifica); the production
+    # fallback list stays, otherwise the apps would see no SPID provider at all.
     idps_demo = json.loads((tmp_path / "spid-idps-default.json").read_text())
-    assert len(idps_demo) == 1
-    assert idps_demo[0]["organization_name"] == "Demo Provider"
-    assert idps_demo[0]["entity_id"] == "https://demo.spid.gov.it"
+    test_idps = [x for x in idps_demo if x.get("test")]
+    assert [x["entity_id"] for x in test_idps] == ["https://demo.spid.gov.it"]
+    assert test_idps[0]["organization_name"] == "Demo Provider"
+    assert any(x["organization_name"] == "Aruba PEC" and not x.get("test") for x in idps_demo)
     
     # Verify spid_backend.yaml has local catalog + local path for demo metadata (no remote)
     spid_yaml = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
@@ -421,11 +423,14 @@ async def test_satosa_config_generator_spid_testing_providers(db_session, tmp_pa
     
     await generate_satosa_config(db_session)
     
-    # Verify spid-idps-default.json has only validator
+    # Validator marked as test, production fallback list kept
     idps_val = json.loads((tmp_path / "spid-idps-default.json").read_text())
-    assert len(idps_val) == 1
-    assert idps_val[0]["organization_name"] == "AgID Validator"
-    assert idps_val[0]["entity_id"] == "https://validator.spid.gov.it"
+    test_idps = [x for x in idps_val if x.get("test")]
+    assert [x["entity_id"] for x in test_idps] == ["https://validator.spid.gov.it"]
+    assert test_idps[0]["organization_name"] == "AgID Validator"
+    assert any(x["organization_name"] == "Aruba PEC" and not x.get("test") for x in idps_val)
+    sp_config = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())["config"]["sp_config"]
+    assert sp_config["test_idp_metadata_files"] == ["/satosa-conf/remote-metadata/spid-validator.xml"]
     
     # Verify spid_backend.yaml has local catalog + local path for validator metadata (no remote)
     spid_yaml = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
@@ -493,6 +498,10 @@ async def test_satosa_config_generator_combined_providers(db_session, tmp_path, 
 
     assert idps[2]["organization_name"] == "Demo Provider"
     assert idps[2]["logo_uri"] == "/static/spid/spid-agid-logo-lb.png"
+
+    # Only demo and validator are test IdPs (hidden outside /verifica)
+    assert [x["organization_name"] for x in idps if x.get("test")] == ["AgID Validator", "Demo Provider"]
+    assert not idps[1].get("test")
 
 
 async def test_spid_backend_yaml_has_contact_person(full_db, tmp_path, monkeypatch):
