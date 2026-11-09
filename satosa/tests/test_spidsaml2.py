@@ -275,6 +275,7 @@ def _fake_backend():
     backend = MagicMock()
     backend.config = {"sp_config": {"ficep_entity_id": _FICEP_ID}}
     backend.handle_error.return_value = "ERROR_PAGE"
+    backend._is_test_idp.return_value = False
     return backend
 
 
@@ -308,6 +309,69 @@ def test_authn_request_allows_eidas_for_citizen():
     backend.check_blacklist.side_effect = RuntimeError("past guard")
     with pytest.raises(RuntimeError, match="past guard"):
         spidsaml2.SpidSAMLBackend.authn_request(backend, _FakeContext(_CITIZEN_STATE), _FICEP_ID)
+    backend.handle_error.assert_not_called()
+
+
+# --- IdP di test (demo, validator AgID): solo dalla pagina /verifica ---------
+
+_TEST_IDP = "https://validator.spid.gov.it"
+_TEST_META = "/satosa-conf/remote-metadata/spid-validator.xml"
+_VERIFICA_STATE = {"OIDC": {"oidc_request": "client_id=__spid_verifica__&scope=openid+profile&state=y"}}
+
+
+def test_verifica_requested_only_for_verifica_client():
+    assert spidsaml2._verifica_requested(_FakeContext(_VERIFICA_STATE)) is True
+    assert spidsaml2._verifica_requested(_FakeContext(_CITIZEN_STATE)) is False
+    assert spidsaml2._verifica_requested(_FakeContext(None)) is False
+
+
+def test_disco_query_adds_verifica_param_for_verifica_client():
+    from satosa.response import SeeOther
+    base = "https://sso.example.org/static/disco.html?entityID=sp&return=r"
+    with patch.object(spidsaml2.SAMLBackend, "disco_query", return_value=SeeOther(base)):
+        resp = spidsaml2.SpidSAMLBackend.disco_query(MagicMock(spec=spidsaml2.SpidSAMLBackend), _FakeContext(_VERIFICA_STATE))
+    assert _disco_location(resp) == base + "&verifica=1"
+
+
+def _backend_with_test_idp():
+    backend = _fake_backend()
+    backend.config["sp_config"]["test_idp_metadata_files"] = [_TEST_META]
+    md = MagicMock()
+    md.entity = {_TEST_IDP: {}}
+    backend.sp.metadata.metadata = {_TEST_META: md, "/satosa-conf/spid-entities-idps.xml": MagicMock(entity={})}
+    backend._is_test_idp = lambda entity_id: spidsaml2.SpidSAMLBackend._is_test_idp(backend, entity_id)
+    return backend
+
+
+def test_is_test_idp_reads_test_metadata_files_only():
+    backend = _backend_with_test_idp()
+    assert backend._is_test_idp(_TEST_IDP) is True
+    assert backend._is_test_idp("https://idp.spid.example.org") is False
+
+
+def test_authn_request_rejects_test_idp_outside_verifica():
+    backend = _backend_with_test_idp()
+    res = spidsaml2.SpidSAMLBackend.authn_request(backend, _FakeContext(_CITIZEN_STATE), _TEST_IDP)
+    assert res == "ERROR_PAGE"
+    kwargs = backend.handle_error.call_args.kwargs
+    assert kwargs["message_key"] == spidsaml2.TEST_IDP_VERIFICA_ONLY_ERROR["message_key"]
+    assert "context" not in kwargs  # pagina d'errore del proxy, niente redirect al client
+    backend.check_blacklist.assert_not_called()
+
+
+def test_authn_request_allows_test_idp_from_verifica():
+    backend = _backend_with_test_idp()
+    backend.check_blacklist.side_effect = RuntimeError("past guard")
+    with pytest.raises(RuntimeError, match="past guard"):
+        spidsaml2.SpidSAMLBackend.authn_request(backend, _FakeContext(_VERIFICA_STATE), _TEST_IDP)
+    backend.handle_error.assert_not_called()
+
+
+def test_authn_request_allows_production_idp_outside_verifica():
+    backend = _backend_with_test_idp()
+    backend.check_blacklist.side_effect = RuntimeError("past guard")
+    with pytest.raises(RuntimeError, match="past guard"):
+        spidsaml2.SpidSAMLBackend.authn_request(backend, _FakeContext(_CITIZEN_STATE), "https://idp.spid.example.org")
     backend.handle_error.assert_not_called()
 
 
