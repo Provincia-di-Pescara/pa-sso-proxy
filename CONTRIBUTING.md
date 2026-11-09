@@ -20,6 +20,17 @@ cd config-api && pip install --require-hashes -r requirements-dev.txt && pytest
 
 Test dei plugin SATOSA: solo nel container (vedi `CLAUDE.md`, sezione "Test satosa/plugins/").
 
+## Test
+
+Ogni nuova funzionalità o correzione arriva con i test che la coprono (pytest in
+`config-api/tests/` o `satosa/tests/`). Il codice che legge input non fidati (header,
+cookie, parametri OIDC, upload) va coperto anche da test di proprietà con
+[Hypothesis](https://hypothesis.readthedocs.io/) (es. `satosa/tests/test_i18n_fuzz.py`).
+
+## Lingua
+
+Documentazione e commit in italiano; issue e PR sono accettate anche in inglese.
+
 ## Dipendenze
 
 - pip: si modificano solo i file `.in`, poi `scripts/compile-requirements.sh` (lock con hash,

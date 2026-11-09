@@ -13,3 +13,4 @@ satosa/conf/generated/
 .worktrees/
 config-api/app_version.txt
 config-api/app_release.txt
+.hypothesis/

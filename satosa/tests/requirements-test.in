@@ -1,6 +1,7 @@
 # Dipendenze dei test plugin satosa (job host e container). Lock con hash:
 # requirements-test.txt (scripts/compile-requirements.sh).
 fakeredis>=2.40.0
+hypothesis>=6.170.0
 pydantic>=2.14.1
 redis>=8.1.0
 pytest>=9.1.1
