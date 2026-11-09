@@ -39,6 +39,7 @@ jobs:
         with:
           egress-policy: block
           allowed-endpoints: >
+            api.deps.dev:443
             api.github.com:443
             api.scorecard.dev:443
             api.securityscorecards.dev:443
