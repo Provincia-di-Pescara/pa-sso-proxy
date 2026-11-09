@@ -56,7 +56,7 @@ class FakeNet:
 
 class ParseTests(unittest.TestCase):
     def test_parse_lock_hash_format_and_extras(self):
-        pins = pip_fix.parse_lock((FIX / "requirements.txt").read_text())
+        pins = pip_fix.parse_lock((FIX / "requirements.txt.fixture").read_text())
         self.assertEqual(pins["starlette"], "0.50.0")
         self.assertEqual(pins["uvicorn"], "0.54.0")
         self.assertNotIn("--hash", "".join(pins))
@@ -141,8 +141,8 @@ class BuildPlanTests(unittest.TestCase):
                     # starlette compare anche nel lock dev: si corregge solo nel runtime
                     "config-api/requirements-dev.txt": [f for f in findings_runtime
                                                         if f["name"] == "starlette"]}
-        locks = {"config-api/requirements.txt": (FIX / "requirements.txt").read_text(),
-                 "config-api/requirements-dev.txt": (FIX / "requirements-dev.txt").read_text()}
+        locks = {"config-api/requirements.txt": (FIX / "requirements.txt.fixture").read_text(),
+                 "config-api/requirements-dev.txt": (FIX / "requirements-dev.txt.fixture").read_text()}
         net = FakeNet({("starlette", "0.50.0"): (2000, "encode/starlette"),
                        ("starlette", "0.50.2"): (100, "encode/starlette"),
                        ("cryptography", "50.0.2"): (2000, "pyca/cryptography"),
