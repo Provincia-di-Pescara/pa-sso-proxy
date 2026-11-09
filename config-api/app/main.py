@@ -1,3 +1,4 @@
+import hmac
 import logging
 import os
 import time
@@ -292,7 +293,11 @@ async def login_post(
             status_code=429,
         )
 
-    if username == ADMIN_USER and password == ADMIN_PASSWORD:
+    # compare_digest: tempo costante (niente timing attack); valutati entrambi
+    # senza short-circuit, così il tempo non rivela se lo username è giusto.
+    user_ok = hmac.compare_digest(username.encode(), ADMIN_USER.encode())
+    password_ok = hmac.compare_digest(password.encode(), ADMIN_PASSWORD.encode())
+    if user_ok & password_ok:
         if not is_2fa_enabled():
             await clear_attempts(db, ip_address)
             request.session["user"] = username
