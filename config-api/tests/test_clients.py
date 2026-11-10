@@ -229,3 +229,34 @@ async def test_client_create_with_legal_entity_scope(auth_client, db_session):
 
     client = (await db_session.execute(select(OIDCClient).where(OIDCClient.name == "App Aziende"))).scalar_one()
     assert "legal_entity" in client.allowed_scopes
+
+
+async def test_client_edit_sets_allow_test_idps(auth_client, db_session):
+    c = OIDCClient(
+        client_id="collaudo-app",
+        client_secret_hash="hash",
+        name="Collaudo",
+        redirect_uris=["https://app.test/cb"],
+        allowed_scopes=["openid"],
+    )
+    db_session.add(c)
+    await db_session.commit()
+    await db_session.refresh(c)
+    assert c.allow_test_idps is False
+
+    base = {"name": "Collaudo", "redirect_uris": "https://app.test/cb", "scopes": ["openid"], "enabled": "1"}
+    with patch("app.routes.clients.generate_and_write", new_callable=AsyncMock), \
+         patch("app.routes.clients.reload_satosa", return_value=True):
+        await auth_client.post(f"/admin/clients/{c.id}/edit", data={**base, "allow_test_idps": "1"},
+                               follow_redirects=False)
+        await db_session.refresh(c)
+        assert c.allow_test_idps is True
+
+        await auth_client.post(f"/admin/clients/{c.id}/edit", data=base, follow_redirects=False)
+    await db_session.refresh(c)
+    assert c.allow_test_idps is False
+
+
+async def test_client_form_shows_allow_test_idps_option(auth_client):
+    response = await auth_client.get("/admin/clients/new")
+    assert 'name="allow_test_idps"' in response.text

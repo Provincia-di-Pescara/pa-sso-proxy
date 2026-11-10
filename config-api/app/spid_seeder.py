@@ -26,6 +26,15 @@ SPID_IDPS = [
     {"alias": "eidas-prod",      "display_name": "Nodo eIDAS",         "metadata_url": "https://sp-proxy.eid.gov.it/spproxy/idpitmetadata"},
 ]
 
+# Entity ID del nodo eIDAS italiano (FICEP). Da novembre 2026 il registro SPID
+# lo elenca tra gli IdP, ma si gestisce solo dalla tab eIDAS (toggle, ambiente,
+# ACS 99/100): la sync non lo importa come IdP SPID.
+EIDAS_ENTITY_IDS = {
+    "eidas-qa":   "https://sp-proxy.pre.eid.gov.it/spproxy/idpit",
+    "eidas-prod": "https://sp-proxy.eid.gov.it/spproxy/idpit",
+}
+FICEP_ENTITY_IDS = frozenset(EIDAS_ENTITY_IDS.values())
+
 SPID_REGISTRY_API_LIST_URL = "https://registry.spid.gov.it/entities-idp?output=json&page=1&numMetadata=50"
 
 
@@ -73,6 +82,11 @@ async def sync_spid_idps_from_registry(db: AsyncSession) -> int:
 
         alias = _normalize_alias(entity_id)
         row = by_entity_id.get(entity_id) or by_alias.get(alias)
+        if entity_id in FICEP_ENTITY_IDS:
+            # Riga creata dalle sync precedenti: resta nel DB ma disabilitata.
+            if row is not None:
+                row.enabled = False
+            continue
         if row is None:
             # Abilita automaticamente solo i provider attivi su AgID (_disabled != "Y")
             is_registry_disabled = item.get("_disabled") == "Y"

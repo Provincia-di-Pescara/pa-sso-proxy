@@ -33,6 +33,20 @@
       </div>
     </div>
 
+    <div class="a-form-group">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <label class="a-toggle">
+          <input type="checkbox" name="allow_test_idps" value="1" {% if client and client.allow_test_idps %}checked{% endif %}>
+          <span class="a-toggle-slider"></span>
+        </label>
+        <span style="font-size:13px;color:var(--fg-2);">Consenti IdP di test (Demo, Validator AgID)</span>
+      </div>
+      <div class="a-muted" style="font-size:12px;margin-top:6px;">
+        Per collaudare l'applicativo: la pagina di scelta provider di questo client mostra anche l'IdP di test attivo (tab <em>Test/Validazione</em> in Provider SPID).
+        Gli IdP di test accettano identità inventate: <strong>mai su un client di produzione</strong>.
+      </div>
+    </div>
+
     {% if client %}
     <div class="a-form-group" style="display:flex;align-items:center;gap:10px;">
       <label class="a-toggle">

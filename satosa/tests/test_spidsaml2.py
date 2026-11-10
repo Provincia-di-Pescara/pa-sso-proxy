@@ -249,6 +249,12 @@ def test_add_disco_params_keeps_existing_query():
     assert url.endswith("&legal_entity=1&lang=de")
 
 
+def _disco_backend(sp_config=None):
+    backend = MagicMock(spec=spidsaml2.SpidSAMLBackend)
+    backend.config = {"sp_config": sp_config or {}}
+    return backend
+
+
 def _disco_location(response):
     return dict(response.headers)["Location"]
 
@@ -257,7 +263,7 @@ def test_disco_query_adds_legal_entity_param_when_requested():
     from satosa.response import SeeOther
     base = "https://sso.example.org/static/disco.html?entityID=sp&return=r"
     with patch.object(spidsaml2.SAMLBackend, "disco_query", return_value=SeeOther(base)):
-        resp = spidsaml2.SpidSAMLBackend.disco_query(MagicMock(spec=spidsaml2.SpidSAMLBackend), _FakeContext(_LEGAL_ENTITY_STATE))
+        resp = spidsaml2.SpidSAMLBackend.disco_query(_disco_backend(), _FakeContext(_LEGAL_ENTITY_STATE))
     assert _disco_location(resp) == base + "&legal_entity=1"
     assert resp.status.startswith("303")
 
@@ -267,7 +273,7 @@ def test_disco_query_unchanged_for_citizen_flow():
     base = "https://sso.example.org/static/disco.html?entityID=sp&return=r"
     original = SeeOther(base)
     with patch.object(spidsaml2.SAMLBackend, "disco_query", return_value=original):
-        resp = spidsaml2.SpidSAMLBackend.disco_query(MagicMock(spec=spidsaml2.SpidSAMLBackend), _FakeContext(_CITIZEN_STATE))
+        resp = spidsaml2.SpidSAMLBackend.disco_query(_disco_backend(), _FakeContext(_CITIZEN_STATE))
     assert resp is original
 
 
@@ -319,17 +325,13 @@ _TEST_META = "/satosa-conf/remote-metadata/spid-validator.xml"
 _VERIFICA_STATE = {"OIDC": {"oidc_request": "client_id=__spid_verifica__&scope=openid+profile&state=y"}}
 
 
-def test_verifica_requested_only_for_verifica_client():
-    assert spidsaml2._verifica_requested(_FakeContext(_VERIFICA_STATE)) is True
-    assert spidsaml2._verifica_requested(_FakeContext(_CITIZEN_STATE)) is False
-    assert spidsaml2._verifica_requested(_FakeContext(None)) is False
 
 
 def test_disco_query_adds_verifica_param_for_verifica_client():
     from satosa.response import SeeOther
     base = "https://sso.example.org/static/disco.html?entityID=sp&return=r"
     with patch.object(spidsaml2.SAMLBackend, "disco_query", return_value=SeeOther(base)):
-        resp = spidsaml2.SpidSAMLBackend.disco_query(MagicMock(spec=spidsaml2.SpidSAMLBackend), _FakeContext(_VERIFICA_STATE))
+        resp = spidsaml2.SpidSAMLBackend.disco_query(_disco_backend(), _FakeContext(_VERIFICA_STATE))
     assert _disco_location(resp) == base + "&verifica=1"
 
 
@@ -375,6 +377,80 @@ def test_authn_request_allows_production_idp_outside_verifica():
     backend.handle_error.assert_not_called()
 
 
+_TEST_CLIENT_STATE = {"OIDC": {"oidc_request": "client_id=app-collaudo&scope=openid&state=y"}}
+
+
+def test_test_idps_allowed_for_verifica_and_flagged_clients():
+    sp_config = {"test_idp_client_ids": ["app-collaudo"]}
+    assert spidsaml2._test_idps_allowed(_FakeContext(_VERIFICA_STATE), {}) is True
+    assert spidsaml2._test_idps_allowed(_FakeContext(_TEST_CLIENT_STATE), sp_config) is True
+    assert spidsaml2._test_idps_allowed(_FakeContext(_TEST_CLIENT_STATE), {}) is False
+    assert spidsaml2._test_idps_allowed(_FakeContext(_CITIZEN_STATE), sp_config) is False
+    assert spidsaml2._test_idps_allowed(_FakeContext(None), sp_config) is False
+
+
+def test_test_idps_not_allowed_for_empty_client_id():
+    state = {"OIDC": {"oidc_request": "scope=openid&state=y"}}
+    assert spidsaml2._test_idps_allowed(_FakeContext(state), {"test_idp_client_ids": [""]}) is False
+
+
+def test_disco_query_adds_verifica_param_for_flagged_client():
+    from satosa.response import SeeOther
+    base = "https://sso.example.org/static/disco.html?entityID=sp&return=r"
+    backend = _disco_backend({"test_idp_client_ids": ["app-collaudo"]})
+    with patch.object(spidsaml2.SAMLBackend, "disco_query", return_value=SeeOther(base)):
+        resp = spidsaml2.SpidSAMLBackend.disco_query(backend, _FakeContext(_TEST_CLIENT_STATE))
+    assert _disco_location(resp) == base + "&verifica=1"
+
+
+def test_authn_request_allows_test_idp_for_flagged_client():
+    backend = _backend_with_test_idp()
+    backend.config["sp_config"]["test_idp_client_ids"] = ["app-collaudo"]
+    backend.check_blacklist.side_effect = RuntimeError("past guard")
+    with pytest.raises(RuntimeError, match="past guard"):
+        spidsaml2.SpidSAMLBackend.authn_request(backend, _FakeContext(_TEST_CLIENT_STATE), _TEST_IDP)
+    backend.handle_error.assert_not_called()
+
+
+# --- Nodo eIDAS (FICEP): solo con eIDAS abilitato, nell'ambiente configurato ---
+
+_FICEP_PROD = "https://sp-proxy.eid.gov.it/spproxy/idpit"
+_FICEP_QA = "https://sp-proxy.pre.eid.gov.it/spproxy/idpit"
+_FICEP_IDS = [_FICEP_QA, _FICEP_PROD]
+
+
+def test_ficep_blocked():
+    on_prod = {"ficep_entity_ids": _FICEP_IDS, "ficep_enable": True, "ficep_entity_id": _FICEP_PROD}
+    assert spidsaml2._ficep_blocked(_FICEP_PROD, on_prod) is False
+    assert spidsaml2._ficep_blocked(_FICEP_QA, on_prod) is True  # ambiente diverso
+    assert spidsaml2._ficep_blocked(_FICEP_PROD, {**on_prod, "ficep_enable": False}) is True
+    assert spidsaml2._ficep_blocked(_FICEP_PROD, {"ficep_entity_ids": _FICEP_IDS}) is True
+    assert spidsaml2._ficep_blocked("https://idp.spid.example.org", {"ficep_entity_ids": _FICEP_IDS}) is False
+    assert spidsaml2._ficep_blocked(_FICEP_PROD, {}) is False  # config precedente: nessun elenco
+
+
+def test_authn_request_rejects_ficep_when_eidas_disabled():
+    backend = _fake_backend()
+    backend.config["sp_config"].update({"ficep_entity_ids": _FICEP_IDS, "ficep_enable": False})
+    res = spidsaml2.SpidSAMLBackend.authn_request(backend, _FakeContext(_CITIZEN_STATE), _FICEP_PROD)
+    assert res == "ERROR_PAGE"
+    kwargs = backend.handle_error.call_args.kwargs
+    assert kwargs["message_key"] == spidsaml2.EIDAS_NOT_ENABLED_ERROR["message_key"]
+    assert "context" not in kwargs
+    backend.check_blacklist.assert_not_called()
+
+
+def test_authn_request_allows_ficep_when_eidas_enabled():
+    backend = _fake_backend()
+    backend.config["sp_config"].update(
+        {"ficep_entity_ids": _FICEP_IDS, "ficep_enable": True, "ficep_entity_id": _FICEP_PROD}
+    )
+    backend.check_blacklist.side_effect = RuntimeError("past guard")
+    with pytest.raises(RuntimeError, match="past guard"):
+        spidsaml2.SpidSAMLBackend.authn_request(backend, _FakeContext(_CITIZEN_STATE), _FICEP_PROD)
+    backend.handle_error.assert_not_called()
+
+
 # --- i18n ---------------------------------------------------------------------
 
 def test_disco_query_adds_lang_from_ui_locales():
@@ -382,7 +458,7 @@ def test_disco_query_adds_lang_from_ui_locales():
     base = "https://sso.example.org/static/disco.html?entityID=sp&return=r"
     state = {"OIDC": {"oidc_request": "client_id=x&scope=openid&ui_locales=fr-CA&state=y"}}
     with patch.object(spidsaml2.SAMLBackend, "disco_query", return_value=SeeOther(base)):
-        resp = spidsaml2.SpidSAMLBackend.disco_query(MagicMock(spec=spidsaml2.SpidSAMLBackend), _FakeContext(state))
+        resp = spidsaml2.SpidSAMLBackend.disco_query(_disco_backend(), _FakeContext(state))
     assert _disco_location(resp) == base + "&lang=fr"
 
 
@@ -391,7 +467,7 @@ def test_disco_query_adds_lang_and_legal_entity():
     base = "https://sso.example.org/static/disco.html?entityID=sp&return=r"
     state = {"OIDC": {"oidc_request": "client_id=x&scope=openid+legal_entity&ui_locales=de&state=y"}}
     with patch.object(spidsaml2.SAMLBackend, "disco_query", return_value=SeeOther(base)):
-        resp = spidsaml2.SpidSAMLBackend.disco_query(MagicMock(spec=spidsaml2.SpidSAMLBackend), _FakeContext(state))
+        resp = spidsaml2.SpidSAMLBackend.disco_query(_disco_backend(), _FakeContext(state))
     assert _disco_location(resp) == base + "&legal_entity=1&lang=de"
 
 
