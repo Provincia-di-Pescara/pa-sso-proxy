@@ -555,3 +555,19 @@ def test_authn_request_remembers_language_for_acs():
     with pytest.raises(RuntimeError, match="past guard"):
         spidsaml2.SpidSAMLBackend.authn_request(backend, ctx, "https://idp.spid.example.org")
     assert ctx.state[spidsaml2.i18n.STATE_KEY] == "fr"
+
+
+# --- Prefissi XML del metadata SP --------------------------------------------
+
+def test_metadata_prefixes_restore_md_and_ds():
+    """Con i prefissi registrati, pysaml2 serializza md:/ds: come prima di 7.5.5."""
+    import saml2.md
+    from saml2 import xmldsig
+
+    saml2.md.SamlBase().register_prefix(spidsaml2.METADATA_NS_PREFIXES)
+    ed = saml2.md.EntityDescriptor(entity_id="https://sp.example.org/metadata")
+    ed.signature = xmldsig.Signature()
+    text = str(ed)
+    assert "<md:EntityDescriptor" in text
+    assert "<ds:Signature" in text
+    assert "ns0:" not in text

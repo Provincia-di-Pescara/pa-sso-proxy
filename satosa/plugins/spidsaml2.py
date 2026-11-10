@@ -215,6 +215,25 @@ EIDAS_NOT_ENABLED_ERROR = {
 }
 
 
+# Prefissi XML del metadata SP. pysaml2 <= 7.5.4 li registrava all'import
+# (OASIS_DEFAULT_NS_PREFIXES); 7.5.5 (iam-proxy-italia v3.4.0) no: ElementTree
+# inventava ns0:/ns1:, a contenuto identico, cambiando il documento pubblicato
+# rispetto a quello validato da AgID. Registrati di nuovo prima di generarlo.
+METADATA_NS_PREFIXES = {
+    "saml": "urn:oasis:names:tc:SAML:2.0:assertion",
+    "samlp": "urn:oasis:names:tc:SAML:2.0:protocol",
+    "ds": "http://www.w3.org/2000/09/xmldsig#",
+    "xsi": "http://www.w3.org/2001/XMLSchema-instance",
+    "xs": "http://www.w3.org/2001/XMLSchema",
+    "mdui": "urn:oasis:names:tc:SAML:metadata:ui",
+    "md": "urn:oasis:names:tc:SAML:2.0:metadata",
+    "xenc": "http://www.w3.org/2001/04/xmlenc#",
+    "alg": "urn:oasis:names:tc:SAML:metadata:algsupport",
+    "mdattr": "urn:oasis:names:tc:SAML:metadata:attribute",
+    "idpdisc": "urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol",
+}
+
+
 def _add_disco_params(url: str, params: dict) -> str:
     """Parametri per la discovery page (statica, non legge lo stato SATOSA)."""
     return url + ("&" if urllib.parse.urlsplit(url).query else "?") + urllib.parse.urlencode(params)
@@ -256,6 +275,7 @@ class SpidSAMLBackend(SAMLBackend):
 
         logger.debug("inizializing metadata xmldoc")
         self.saml_base = saml2.md.SamlBase()
+        self.saml_base.register_prefix(METADATA_NS_PREFIXES)
         self.xmldoc = self.__create_metadata(self.sp.config)
         _report_metadata_snapshot(text_type(self.xmldoc), getattr(self, "_metadata_semantic_hash", None))
 

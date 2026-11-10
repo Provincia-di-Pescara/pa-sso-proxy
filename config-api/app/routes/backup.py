@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.cie_jwks_writer import write_jwks_files
 from app.database import get_db
 from app.jinja_templates import templates
-from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidCert, SpidIdP
+from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidCert, SpidIdP, SpidMetadataProfile
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_cert_writer import write_spid_cert
@@ -92,6 +92,18 @@ async def _export_bundle(db: AsyncSession) -> dict:
         cert = res.scalars().first()
     cert_dict = _row_to_dict(cert) if cert else {}
 
+    # spid_metadata_profile — il bundle porta solo il cert attivo e non lo storico
+    # metadata: i riferimenti verso righe non esportate vanno a NULL (resta
+    # cert_fingerprint per il confronto, il ripristino del cert non è possibile).
+    res = await db.execute(select(SpidMetadataProfile).order_by(SpidMetadataProfile.id))
+    profiles = []
+    for p in res.scalars().all():
+        row = _row_to_dict(p)
+        if cert is None or row.get("cert_id") != cert.id:
+            row["cert_id"] = None
+        row["metadata_version_id"] = None
+        profiles.append(row)
+
     return {
         "version": BACKUP_VERSION,
         "exported_at": datetime.now(timezone.utc).isoformat(),
@@ -101,6 +113,7 @@ async def _export_bundle(db: AsyncSession) -> dict:
         "cie_config": cie_dict,
         "jwk_keys": keys,
         "spid_cert": cert_dict,
+        "spid_metadata_profiles": profiles,
     }
 
 
@@ -116,6 +129,7 @@ async def _restore_bundle(bundle: dict, db: AsyncSession) -> None:
         raise ValueError(f"Versione bundle non supportata: {version!r}")
 
     # Ordine di delete: prima chi ha FK verso altre tabelle
+    await db.execute(delete(SpidMetadataProfile))
     await db.execute(delete(CieConfig))
     await db.execute(delete(SpidCert))
     await db.execute(delete(OIDCClient))
@@ -155,6 +169,14 @@ async def _restore_bundle(bundle: dict, db: AsyncSession) -> None:
         cert_data = _clean(bundle["spid_cert"], SpidCert)
         cert_data["is_active"] = True
         db.add(SpidCert(**cert_data))
+    await db.flush()
+
+    # spid_metadata_profile — DOPO spid_cert (FK cert_id). Bundle precedenti: assente.
+    # Senza id: con id espliciti la sequence PostgreSQL resterebbe indietro.
+    for row in bundle.get("spid_metadata_profiles", []):
+        data = _clean(row, SpidMetadataProfile)
+        data.pop("id", None)
+        db.add(SpidMetadataProfile(**data))
 
     await db.commit()
 
