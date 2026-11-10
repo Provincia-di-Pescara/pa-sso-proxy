@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidIdP
+from app.spid_seeder import EIDAS_ENTITY_IDS, FICEP_ENTITY_IDS
 from app.version import get_display_version
 
 SATOSA_CONF_DIR = os.environ.get("SATOSA_CONF_DIR", "/satosa-conf")
@@ -24,10 +25,7 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
 _TEST_ALIASES = {"spid-demo", "spid-validator"}
 _EIDAS_ALIASES = {"eidas-qa", "eidas-prod"}
-_EIDAS_ENTITY_IDS = {
-    "eidas-qa":   "https://sp-proxy.pre.eid.gov.it/spproxy/idpit",
-    "eidas-prod": "https://sp-proxy.eid.gov.it/spproxy/idpit",
-}
+_EIDAS_ENTITY_IDS = EIDAS_ENTITY_IDS
 
 
 def _base_url(hostname: str) -> str:
@@ -255,7 +253,14 @@ def _meta_slug(alias: str) -> str:
     return alias.replace("/", "_").replace(" ", "_")
 
 
-def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_path: str, settings: "EnteSettings") -> dict:
+def _spid_backend_yaml(
+    hostname: str,
+    enabled_idps: list,
+    cert_path: str,
+    key_path: str,
+    settings: "EnteSettings",
+    test_idp_client_ids: list[str] | None = None,
+) -> dict:
     local_metadata = ["/satosa-conf/spid-entities-idps.xml"]
     # Production IdPs are already in the local aggregate XML.
     # Demo/test and eIDAS IdPs are pre-downloaded by entrypoint.sh into
@@ -315,6 +320,12 @@ def _spid_backend_yaml(hostname: str, enabled_idps: list, cert_path: str, key_pa
             for idp in enabled_idps
             if idp.metadata_url and idp.alias in _TEST_ALIASES
         ],
+        # Client OIDC degli applicativi autorizzati agli IdP di test (flag per
+        # client, collaudo); /verifica (__spid_verifica__) è sempre ammesso.
+        "test_idp_client_ids": sorted(test_idp_client_ids or []),
+        # Tutti gli entity ID FICEP: spidsaml2 rifiuta quelli diversi da
+        # ficep_entity_id o con eIDAS spento (es. tile FICEP del registro SPID).
+        "ficep_entity_ids": sorted(FICEP_ENTITY_IDS),
         "ficep_enable": getattr(settings, "eidas_enabled", False) is True,
         "legal_entity_enable": getattr(settings, "legal_entity_enabled", False) is True,
         # ficep_entity_id: entity ID of the FICEP SP-proxy. Used by spidsaml2 backend
@@ -960,8 +971,9 @@ async def generate_satosa_config(db: AsyncSession) -> None:
                 "entity_id": "https://validator.spid.gov.it",
                 "logo_uri": "/static/spid/spid-agid-logo-lb.png"
             })
-        elif idp.alias in _EIDAS_ALIASES:
-            # eIDAS has its own dedicated tab in the disco page — skip from SPID IdP list.
+        elif idp.alias in _EIDAS_ALIASES or idp.registry_entity_id in FICEP_ENTITY_IDS:
+            # eIDAS has its own dedicated tab in the disco page — skip from SPID IdP list
+            # (also the FICEP entry the AgID registry lists among the SPID IdPs).
             pass
         elif idp.registry_entity_id:
             spid_idps_json.append({
@@ -1002,7 +1014,10 @@ async def generate_satosa_config(db: AsyncSession) -> None:
 
     _write(conf_dir, "proxy.yaml", _proxy_yaml(hostname, include_cie_oidc))
     _write(conf_dir, "oidc_frontend.yaml", _oidc_frontend_yaml(hostname))
-    _write(conf_dir, "spid_backend.yaml", _spid_backend_yaml(hostname, enabled_idps, cert_path, key_path, settings))
+    _write(conf_dir, "spid_backend.yaml", _spid_backend_yaml(
+        hostname, enabled_idps, cert_path, key_path, settings,
+        test_idp_client_ids=[c.client_id for c in clients if c.allow_test_idps],
+    ))
 
     # Write a mapping of alias -> metadata_url for every IdP whose metadata
     # is managed as a local pre-downloaded file (demo / eIDAS).  The

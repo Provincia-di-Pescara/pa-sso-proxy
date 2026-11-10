@@ -180,7 +180,8 @@
   <summary>Come funziona questa sezione</summary>
   <div class="a-help-body">
     <p><strong>Demo</strong> e <strong>Validator</strong> sono i due IdP ufficiali AgID per test/collaudo (nessun cittadino reale). Sono mutuamente esclusivi: attivarne uno disattiva automaticamente l'altro.</p>
-    <p>Attivarli/disattivarli <strong>non modifica il metadata SP</strong> — cambia solo quali IdP compaiono nella pagina di scelta provider (<code>/verifica</code>). Nessun impatto sulla validazione AgID.</p>
+    <p>Attivarli/disattivarli <strong>non modifica il metadata SP</strong> — cambia solo quali IdP compaiono nella pagina di scelta provider. Nessun impatto sulla validazione AgID.</p>
+    <p><strong>Dove compaiono.</strong> Sempre nel login partito da <code>/verifica</code>; negli applicativi solo per i client OIDC con <em>Consenti IdP di test</em> attivo (Client OIDC → Modifica), utile per collaudare un'app col Demo. Per tutti gli altri client sono nascosti e rifiutati anche aprendo a mano l'URL di login: accettano identità inventate.</p>
     <div class="a-help-example"><strong>Esempio:</strong> attivi il Validator, mandi il link <code>/verifica</code> ad AgID per la sessione di collaudo, poi lo disattivi — in nessun momento serve toccare chiavi o metadata.</div>
   </div>
 </details>

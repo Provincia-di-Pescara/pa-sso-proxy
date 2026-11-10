@@ -48,6 +48,7 @@ async def clients_create(
     name: str = Form(...),
     redirect_uris: str = Form(...),
     scopes: list[str] = Form(default=[]),
+    allow_test_idps: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     if not _auth_check(request):
@@ -73,6 +74,7 @@ async def clients_create(
         name=name,
         redirect_uris=uris,
         allowed_scopes=scopes or ["openid"],
+        allow_test_idps=allow_test_idps == "1",
     )
     db.add(c)
     await db.commit()
@@ -140,6 +142,7 @@ async def clients_update(
     redirect_uris: str = Form(...),
     scopes: list[str] = Form(default=[]),
     enabled: str = Form(default=""),
+    allow_test_idps: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     if not _auth_check(request):
@@ -161,6 +164,7 @@ async def clients_update(
     client.redirect_uris = uris
     client.allowed_scopes = scopes or ["openid"]
     client.enabled = enabled == "1"
+    client.allow_test_idps = allow_test_idps == "1"
     await db.commit()
 
     await generate_and_write(db)

@@ -15,7 +15,7 @@ from app.metadata_watcher import fetch_idp_metadata, fetch_spid_aggregate
 from app.models import SpidIdP, EnteSettings, SpidCert, SpidMetadataVersion
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
-from app.spid_seeder import sync_spid_idps_from_registry
+from app.spid_seeder import FICEP_ENTITY_IDS, sync_spid_idps_from_registry
 from app.routes.eidas import check_sp_metadata
 from app.routes.legal_entity import check_company_attributes
 
@@ -154,7 +154,12 @@ def _auth_check(request: Request) -> bool:
 async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
-    result = await db.execute(select(SpidIdP).where(SpidIdP.registry_entity_id != None).order_by(SpidIdP.registry_organization_name))
+    # Il nodo eIDAS (FICEP) elencato dal registro SPID si gestisce dalla tab eIDAS.
+    result = await db.execute(
+        select(SpidIdP)
+        .where(SpidIdP.registry_entity_id != None, SpidIdP.registry_entity_id.notin_(FICEP_ENTITY_IDS))
+        .order_by(SpidIdP.registry_organization_name)
+    )
     idps = list(result.scalars().all())
     sync_status = request.query_params.get("sync")
     sync_inserted = request.query_params.get("inserted")
@@ -241,6 +246,7 @@ async def idps_enable_all(request: Request, db: AsyncSession = Depends(get_db)):
         select(SpidIdP).where(
             SpidIdP.registry_entity_id != None,
             SpidIdP.alias.notin_(["spid-demo", "spid-validator"]),
+            SpidIdP.registry_entity_id.notin_(FICEP_ENTITY_IDS),
             SpidIdP.registry_disabled.is_not(True),
         )
     )
@@ -249,7 +255,7 @@ async def idps_enable_all(request: Request, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await generate_and_write(db)
     await asyncio.to_thread(reload_satosa)
-    return RedirectResponse("/admin/idps?sync=ok&inserted=0", status_code=302)
+    return RedirectResponse("/admin/idps?sync=ok&inserted=0#provider", status_code=302)
 
 
 @router.post("/idps/sync")
@@ -261,9 +267,9 @@ async def idps_sync(request: Request, db: AsyncSession = Depends(get_db)):
         inserted = await sync_spid_idps_from_registry(db)
         await generate_and_write(db)
         await asyncio.to_thread(reload_satosa)
-        return RedirectResponse(f"/admin/idps?sync=ok&inserted={inserted}", status_code=302)
+        return RedirectResponse(f"/admin/idps?sync=ok&inserted={inserted}#provider", status_code=302)
     except Exception:
-        return RedirectResponse("/admin/idps?sync=error&error=registry_sync_failed", status_code=302)
+        return RedirectResponse("/admin/idps?sync=error&error=registry_sync_failed#provider", status_code=302)
 
 
 @router.get("/idps/detail", response_class=HTMLResponse)
@@ -280,7 +286,10 @@ async def idps_toggle(request: Request, idp_id: int, db: AsyncSession = Depends(
         return RedirectResponse("/admin/login", status_code=302)
     result = await db.execute(select(SpidIdP).where(SpidIdP.id == idp_id))
     idp = result.scalar_one_or_none()
+    tab = "provider"
     if idp:
+        if idp.alias in ("spid-demo", "spid-validator"):
+            tab = "test"
         idp.enabled = not idp.enabled
         
         # Enforce mutual exclusion for demo and validator testing environments
@@ -302,7 +311,7 @@ async def idps_toggle(request: Request, idp_id: int, db: AsyncSession = Depends(
             await asyncio.to_thread(reload_satosa)
         except Exception:
             pass
-    return RedirectResponse("/admin/idps", status_code=302)
+    return RedirectResponse(f"/admin/idps#{tab}", status_code=302)
 
 
 @router.post("/idps/{idp_id}/refresh")

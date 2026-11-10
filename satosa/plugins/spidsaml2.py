@@ -161,9 +161,25 @@ def _legal_entity_requested(context) -> bool:
 VERIFICA_CLIENT_ID = "__spid_verifica__"
 
 
-def _verifica_requested(context) -> bool:
-    """True se il login parte dalla pagina /verifica (validazione AgID)."""
-    return _oidc_request_params(context).get("client_id", [""])[0] == VERIFICA_CLIENT_ID
+def _requesting_client_id(context) -> str:
+    """client_id della richiesta OIDC originale ('' se assente)."""
+    return _oidc_request_params(context).get("client_id", [""])[0]
+
+
+def _test_idps_allowed(context, sp_config) -> bool:
+    """IdP di test ammessi: pagina /verifica o client OIDC con il flag
+    allow_test_idps (sp_config.test_idp_client_ids, scritto da config-api)."""
+    client_id = _requesting_client_id(context)
+    if not client_id:
+        return False
+    return client_id == VERIFICA_CLIENT_ID or client_id in sp_config.get("test_idp_client_ids", [])
+
+
+def _ficep_blocked(entity_id, sp_config) -> bool:
+    """entity_id FICEP non utilizzabile: eIDAS spento o ambiente diverso."""
+    if entity_id not in sp_config.get("ficep_entity_ids", []):
+        return False
+    return sp_config.get("ficep_enable") is not True or entity_id != sp_config.get("ficep_entity_id")
 
 
 def _build_purpose_extension(purpose: str) -> "saml2.samlp.Extensions":
@@ -188,6 +204,14 @@ LEGAL_ENTITY_SPID_ONLY_ERROR = {
 TEST_IDP_VERIFICA_ONLY_ERROR = {
     "message_key": "error.test_idp_verifica_only",
     "troubleshoot_key": "error.test_idp_verifica_only.troubleshoot",
+}
+
+# Nodo eIDAS (FICEP) usabile solo se eIDAS è abilitato e solo nell'ambiente
+# configurato: il registro SPID lo elenca tra gli IdP, un URL di login aperto a
+# mano non deve scavalcare il toggle eIDAS (ACS 99/100 assenti dal metadata).
+EIDAS_NOT_ENABLED_ERROR = {
+    "message_key": "error.eidas_not_enabled",
+    "troubleshoot_key": "error.eidas_not_enabled.troubleshoot",
 }
 
 
@@ -439,7 +463,7 @@ class SpidSAMLBackend(SAMLBackend):
         params = {}
         if _legal_entity_requested(context):
             params["legal_entity"] = "1"
-        if _verifica_requested(context):
+        if _test_idps_allowed(context, self.config["sp_config"]):
             params["verifica"] = "1"
         ui_lang = i18n.ui_locales_lang(context)
         if ui_lang:
@@ -473,9 +497,12 @@ class SpidSAMLBackend(SAMLBackend):
         ):
             logger.warning("eIDAS richiesto con scope legal_entity: rifiutato (solo SPID)")
             return self.handle_error(**LEGAL_ENTITY_SPID_ONLY_ERROR, lang_context=context)
-        if self._is_test_idp(entity_id) and not _verifica_requested(context):
-            logger.warning("IdP di test %s richiesto fuori da /verifica: rifiutato", entity_id)
+        if self._is_test_idp(entity_id) and not _test_idps_allowed(context, self.config["sp_config"]):
+            logger.warning("IdP di test %s richiesto da un client non autorizzato: rifiutato", entity_id)
             return self.handle_error(**TEST_IDP_VERIFICA_ONLY_ERROR, lang_context=context)
+        if _ficep_blocked(entity_id, self.config["sp_config"]):
+            logger.warning("Nodo eIDAS %s richiesto con eIDAS non abilitato: rifiutato", entity_id)
+            return self.handle_error(**EIDAS_NOT_ENABLED_ERROR, lang_context=context)
 
         self.check_blacklist(context, entity_id)
         kwargs = {}

@@ -260,3 +260,42 @@ def test_registry_detail_accepts_entity_id_urls():
     from app.routes import idps
     assert idps._valid_registry_entity_id("https://identity.sieltecloud.it")
     assert idps._valid_registry_entity_id("https://loginspid.aruba.it/../x")
+
+
+async def test_idps_list_hides_ficep_registry_row(auth_client, db_session):
+    db_session.add(SpidIdP(
+        alias="spid-sp-proxy-eid-gov-it-spproxy-idpit", display_name="AgID",
+        metadata_url="https://registry.spid.gov.it/entities-idp/x",
+        registry_entity_id="https://sp-proxy.eid.gov.it/spproxy/idpit",
+        registry_organization_name="Agenzia per l'Italia Digitale - AgID", enabled=True,
+    ))
+    await db_session.commit()
+
+    response = await auth_client.get("/admin/idps")
+
+    assert response.status_code == 200
+    assert "https://sp-proxy.eid.gov.it/spproxy/idpit</code>" not in response.text
+
+
+async def test_idp_toggle_returns_to_right_tab(auth_client, db_session):
+    registry_idp = SpidIdP(alias="spid-reg", display_name="Reg", metadata_url="https://r.example/m",
+                           registry_entity_id="https://r.example", enabled=False)
+    demo = SpidIdP(alias="spid-demo", display_name="Demo", metadata_url="https://demo.spid.gov.it/metadata.xml",
+                   enabled=False)
+    db_session.add_all([registry_idp, demo])
+    await db_session.commit()
+
+    with patch("app.routes.idps.generate_and_write", new_callable=AsyncMock), \
+         patch("app.routes.idps.reload_satosa", return_value=True):
+        r1 = await auth_client.post(f"/admin/idps/{registry_idp.id}/toggle", follow_redirects=False)
+        r2 = await auth_client.post(f"/admin/idps/{demo.id}/toggle", follow_redirects=False)
+
+    assert r1.headers["location"] == "/admin/idps#provider"
+    assert r2.headers["location"] == "/admin/idps#test"
+
+
+async def test_idps_detail_back_link_points_to_provider_tab(auth_client):
+    detail = {"request_url": "u", "ok": True, "error": None, "headers": {}, "detail": {}}
+    with patch("app.routes.idps._fetch_spid_registry_idp_detail", new=AsyncMock(return_value=detail)):
+        response = await auth_client.get("/admin/idps/detail?entity_id=https://r.example")
+    assert 'href="/admin/idps#provider"' in response.text

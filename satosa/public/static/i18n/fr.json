@@ -69,6 +69,8 @@
   "error.legal_entity_spid_only.troubleshoot": "Revenez au service et connectez-vous avec SPID en utilisant une identité à usage professionnel de la personne morale. CIE et eIDAS ne prennent pas en charge ce type d'accès.",
   "error.test_idp_verifica_only": "Ce fournisseur d'identité est réservé aux tests.",
   "error.test_idp_verifica_only.troubleshoot": "Le Demo Provider et le validateur AgID ne peuvent être utilisés que depuis la page de vérification du proxy. Retournez au service et connectez-vous avec votre fournisseur SPID.",
+  "error.eidas_not_enabled": "La connexion eIDAS n'est pas activée.",
+  "error.eidas_not_enabled.troubleshoot": "Ce service ne permet pas la connexion via le nœud eIDAS. Retournez au service et connectez-vous avec SPID ou CIE.",
 
   "error.cie.cancelled": "Vous avez annulé la connexion avec la CIE.",
   "error.cie.timeout": "Le délai accordé pour l'authentification a expiré. Veuillez réessayer.",

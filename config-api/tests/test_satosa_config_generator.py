@@ -553,3 +553,47 @@ async def test_verifica_client_scopes_with_legal_entity(full_db, tmp_path, monke
     await generate_satosa_config(full_db)
     clients = json.loads((tmp_path / "oidc_clients.json").read_text())
     assert clients["__spid_verifica__"]["allowed_scopes"] == ["openid", "profile", "email", "legal_entity"]
+
+
+async def test_generator_ficep_and_test_idp_clients(db_session, tmp_path, monkeypatch):
+    """FICEP del registro SPID escluso dalla lista SPID della discovery; client con
+    allow_test_idps in sp_config.test_idp_client_ids; elenco entity ID FICEP."""
+    import json
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    from app.models import EnteSettings, OIDCClient, SpidIdP
+    from app.satosa_config_generator import generate_satosa_config
+
+    db_session.add_all([
+        EnteSettings(
+            id=1, proxy_hostname="proxy.ente.it", org_name="Ente", org_display_name="Ente Test",
+            org_url="https://ente.it", ipa_code="P_T", contact_email="e@ente.it",
+            contact_phone="+39001", org_city="Roma",
+        ),
+        SpidIdP(alias="spid-sp-proxy-eid-gov-it-spproxy-idpit", display_name="AgID",
+                metadata_url="https://registry.spid.gov.it/entities-idp/x",
+                registry_entity_id="https://sp-proxy.eid.gov.it/spproxy/idpit",
+                registry_organization_name="AgID", enabled=True),
+        SpidIdP(alias="spid-loginspid-aruba-it", display_name="Aruba",
+                metadata_url="https://registry.spid.gov.it/entities-idp/y",
+                registry_entity_id="https://loginspid.aruba.it",
+                registry_organization_name="ArubaPEC S.p.A.", enabled=True),
+        OIDCClient(client_id="app-prod", client_secret_hash="h", name="Prod",
+                   redirect_uris=["https://a/cb"], allowed_scopes=["openid"]),
+        OIDCClient(client_id="app-collaudo", client_secret_hash="h", name="Collaudo",
+                   redirect_uris=["https://b/cb"], allowed_scopes=["openid"], allow_test_idps=True),
+        OIDCClient(client_id="app-off", client_secret_hash="h", name="Off", enabled=False,
+                   redirect_uris=["https://c/cb"], allowed_scopes=["openid"], allow_test_idps=True),
+    ])
+    await db_session.commit()
+
+    await generate_satosa_config(db_session)
+
+    idps = json.loads((tmp_path / "spid-idps-default.json").read_text())
+    assert [x["entity_id"] for x in idps] == ["https://loginspid.aruba.it"]
+    sp_config = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())["config"]["sp_config"]
+    assert sp_config["test_idp_client_ids"] == ["app-collaudo"]
+    assert sp_config["ficep_entity_ids"] == [
+        "https://sp-proxy.eid.gov.it/spproxy/idpit",
+        "https://sp-proxy.pre.eid.gov.it/spproxy/idpit",
+    ]
+    assert sp_config["ficep_enable"] is False

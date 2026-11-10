@@ -110,7 +110,7 @@ config-api/
     satosa_config_generator.py   Genera YAML SATOSA + plugin Python da DB
     satosa_generator.py   Wrapper: chiama generator + scrive cert/key
     metadata_watcher.py   Cron aggiornamento metadata IdP + retention access_log
-  alembic/versions/       Migrazioni DB (001–019)
+  alembic/versions/       Migrazioni DB (001–020)
 nginx/
   templates/
     proxy.conf.template   Route: /verifica → config-api, /admin → config-api, / → satosa (envsubst → conf.d/)
@@ -182,6 +182,8 @@ Il nodo eIDAS italiano usa lo **stesso backend SAML2** di SPID (`spid_backend`).
 
 URL metadata IdP eIDAS: QA `https://sp-proxy.pre.eid.gov.it/spproxy/idpitmetadata`, Prod `https://sp-proxy.eid.gov.it/spproxy/idpitmetadata`.
 
+**FICEP nel registro SPID**: da novembre 2026 il registro AgID elenca il nodo eIDAS (`https://sp-proxy.eid.gov.it/spproxy/idpit`, senza logo) tra gli IdP SPID. Si gestisce solo dalla tab eIDAS: la sync del registro non lo importa (riga già esistente → disabilitata), la tab "Provider SPID" e la discovery SPID lo escludono (`FICEP_ENTITY_IDS` in `spid_seeder.py`). Guard in `authn_request`: un entity_id in `sp_config.ficep_entity_ids` è rifiutato (`EIDAS_NOT_ENABLED_ERROR`) se eIDAS è spento (`ficep_enable`) o non è l'ambiente configurato (`ficep_entity_id`) — il FICEP è nel metadata aggregato SPID, quindi senza guard sarebbe raggiungibile aprendo a mano l'URL di login.
+
 ### SPID persona giuridica
 Quando un client OIDC chiede lo scope `legal_entity`, il backend SPID (`spidsaml2.py`) aggiunge all'`AuthnRequest` l'estensione `<spid:Purpose>PG</spid:Purpose>` (Avviso AgID n.18 v.2, identità Tipo 3/4 uso professionale) e imposta `attribute_consuming_service_index` sull'ACS dedicato (index `4`) invece del default index 0. Questo ACS dichiara sia gli attributi persona fisica sia quelli azienda (`companyName`, `registeredOffice`, `ivaCode`); è creato in `__create_metadata` quando `legal_entity_enable: true` in `sp_config` (derivato da `ente_settings.legal_entity_enabled`). Lato OIDC, i claim azienda sono rilasciati solo per lo scope `legal_entity` (non per `profile`), per minimizzazione dati — vedi `extra_scopes` in `_oidc_frontend_yaml`.
 
@@ -233,7 +235,7 @@ Colonne tabella `access_log`: `provider_type`, `client_id`, `result`, `error_cod
 ### Pagina /verifica
 Pagina pubblica (no login admin) per validazione AgID. Gate: 404 se nessun IdP con alias `spid-demo` o `spid-validator` è abilitato. Flusso PKCE completo via `__spid_verifica__` client. URL: `https://<hostname>/verifica`. Mandare questo link ad AgID per la sessione di validazione.
 
-**IdP di test (demo, validator AgID) solo da `/verifica`**: accettano identità inventate, quindi un applicativo dell'ente non deve mai poterli usare. Discovery: `spid-idps-default.json` li marca `"test": true`, `disco_query` aggiunge `verifica=1` solo per il client `__spid_verifica__` e `disco.html` li mostra solo con quel flag. Guard server (URL di login aperti a mano): `authn_request` rifiuta un entity_id presente nei file `sp_config.test_idp_metadata_files` (scritti dal generatore) se il client non è `__spid_verifica__` → pagina d'errore del proxy `TEST_IDP_VERIFICA_ONLY_ERROR`. Vale anche per il test client admin (`__admin_test__`). Con solo IdP di test abilitati la discovery degli applicativi usa la lista fallback di produzione.
+**IdP di test (demo, validator AgID) solo da `/verifica` e dai client con `allow_test_idps`**: accettano identità inventate, quindi un applicativo di produzione non deve mai poterli usare. Il flag per client (`oidc_clients.allow_test_idps`, form Client OIDC, badge "IdP test" in lista) serve a collaudare un'app col Demo. Discovery: `spid-idps-default.json` li marca `"test": true`, `disco_query` aggiunge `verifica=1` per `__spid_verifica__` e per i client in `sp_config.test_idp_client_ids` (scritto dal generatore, solo client abilitati) e `disco.html` li mostra solo con quel flag. Guard server (URL di login aperti a mano): `authn_request` rifiuta un entity_id presente nei file `sp_config.test_idp_metadata_files` se il client non è ammesso → pagina d'errore del proxy `TEST_IDP_VERIFICA_ONLY_ERROR`. Vale anche per il test client admin (`__admin_test__`). Con solo IdP di test abilitati la discovery degli applicativi usa la lista fallback di produzione.
 
 Selettore persona fisica/giuridica su `/verifica` visibile solo con `legal_entity_enabled`: `subject=pg` aggiunge scope `legal_entity` + claim aziendali richiesti; il generatore dà lo scope `legal_entity` a `__spid_verifica__` solo in quel caso (senza ACS 4 nel metadata il login PG fallirebbe). `subject=pg` con persona giuridica disattivata → ricade silenziosamente su persona fisica.
 

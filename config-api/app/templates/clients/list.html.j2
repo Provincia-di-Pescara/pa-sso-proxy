@@ -26,6 +26,7 @@
           <td>
             {% if c.enabled %}<span class="a-badge a-badge-success">Attivo</span>
             {% else %}<span class="a-badge a-badge-neutral">Disabilitato</span>{% endif %}
+            {% if c.allow_test_idps %}<span class="a-badge a-badge-warning" title="Può usare gli IdP di test (Demo, Validator AgID)">IdP test</span>{% endif %}
           </td>
           <td>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
