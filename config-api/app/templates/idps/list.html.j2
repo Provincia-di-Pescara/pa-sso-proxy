@@ -44,8 +44,8 @@
     Persona giuridica
   </button>
   <button type="button" class="a-tab" data-tab="gestione-metadata" role="tab">
-    <span class="a-tab-dot" style="background:{% if metadata_exposed_mismatch %}var(--danger){% elif not metadata_versions %}var(--fg-muted){% else %}var(--success){% endif %};"></span>
-    Profili configurazione
+    <span class="a-tab-dot" style="background:{% if uploaded_exposed %}var(--danger){% elif not profile.profile %}var(--fg-muted){% elif profile.matches %}var(--success){% else %}var(--warning){% endif %};"></span>
+    Profilo validato
   </button>
 </div>
 
@@ -74,7 +74,7 @@
   <summary>Come funziona questa sezione</summary>
   <div class="a-help-body">
     <p>Le <strong>chiavi</strong> sono la coppia certificato + chiave privata con cui il proxy firma e decifra i messaggi SAML verso gli Identity Provider SPID/eIDAS. Il certificato pubblico è quello registrato su AgID e negli IdP.</p>
-    <p><strong>"Rigenera chiavi"</strong> crea una coppia completamente nuova: il certificato pubblico cambia per davvero. Da quel momento il metadata registrato su AgID non corrisponde più alla chiave che il proxy usa realmente — serve una nuova validazione/registrazione. È un'operazione diversa e più invasiva di "Rigenera metadata" (tab <em>Profili configurazione</em>), che non tocca le chiavi.</p>
+    <p><strong>"Rigenera chiavi"</strong> crea una coppia completamente nuova: il certificato pubblico cambia per davvero. Da quel momento il metadata registrato su AgID non corrisponde più alla chiave che il proxy usa realmente — serve una nuova validazione/registrazione. È un'operazione diversa e più invasiva di "Rigenera metadata" (tab <em>Profilo validato</em>), che non tocca le chiavi.</p>
     <div class="a-help-example"><strong>Esempio:</strong> il certificato scade tra 20 giorni → rigeneri le chiavi → il metadata SP cambia contenuto (nuovo certificato) → va ri-registrato/ri-validato presso AgID prima che SPID torni a funzionare in produzione con gli IdP ufficiali.</div>
   </div>
 </details>
@@ -89,7 +89,7 @@
       {% if s and s.eidas_enabled and metadata_status and not metadata_status.has_eidas %}
         <div class="a-alert a-alert-warning" style="margin-bottom:16px;">
           <strong>Attenzione:</strong> eIDAS è abilitato in configurazione, ma il metadata pubblicato non supporta ancora eIDAS (indici FICEP 99/100 mancanti).
-          Verifica che SATOSA sia stato ricaricato correttamente (nel tab Profili configurazione trovi "Rigenera metadata").
+          Verifica che SATOSA sia stato ricaricato correttamente (nel tab Profilo validato trovi "Rigenera metadata").
         </div>
       {% endif %}
       {% if cert %}
@@ -344,7 +344,7 @@
     <p>Abilitare eIDAS aggiunge due nuovi indici (99 e 100) di <code>AttributeConsumingService</code> al metadata SP — il documento pubblicato <strong>cambia contenuto per davvero</strong>. Non tocca le chiavi, ma modifica cosa il metadata dichiara.</p>
     <p>Serve ri-validazione AgID prima di andare in produzione. <strong>Non serve rifarla ogni volta</strong> che riavvii SATOSA: solo la prima volta che abiliti/disabiliti (o cambi ambiente prod/QA).</p>
     <p><strong>L'accesso SPID già validato continua a funzionare</strong> anche prima della ri-validazione: gli ACS 99/100 si aggiungono a quelli esistenti. <strong>eIDAS invece funziona solo dopo l'aggiornamento del metadata sul registro AgID.</strong></p>
-    <div class="a-help-example"><strong>Workflow consigliato per non rischiare nulla:</strong> abilita eIDAS qui → vai al tab <em>Profili configurazione</em>, trovi la nuova versione generata → <code>Esponi</code> per pubblicarla e testare con AgID → se qualcosa non va, <code>Esponi</code> la versione di prima del cambio (torni esattamente come stavi) → solo quando sei soddisfatto, <code>Segna validato</code> e chiedi la validazione ufficiale ad AgID.</div>
+    <div class="a-help-example"><strong>Workflow consigliato per non rischiare nulla:</strong> abilita eIDAS qui e fai i test → se qualcosa non va, tab <em>Profilo validato</em> → <code>Ripristina validato</code> (torni esattamente alla configurazione validata) → quando AgID ha aggiornato il registro, <code>Segna validato</code>.</div>
   </div>
 </details>
 <div class="a-card" style="max-width:720px;">
@@ -400,7 +400,7 @@
   <summary>Come funziona questa sezione</summary>
   <div class="a-help-body">
     <p>Abilitare l'accesso persona giuridica aggiunge un <code>AttributeConsumingService</code> dedicato con gli attributi azienda (ragione sociale, sede legale, P.IVA) al metadata SP — il documento pubblicato <strong>cambia contenuto per davvero</strong>, stessa logica di eIDAS.</p>
-    <p>Serve ri-validazione AgID. Stesso workflow non distruttivo di eIDAS: vedi il suggerimento nel tab <em>Profili configurazione</em>.</p>
+    <p>Serve ri-validazione AgID. Stesso workflow non distruttivo di eIDAS: vedi il suggerimento nel tab <em>Profilo validato</em>.</p>
     <p><strong>Persona fisica continua a funzionare</strong> anche prima della ri-validazione (usa l'ACS già registrato). <strong>Persona giuridica invece funziona solo dopo l'aggiornamento del metadata sul registro AgID</strong>: gli IdP leggono il metadata registrato, non quello pubblicato dal proxy, e senza l'ACS dedicato rifiutano la richiesta.</p>
   </div>
 </details>
@@ -447,48 +447,136 @@
 </section>
 
 <section id="gestione-metadata" class="a-tab-panel" hidden>
-<details class="a-help" open>
+<details class="a-help">
   <summary>Come funziona questa sezione</summary>
   <div class="a-help-body">
-    <p><strong>Cosa mostra questa tabella.</strong> Ogni volta che SATOSA rigenera il metadata SP con contenuto <em>realmente diverso</em> da prima (chiavi ruotate, eIDAS/persona giuridica abilitati o disabilitati, upload manuale), viene salvata una riga qui — uno "scatto" (checkpoint) del documento in quel momento. Un semplice riavvio di SATOSA senza modifiche di configurazione <strong>non</strong> crea una nuova riga.</p>
-
-    <p><strong>Due stati indipendenti, non collegati tra loro:</strong></p>
-    <ul>
-      <li><span class="a-badge a-badge-success" style="font-size:11px;">Esposto</span> — è la versione che SATOSA sta servendo davvero in questo momento su <code>/spidSaml2/metadata</code>. Una sola alla volta.</li>
-      <li><span class="a-badge a-badge-info" style="font-size:11px;">Validato AgID</span> — è la versione che AgID ha approvato ufficialmente. Puro promemoria/bookmark, non ha alcun effetto tecnico. Può restare "Validato" anche se in questo momento stai esponendo una versione diversa per fare dei test.</li>
-    </ul>
-
-    <p><strong>"Esponi" = rollback completo, non solo del documento.</strong> Ogni riga è un <em>profilo</em>: il metadata XML pubblicato **più** lo stato dei toggle eIDAS/persona giuridica in quel momento. Cliccando "Esponi", il documento torna esattamente quello — bit per bit, cert compreso — <strong>e i toggle eIDAS/persona giuridica vengono automaticamente riallineati</strong> a com'erano allora (SATOSA si ricarica di conseguenza). Il certificato di firma resta invece un'azione separata (tab SPID → storico certificati → Attiva) — riattivare una chiave vecchia ha implicazioni di sicurezza diverse da un semplice toggle, "Esponi" non lo tocca, solo avvisa se non corrisponde.</p>
-
+    <p><strong>Cosa conta per AgID.</strong> Gli IdP leggono il metadata SP dal registro AgID, non da questo proxy. "Validato" vuol dire che il proxy si comporta come il documento registrato: stesso entity ID, stesso certificato, stessi ACS e attributi (eIDAS, persona giuridica), stessi dati ente e contatti.</p>
+    <p><strong>Il profilo validato è la configurazione, non un file.</strong> "Segna validato" fotografa i parametri attuali che finiscono nel metadata: certificato, dati ente/contatti, toggle eIDAS (con ambiente) e persona giuridica. Da quel momento la sezione segnala ogni differenza tra configurazione attuale e validata.</p>
+    <p><strong>"Ripristina validato"</strong> riapplica quei parametri e SATOSA rigenera il metadata: torni esattamente alla configurazione validata. Se il profilo usa un certificato diverso da quello attivo, il ripristino lo riattiva solo dopo una conferma esplicita.</p>
     <div class="a-help-example">
-      <strong>Esempio pratico — provare eIDAS senza rischi:</strong>
+      <strong>Esempio — provare eIDAS senza rischi:</strong>
       <ol>
-        <li>Oggi il profilo (validato AgID mesi fa) è esposto, eIDAS disabilitato.</li>
-        <li>Vai al tab eIDAS, abiliti il toggle. SATOSA rigenera → compare qui un <strong>nuovo profilo</strong> (contenuto diverso: nuovi indici ACS 99/100, eIDAS=on).</li>
-        <li>Il nuovo profilo diventa automaticamente quello esposto (è la config live). Fai i test con il Validator AgID o il validatore ufficiale.</li>
-        <li><strong>Non ti convince, o serve rifare un tentativo?</strong> Clicca "Esponi" sul profilo di <em>prima</em> del cambio (quello ancora marcato "Validato AgID") — SATOSA torna a servire esattamente quel documento <em>e il toggle eIDAS torna disabilitato da solo</em>. Come se non l'avessi mai toccato. Nessuna richiesta ad AgID intanto compromessa.</li>
-        <li>Solo quando i test vanno bene, clicchi "Segna validato" sul nuovo profilo e fai la richiesta ufficiale di ri-validazione ad AgID.</li>
+        <li>Profilo validato: eIDAS spento. Stato "Uguale al validato".</li>
+        <li>Abiliti eIDAS (tab eIDAS): lo stato diventa "Diverso dal validato — eIDAS: on (validato: off)". Fai i test.</li>
+        <li>Non va? "Ripristina validato": eIDAS torna spento, metadata come prima.</li>
+        <li>Va, e AgID ha aggiornato il registro? "Segna validato": il profilo nuovo diventa il validato, il precedente resta in archivio (ripristinabile).</li>
       </ol>
     </div>
-
-    <p style="margin-top:10px;"><strong>Colonna "Cert usato":</strong> quale certificato (tab SPID) era attivo quando quel profilo è stato generato. Se ruoti le chiavi dopo, i profili vecchi mostrano un avviso — sono firmati con una chiave che non esiste più, non ripristinabile automaticamente.</p>
-    <p><strong>Colonna "eIDAS / PG":</strong> stato dei due toggle in quel profilo — quello che "Esponi" ripristina. "—" per profili storici salvati prima che questo tracciamento esistesse (nessun ripristino possibile per quelli, solo il documento).</p>
-    <p><strong>Colonna "Hash":</strong> solo un identificativo tecnico troncato per distinguere le righe a colpo d'occhio, non serve altro scopo.</p>
+    <p><strong>Storico metadata generati:</strong> una riga ogni volta che il contenuto del metadata cambia davvero. L'impronta ignora firma, ID e prefissi XML: riavvii e nuove versioni dell'immagine che non cambiano il contenuto non creano righe. È un registro, non un elenco di versioni da pubblicare.</p>
+    <p><strong>Metadata caricato a mano:</strong> solo per emergenza. "Esponi" lo pubblica al posto di quello generato e da lì nessuna modifica di configurazione viene pubblicata finché non torni al metadata generato.</p>
   </div>
 </details>
+
+{% if metadata_error %}<div class="a-alert a-alert-danger">{{ metadata_error }}</div>{% endif %}
+{% if metadata_warning %}<div class="a-alert a-alert-warning">{{ metadata_warning }}</div>{% endif %}
+{% if metadata_info %}<div class="a-alert a-alert-success">{{ metadata_info }}</div>{% endif %}
+
+{% if uploaded_exposed %}
+<div class="a-alert a-alert-danger" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+  <div>Il metadata pubblicato è un <strong>file caricato a mano</strong> (riga #{{ uploaded_exposed.id }}): le modifiche di configurazione <strong>non</strong> vengono pubblicate.</div>
+  <form method="post" action="/admin/metadata/override/clear" onsubmit="return confirm('Tornare al metadata generato da SATOSA?');">
+    <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Torna al metadata generato</button>
+  </form>
+</div>
+{% endif %}
+
 <div class="a-card">
   <div class="a-card-header">
-    Storico profili di configurazione SPID/eIDAS
+    Profilo validato AgID
+    {% if not profile.profile %}
+      <span class="a-badge a-badge-neutral">Nessun profilo</span>
+    {% elif profile.matches %}
+      <span class="a-badge a-badge-success">Uguale al validato</span>
+    {% else %}
+      <span class="a-badge a-badge-warning">Diverso dal validato</span>
+    {% endif %}
+  </div>
+  <div class="a-card-body">
+    {% if not profile.profile %}
+      <p class="a-muted" style="font-size:13px;">Nessuna configurazione segnata come validata. Quando AgID ha validato il metadata attuale, segnalo qui: potrai sempre tornarci.</p>
+    {% else %}
+      {% set p = profile.profile %}
+      <div style="font-size:13px;margin-bottom:12px;">
+        {% if p.label %}<strong>{{ p.label }}</strong> · {% endif %}segnato il {{ p.created_at.strftime('%d/%m/%Y %H:%M') if p.created_at else '—' }}
+        · cert {% if p.cert_id %}#{{ p.cert_id }}{% else %}<span class="a-muted">non più presente</span>{% endif %}
+        · eIDAS {{ 'on' if p.eidas_enabled else 'off' }}{% if p.eidas_enabled %} ({{ p.eidas_environment }}){% endif %}
+        · PG {{ 'on' if p.legal_entity_enabled else 'off' }}
+      </div>
+      {% if profile.differences %}
+      <div class="a-table-wrap" style="margin-bottom:12px;">
+        <table class="a-table">
+          <thead><tr><th>Parametro</th><th>Attuale</th><th>Validato</th></tr></thead>
+          <tbody>
+            {% for d in profile.differences %}
+            <tr><td>{{ d.label }}</td><td class="a-mono" style="font-size:12px;">{{ d.current }}</td><td class="a-mono" style="font-size:12px;">{{ d.validated }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% if profile.document_matches is false and not profile.differences %}
+      <div class="a-alert a-alert-warning">Parametri uguali al validato ma metadata diverso: probabilmente una nuova versione del proxy ha cambiato il documento. Confrontalo (Scarica XML) con quello validato prima di modificare il registro AgID.</div>
+      {% endif %}
+      {% if profile.entity_id_differs %}
+      <div class="a-alert a-alert-danger">L'entity ID dipende da <code>PROXY_HOSTNAME</code>/<code>PROXY_BASE_URL</code> dello stack: non si ripristina da qui.</div>
+      {% endif %}
+      {% if not profile.matches %}
+      <form method="post" action="/admin/metadata/profile/{{ p.id }}/restore" style="display:inline;"
+            onsubmit="return confirmRestore(this, {{ 'true' if profile.differences | selectattr('label', 'equalto', 'Certificato') | list else 'false' }}, '{{ p.cert_id or '' }}');">
+        <input type="hidden" name="confirm_cert" value="">
+        <button type="submit" class="a-btn a-btn-primary a-btn-sm">Ripristina validato</button>
+      </form>
+      {% endif %}
+    {% endif %}
+    <form method="post" action="/admin/metadata/profile/validate" style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;"
+          onsubmit="return confirm('Segnare la configurazione ATTUALE come validata da AgID?{% if profile.profile %} Il profilo validato di oggi va in archivio.{% endif %}');">
+      <input type="text" name="label" class="a-input" placeholder="Nota (es. validazione AgID 2026-11)" style="max-width:320px;">
+      <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Segna validato (configurazione attuale)</button>
+    </form>
+  </div>
+</div>
+
+{% if archived_profiles %}
+<div class="a-card">
+  <div class="a-card-header">Profili archiviati</div>
+  <div class="a-table-wrap">
+    <table class="a-table">
+      <thead><tr><th>Segnato il</th><th>Nota</th><th>Cert</th><th>eIDAS / PG</th><th>Azioni</th></tr></thead>
+      <tbody>
+        {% for a in archived_profiles %}
+        <tr>
+          <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') if a.created_at else '—' }}</td>
+          <td>{{ a.label or '—' }}</td>
+          <td>{% if a.cert_id %}#{{ a.cert_id }}{% else %}<span class="a-muted">non più presente</span>{% endif %}</td>
+          <td style="font-size:11px;white-space:nowrap;">
+            <span class="a-badge {{ 'a-badge-success' if a.eidas_enabled else 'a-badge-neutral' }}" style="font-size:10px;">eIDAS {{ 'on' if a.eidas_enabled else 'off' }}</span>
+            <span class="a-badge {{ 'a-badge-success' if a.legal_entity_enabled else 'a-badge-neutral' }}" style="font-size:10px;">PG {{ 'on' if a.legal_entity_enabled else 'off' }}</span>
+          </td>
+          <td>
+            <form method="post" action="/admin/metadata/profile/{{ a.id }}/restore" style="display:inline;"
+                  onsubmit="return confirmRestore(this, {{ 'true' if a.cert_id and (not cert or a.cert_id != cert.id) else 'false' }}, '{{ a.cert_id or '' }}');">
+              <input type="hidden" name="confirm_cert" value="">
+              <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Ripristina</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="a-card">
+  <div class="a-card-header">
+    Storico metadata
     <span class="a-badge a-badge-neutral">SAML SP</span>
   </div>
   <div class="a-card-body">
-    {% if metadata_error %}<div class="a-alert a-alert-danger">{{ metadata_error }}</div>{% endif %}
-    {% if metadata_warning %}<div class="a-alert a-alert-warning">{{ metadata_warning }}</div>{% endif %}
-
     <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;">
       <form method="post" action="/admin/metadata/upload" enctype="multipart/form-data">
         <div class="a-form-group">
-          <label class="a-label">Carica metadata XML manuale</label>
+          <label class="a-label">Carica metadata XML manuale (emergenza)</label>
           <input type="file" name="file" accept=".xml" class="a-input">
         </div>
         <button type="submit" class="a-btn a-btn-secondary">Carica</button>
@@ -496,7 +584,7 @@
       <form method="post" action="/admin/metadata/regenerate">
         <div class="a-form-group">
           <label class="a-label">Metadata disallineato dal certificato attivo?</label>
-          <div class="a-form-hint" style="margin-bottom:8px;">Forza un reload SATOSA senza toccare le chiavi — crea uno snapshot firmato con il certificato oggi attivo.</div>
+          <div class="a-form-hint" style="margin-bottom:8px;">Forza un reload SATOSA senza toccare le chiavi.</div>
         </div>
         <button type="submit" class="a-btn a-btn-secondary">Rigenera metadata</button>
       </form>
@@ -505,55 +593,41 @@
     {% if not metadata_versions %}
     <div class="a-alert a-alert-warning">Nessuna versione di metadata storicizzata ancora.</div>
     {% else %}
+    {% set latest_generated_id = profile.latest_version.id if profile.latest_version else none %}
+    {% set validated_hash = profile.profile.content_hash if profile.profile else none %}
     <div class="a-table-wrap">
     <table class="a-table">
       <thead>
-        <tr>
-          <th>Fonte</th>
-          <th>Generato il</th>
-          <th>Cert usato</th>
-          <th>eIDAS / PG</th>
-          <th>Hash</th>
-          <th>Stato</th>
-          <th>Azioni</th>
-        </tr>
+        <tr><th>Fonte</th><th>Generato il</th><th>Cert</th><th>eIDAS / PG</th><th>Impronta</th><th>Stato</th><th>Azioni</th></tr>
       </thead>
       <tbody>
         {% for v in metadata_versions %}
         <tr>
           <td>{{ "Generato" if v.source == "generated" else "Caricato" }}</td>
-          <td>{{ v.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-          <td>
-            {% if v.cert_id %}
-              #{{ v.cert_id }}{% if not cert or v.cert_id != cert.id %} <span class="a-badge a-badge-warning">non è il cert attivo</span>{% endif %}
-            {% else %}—{% endif %}
-          </td>
+          <td>{{ v.created_at.strftime('%Y-%m-%d %H:%M') if v.created_at else '—' }}</td>
+          <td>{% if v.cert_id %}#{{ v.cert_id }}{% else %}—{% endif %}</td>
           <td style="font-size:11px;white-space:nowrap;">
             {% if v.eidas_enabled is none and v.legal_entity_enabled is none %}
               <span class="a-muted">—</span>
             {% else %}
-              <span class="{% if v.eidas_enabled %}a-badge a-badge-success{% else %}a-badge a-badge-neutral{% endif %}" style="font-size:10px;">eIDAS {% if v.eidas_enabled %}on{% else %}off{% endif %}</span>
-              <span class="{% if v.legal_entity_enabled %}a-badge a-badge-success{% else %}a-badge a-badge-neutral{% endif %}" style="font-size:10px;">PG {% if v.legal_entity_enabled %}on{% else %}off{% endif %}</span>
+              <span class="a-badge {{ 'a-badge-success' if v.eidas_enabled else 'a-badge-neutral' }}" style="font-size:10px;">eIDAS {{ 'on' if v.eidas_enabled else 'off' }}</span>
+              <span class="a-badge {{ 'a-badge-success' if v.legal_entity_enabled else 'a-badge-neutral' }}" style="font-size:10px;">PG {{ 'on' if v.legal_entity_enabled else 'off' }}</span>
             {% endif %}
           </td>
           <td class="a-mono" style="font-size:11px;">{{ v.content_hash[:12] }}</td>
           <td>
-            {% if v.is_exposed %}<span class="a-badge a-badge-success">Esposto</span>{% endif %}
-            {% if v.is_validated %}<span class="a-badge a-badge-info">Validato AgID</span>{% endif %}
+            {% if v.is_exposed %}<span class="a-badge a-badge-danger">Pubblicato (manuale)</span>
+            {% elif v.id == latest_generated_id and not uploaded_exposed %}<span class="a-badge a-badge-success">Pubblicato</span>{% endif %}
+            {% if validated_hash and v.content_hash == validated_hash %}<span class="a-badge a-badge-secondary">= validato</span>{% endif %}
           </td>
           <td>
-            {% if not v.is_exposed %}
-            <form method="post" action="/admin/metadata/{{ v.id }}/expose" style="display:inline;" onsubmit="return confirm('Esporre questa versione al posto di quella corrente?');">
+            {% if v.source == "uploaded" and not v.is_exposed %}
+            <form method="post" action="/admin/metadata/{{ v.id }}/expose" style="display:inline;" onsubmit="return confirm('Pubblicare questo file al posto del metadata generato? Finché resta pubblicato, le modifiche di configurazione non vengono pubblicate.');">
               <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Esponi</button>
             </form>
             {% endif %}
-            {% if not v.is_validated %}
-            <form method="post" action="/admin/metadata/{{ v.id }}/validate" style="display:inline;">
-              <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Segna validato</button>
-            </form>
-            {% endif %}
             <a href="/admin/metadata/{{ v.id }}/download" class="a-btn a-btn-secondary a-btn-sm">Scarica XML</a>
-            {% if not v.is_exposed and not v.is_validated %}
+            {% if not v.is_exposed and v.id != latest_generated_id %}
             <form method="post" action="/admin/metadata/{{ v.id }}/delete" style="display:inline;" onsubmit="return confirm('Eliminare questa versione?');">
               <button type="submit" class="a-btn a-btn-danger a-btn-sm">Elimina</button>
             </form>
@@ -644,6 +718,17 @@ function handleLegalEntitySubmit(event) {
   } else {
     confirmedInput.value = "yes";
   }
+  return true;
+}
+
+function confirmRestore(form, certChange, certId) {
+  var msg = "Ripristinare la configurazione del profilo? SATOSA rigenera il metadata.";
+  if (certChange) {
+    msg += "\n\nATTENZIONE: il profilo usa il certificato #" + certId + ", diverso da quello attivo. " +
+      "Verrà riattivato: la firma delle richieste SPID tornerà a quella chiave.";
+  }
+  if (!window.confirm(msg)) return false;
+  if (certChange) form.querySelector("input[name=confirm_cert]").value = "yes";
   return true;
 }
 

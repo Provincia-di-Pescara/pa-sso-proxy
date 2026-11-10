@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.metadata_watcher import fetch_idp_metadata, fetch_spid_aggregate
-from app.models import SpidIdP, EnteSettings, SpidCert, SpidMetadataVersion
+from app.metadata_profile import profile_status
+from app.models import SpidIdP, EnteSettings, SpidCert, SpidMetadataProfile, SpidMetadataVersion
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_seeder import FICEP_ENTITY_IDS, sync_spid_idps_from_registry
@@ -196,15 +197,18 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
     registry_provider_enabled = any(item.enabled for item in idps)
 
     metadata_versions_result = await db.execute(
-        select(SpidMetadataVersion).order_by(
-            SpidMetadataVersion.created_at.desc(), SpidMetadataVersion.id.desc()
-        )
+        select(SpidMetadataVersion).order_by(SpidMetadataVersion.id.desc())
     )
     metadata_versions = metadata_versions_result.scalars().all()
-    metadata_exposed_mismatch = any(
-        v.is_exposed and v.cert_id is not None and (cert is None or v.cert_id != cert.id)
-        for v in metadata_versions
-    )
+    profile = await profile_status(db)
+    archived_profiles = (
+        await db.execute(
+            select(SpidMetadataProfile)
+            .where(SpidMetadataProfile.status == "archived")
+            .order_by(SpidMetadataProfile.id.desc())
+        )
+    ).scalars().all()
+    uploaded_exposed = next((v for v in metadata_versions if v.source == "uploaded" and v.is_exposed), None)
 
     return templates.TemplateResponse(
         request,
@@ -214,9 +218,12 @@ async def idps_list(request: Request, db: AsyncSession = Depends(get_db)):
             "test_provider_enabled": test_provider_enabled,
             "registry_provider_enabled": registry_provider_enabled,
             "metadata_versions": metadata_versions,
-            "metadata_exposed_mismatch": metadata_exposed_mismatch,
+            "profile": profile,
+            "archived_profiles": archived_profiles,
+            "uploaded_exposed": uploaded_exposed,
             "metadata_error": request.query_params.get("metadata_error"),
             "metadata_warning": request.query_params.get("metadata_warning"),
+            "metadata_info": request.query_params.get("metadata_info"),
             "sync_status": sync_status,
             "sync_inserted": sync_inserted,
             "sync_error": sync_error,

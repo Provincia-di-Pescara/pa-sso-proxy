@@ -152,6 +152,11 @@ async def lifespan(app: FastAPI):
         await seed_spid_idps(session)
         await _try_fetch_trust_mark(session)
         try:
+            from app.metadata_profile import normalize_metadata_history
+            await normalize_metadata_history(session)
+        except Exception:
+            logger.warning("Normalizzazione storico metadata SPID fallita", exc_info=True)
+        try:
             await generate_and_write(session)
             from app.satosa_reload import reload_satosa
             reload_satosa()

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import EnteSettings, SpidCert
+from app.models import EnteSettings, SpidCert, SpidMetadataProfile
 from app.spid_cert import generate_spid_cert
 from app.spid_cert_writer import write_spid_cert
 from app.satosa_generator import generate_and_write
@@ -102,6 +102,18 @@ async def certs_delete(cert_id: int, request: Request, db: AsyncSession = Depend
     if cert.is_active:
         return RedirectResponse(
             f"/admin/certs?cert_error={quote('Impossibile eliminare il certificato attivo.')}",
+            status_code=303,
+        )
+    in_validated = (
+        await db.execute(
+            select(SpidMetadataProfile.id)
+            .where(SpidMetadataProfile.cert_id == cert_id, SpidMetadataProfile.status == "validated")
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if in_validated is not None:
+        return RedirectResponse(
+            f"/admin/certs?cert_error={quote('Impossibile eliminare il certificato del profilo validato AgID: serve per ripristinarlo.')}",
             status_code=303,
         )
     await db.delete(cert)

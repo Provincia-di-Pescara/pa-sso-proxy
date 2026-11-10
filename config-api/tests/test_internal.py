@@ -1,4 +1,3 @@
-import hashlib
 from unittest.mock import AsyncMock
 
 import pytest
@@ -8,6 +7,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy import select
 
 from app.database import get_db
+from app.metadata_profile import metadata_fingerprint
 from app.models import EnteSettings, SpidCert, SpidMetadataVersion
 
 
@@ -34,6 +34,22 @@ async def client(db_session, app_env):
     app.dependency_overrides.clear()
 
 
+_MD = "urn:oasis:names:tc:SAML:2.0:metadata"
+_DS = "http://www.w3.org/2000/09/xmldsig#"
+
+
+def _metadata(prefix: str, sig_id: str, extra_acs: bool = False) -> str:
+    """Stesso metadata con prefissi e firma variabili (come pysaml2 7.5.4 vs 7.5.5)."""
+    p = prefix
+    acs = f'<{p}:AttributeConsumingService index="99"/>' if extra_acs else ""
+    return (
+        f'<{p}:EntityDescriptor xmlns:{p}="{_MD}" xmlns:sig="{_DS}" entityID="https://sp/metadata" ID="{sig_id}">'
+        f'<sig:Signature><sig:SignatureValue>{sig_id}</sig:SignatureValue></sig:Signature>'
+        f'<{p}:SPSSODescriptor><{p}:AttributeConsumingService index="0"/>{acs}</{p}:SPSSODescriptor>'
+        f'</{p}:EntityDescriptor>'
+    )
+
+
 async def test_snapshot_creates_row_with_active_cert_id(client, db_session):
     cert = SpidCert(
         certificate_pem="-----BEGIN CERTIFICATE-----\nc\n-----END CERTIFICATE-----",
@@ -46,23 +62,48 @@ async def test_snapshot_creates_row_with_active_cert_id(client, db_session):
     await db_session.commit()
     await db_session.refresh(cert)
 
-    response = await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
+    response = await client.post("/internal/spid-metadata-snapshot", json={"xml_content": _metadata("md", "a")})
     assert response.status_code == 200
 
-    result = await db_session.execute(select(SpidMetadataVersion))
-    rows = result.scalars().all()
+    rows = (await db_session.execute(select(SpidMetadataVersion))).scalars().all()
     assert len(rows) == 1
     assert rows[0].source == "generated"
     assert rows[0].cert_id == cert.id
-    assert rows[0].content_hash == hashlib.sha256(b"<A/>").hexdigest()
+    assert rows[0].content_hash == metadata_fingerprint(_metadata("md", "a"))
+    assert rows[0].is_exposed is False  # le righe generate non si "espongono" più
 
 
-async def test_snapshot_first_row_is_exposed_by_default(client, db_session):
-    response = await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
-    assert response.status_code == 200
-    result = await db_session.execute(select(SpidMetadataVersion))
-    row = result.scalar_one()
-    assert row.is_exposed is True
+async def test_snapshot_dedupes_prefix_and_signature_changes(client, db_session):
+    """pysaml2 7.5.5 serializza ns0: invece di md:, la firma ha un ID casuale e
+    satosa manda un semantic_hash diverso: stesso contenuto = nessuna riga nuova."""
+    await client.post(
+        "/internal/spid-metadata-snapshot",
+        json={"xml_content": _metadata("md", "id-1"), "semantic_hash": "old-image"},
+    )
+    await client.post(
+        "/internal/spid-metadata-snapshot",
+        json={"xml_content": _metadata("ns0", "id-2"), "semantic_hash": "new-image"},
+    )
+    rows = (await db_session.execute(select(SpidMetadataVersion))).scalars().all()
+    assert len(rows) == 1
+
+
+async def test_snapshot_content_change_creates_new_row(client, db_session):
+    await client.post("/internal/spid-metadata-snapshot", json={"xml_content": _metadata("md", "1")})
+    await client.post("/internal/spid-metadata-snapshot", json={"xml_content": _metadata("md", "2", extra_acs=True)})
+    rows = (await db_session.execute(select(SpidMetadataVersion))).scalars().all()
+    assert len(rows) == 2
+
+
+async def test_snapshot_revert_to_old_content_creates_new_row(client, db_session):
+    """A -> B -> A: dedup solo contro l'ultima riga (niente UNIQUE globale)."""
+    for xml in (_metadata("md", "1"), _metadata("md", "2", extra_acs=True), _metadata("md", "3")):
+        await client.post("/internal/spid-metadata-snapshot", json={"xml_content": xml})
+    rows = (
+        await db_session.execute(select(SpidMetadataVersion).order_by(SpidMetadataVersion.id))
+    ).scalars().all()
+    assert len(rows) == 3
+    assert rows[0].content_hash == rows[2].content_hash != rows[1].content_hash
 
 
 async def test_snapshot_captures_settings_toggles(client, db_session):
@@ -82,148 +123,6 @@ async def test_snapshot_captures_settings_toggles(client, db_session):
     assert row.eidas_enabled is True
     assert row.eidas_environment == "qa"
     assert row.legal_entity_enabled is False
-
-
-async def test_snapshot_dedupes_by_semantic_hash_not_signed_content(client, db_session):
-    """
-    pysaml2 firma con un ID XML casuale ad ogni chiamata, quindi due snapshot
-    con lo STESSO contenuto semantico (stessa config) hanno comunque XML
-    firmato diverso — es. reload del cron IdP che non tocca il metadata SP.
-    Il dedup deve usare semantic_hash quando fornito, non hash(xml_content).
-    """
-    await client.post(
-        "/internal/spid-metadata-snapshot",
-        json={"xml_content": "<A signed=\"1\"/>", "semantic_hash": "same-config-hash"},
-    )
-    await client.post(
-        "/internal/spid-metadata-snapshot",
-        json={"xml_content": "<A signed=\"2\"/>", "semantic_hash": "same-config-hash"},
-    )
-    result = await db_session.execute(select(SpidMetadataVersion))
-    rows = result.scalars().all()
-    assert len(rows) == 1
-    assert rows[0].content_hash == "same-config-hash"
-    # La prima versione firmata resta quella storicizzata/esposta — il
-    # secondo reload (stessa config) non la sovrascrive.
-    assert rows[0].xml_content == '<A signed="1"/>'
-
-
-async def test_snapshot_semantic_hash_change_creates_new_row(client, db_session):
-    """Config realmente diversa (hash semantico diverso) -> nuova riga, checkpoint vero."""
-    await client.post(
-        "/internal/spid-metadata-snapshot",
-        json={"xml_content": "<A/>", "semantic_hash": "config-v1"},
-    )
-    await client.post(
-        "/internal/spid-metadata-snapshot",
-        json={"xml_content": "<B/>", "semantic_hash": "config-v2"},
-    )
-    result = await db_session.execute(select(SpidMetadataVersion))
-    rows = result.scalars().all()
-    assert len(rows) == 2
-
-
-async def test_snapshot_without_semantic_hash_falls_back_to_content_hash(client, db_session):
-    """Retrocompatibilità: satosa image vecchia senza semantic_hash -> comportamento invariato."""
-    response = await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
-    assert response.status_code == 200
-    result = await db_session.execute(select(SpidMetadataVersion))
-    row = result.scalar_one()
-    assert row.content_hash == hashlib.sha256(b"<A/>").hexdigest()
-
-
-async def test_snapshot_dedupes_identical_content(client, db_session):
-    await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
-    await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
-    result = await db_session.execute(select(SpidMetadataVersion))
-    rows = result.scalars().all()
-    assert len(rows) == 1
-
-
-async def test_snapshot_new_content_follows_previously_live_exposed_row(client, db_session):
-    """
-    When the previously-latest "generated" row was exposed (i.e. SATOSA is
-    serving live/dynamic metadata, no override file pinning an older
-    version), a new distinct snapshot must inherit is_exposed=True and the
-    old row must flip to False — otherwise the "Esposto" badge in the UI
-    would keep pointing at metadata SATOSA no longer actually serves.
-    """
-    await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<A/>"})
-    await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<B/>"})
-    result = await db_session.execute(
-        select(SpidMetadataVersion).order_by(SpidMetadataVersion.id)
-    )
-    rows = result.scalars().all()
-    assert len(rows) == 2
-    assert rows[0].is_exposed is False
-    assert rows[1].is_exposed is True
-
-
-async def test_snapshot_new_content_does_not_flip_pinned_older_version(client, db_session):
-    """
-    When an admin has pinned (exposed) an older version via the metadata
-    history page, the "latest generated" row's is_exposed is already False.
-    A new snapshot arriving must NOT steal exposure from the pinned older
-    version — only the previously-latest row's exposed flag matters.
-    """
-    older_pinned = SpidMetadataVersion(
-        source="generated", xml_content="<Pinned/>", content_hash="pinned-hash", is_exposed=True,
-    )
-    db_session.add(older_pinned)
-    await db_session.commit()
-    latest_not_exposed = SpidMetadataVersion(
-        source="generated", xml_content="<A/>", content_hash="a-hash", is_exposed=False,
-    )
-    db_session.add(latest_not_exposed)
-    await db_session.commit()
-
-    await client.post("/internal/spid-metadata-snapshot", json={"xml_content": "<B/>"})
-
-    result = await db_session.execute(
-        select(SpidMetadataVersion).order_by(SpidMetadataVersion.id)
-    )
-    rows = result.scalars().all()
-    assert len(rows) == 3
-    by_hash = {r.content_hash: r for r in rows}
-    assert by_hash["pinned-hash"].is_exposed is True
-    assert by_hash["a-hash"].is_exposed is False
-    new_row = next(r for r in rows if r.content_hash not in ("pinned-hash", "a-hash"))
-    assert new_row.is_exposed is False
-
-
-async def test_snapshot_hash_matching_old_non_last_row_still_creates_new_row(client, db_session):
-    """
-    Regression test: a toggle-revert cycle (A -> B -> A) makes the semantic
-    hash of the CURRENT state match an OLD row that is not the immediately
-    preceding one. A global UNIQUE(source, content_hash) constraint used to
-    silently block this insert (IntegrityError swallowed as "concurrent
-    worker race already handled"), leaving is_exposed stuck on a row SATOSA
-    no longer actually serves. Dedup must only ever compare against the
-    single most-recent row.
-    """
-    await client.post(
-        "/internal/spid-metadata-snapshot",
-        json={"xml_content": "<A/>", "semantic_hash": "config-a"},
-    )
-    await client.post(
-        "/internal/spid-metadata-snapshot",
-        json={"xml_content": "<B/>", "semantic_hash": "config-b"},
-    )
-    # Revert back to config A's semantic hash - must create a THIRD row,
-    # not be silently dropped because "config-a" already exists on row 1.
-    response = await client.post(
-        "/internal/spid-metadata-snapshot",
-        json={"xml_content": "<A/>", "semantic_hash": "config-a"},
-    )
-    assert response.status_code == 200
-
-    result = await db_session.execute(
-        select(SpidMetadataVersion).order_by(SpidMetadataVersion.id)
-    )
-    rows = result.scalars().all()
-    assert len(rows) == 3
-    assert [r.content_hash for r in rows] == ["config-a", "config-b", "config-a"]
-    assert [r.is_exposed for r in rows] == [False, False, True]
 
 
 async def test_snapshot_db_failure_still_returns_ok(client, db_session, monkeypatch):
