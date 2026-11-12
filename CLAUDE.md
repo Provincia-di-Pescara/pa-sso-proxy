@@ -61,62 +61,12 @@ FastAPI app con due ruoli:
 
 Il reload avviene toccando `/satosa-conf/.reload` (volume condiviso) → uWSGI `--touch-reload` rileva il cambio mtime e ricarica i worker gracefully (zero downtime).
 
-### Multi-client OIDC
-
-SATOSA OIDC frontend (`oidcop`) accetta lista `clients` nel config YAML. Il config generator costruisce questo blocco da DB ogni volta che un client viene aggiunto/modificato.
-
 ### Metadata IdP
 
 - **SPID aggregate**: scaricato programmaticamente a startup da `https://registry.spid.gov.it/metadata/idp/spid-entities-idps.xml`, cached in `/satosa-conf/spid-entities-idps.xml` (con hash-check). Fallback al file bundled nell'immagine solo se il volume file manca.
 - **Altri IdP** (CIE, eIDAS, test): URL metadata per singolo IdP; cron notturno aggiorna DB → rigenera config → reload SATOSA.
 
 Reload graceful uWSGI: zero downtime (worker swap in-flight).
-
-## Struttura directory
-
-```
-satosa/
-  plugins/                Plugin Python custom (SPID backend, CIE OIDC backend, endpoints)
-    spidsaml2.py          Backend SPID SAML2 (flag ficep_enable per ACS eIDAS 99/100)
-    cieoidc-backend/      Backend CIE OIDC Federation
-    cieoidc-endpoints/    Endpoint CIE OIDC (callback, entity config, …)
-    i18n.py               resolve_lang / t — lingua pagine utente (puro Python)
-  public/                 Asset statici discovery page
-    static/i18n/          Traduzioni <lang>.json (fonte unica client + server)
-config-api/
-  app/
-    main.py               Entry point FastAPI
-    admin_2fa.py          2FA TOTP admin (flag env, cifratura secret, verifica anti-replay)
-    cli.py                `python -m app.cli reset-2fa`
-    routes/               Route per ogni sezione WebUI
-      dashboard.py        Dashboard + statistiche accessi
-      login_2fa.py        /admin/login/2fa + /admin/login/setup (enrollment forzato)
-      clients.py          Gestione client OIDC
-      idps.py             Gestione IdP SPID/CIE
-      cie.py              Configurazione CIE OIDC Federation
-      eidas.py            Toggle eIDAS + verifica metadata ACS
-      settings.py         Impostazioni ente
-      certs.py            Certificato SPID
-      access_log.py       Monitoraggio accessi (filtri, paginazione, CSV)
-      internal.py         POST /internal/access-log (chiamato da SATOSA, no auth)
-      verifica.py         Pagina pubblica test SPID (no auth — attiva solo con test IdP)
-      test_client.py      Test flow OIDC
-      backup.py           Backup/ripristino configurazione JSON
-    templates/            Jinja2 HTML templates
-    models/               SQLAlchemy models
-      client.py, idp.py, cie.py, settings.py, key.py, cert.py
-      access_log.py       Log accessi (idp_entity_id, fiscal_number_hash, user_type)
-      access_stats_monthly.py  Aggregati mensili (forever, no PII)
-    satosa_config_generator.py   Genera YAML SATOSA + plugin Python da DB
-    satosa_generator.py   Wrapper: chiama generator + scrive cert/key
-    metadata_watcher.py   Cron aggiornamento metadata IdP + retention access_log
-  alembic/versions/       Migrazioni DB (001–021)
-nginx/
-  templates/
-    proxy.conf.template   Route: /verifica → config-api, /admin → config-api, / → satosa (envsubst → conf.d/)
-docs/
-  architecture.md, deployment.md, spid-registration.md, cie-oidc-registration.md
-```
 
 ## Variabili d'ambiente chiave
 
@@ -212,9 +162,6 @@ Discovery, pagina di errore e messaggi dei backend in `it/en/fr/de/es`. Fonte un
 
 **Gotcha:** mai hardcodare URL assoluti verso `pagopa-prx.comune.montesilvano.pe.it` (o altra istanza di riferimento esterna) in codice servito in produzione — è solo per confronto/debug (vedi sezione "Relazione con altri repository"). Successo una volta in `satosa_config_generator.py` (`logo_uri` di spid-demo/spid-validator) copiato per errore da lì invece che puntare ad asset locale in `satosa/public/static/`. Se serve un'icona statica, va sempre in `satosa/public/static/` e referenziata con path relativo, mai un dominio esterno (nemmeno GitHub raw — fragile, hotlink).
 
-### Reload SATOSA
-Il config-api segnala il reload toccando `/satosa-conf/.reload` (volume condiviso). uWSGI nel container satosa è configurato con `--touch-reload /satosa-conf/.reload` e ricarica i worker gracefully senza caduta delle connessioni. Non è necessario il Docker socket.
-
 ### SATOSA OIDC multi-client
 La sezione `clients` nel config OIDC di SATOSA è generata da `satosa_generator.py`. Ogni client ha: `client_id`, `client_secret` (hash), `redirect_uris`, `allowed_scopes`. Il generator scrive il file e triggera reload.
 
@@ -237,18 +184,8 @@ Pagina pubblica (no login admin) per validazione AgID. Gate: 404 se nessun IdP c
 
 Selettore persona fisica/giuridica su `/verifica` visibile solo con `legal_entity_enabled`: `subject=pg` aggiunge scope `legal_entity` + claim aziendali richiesti; il generatore dà lo scope `legal_entity` a `__spid_verifica__` solo in quel caso (senza ACS 4 nel metadata il login PG fallirebbe). `subject=pg` con persona giuridica disattivata → ricade silenziosamente su persona fisica.
 
-### Test satosa/plugins/
-`satosa`/`pysaml2` da PyPI sono pacchetti sbagliati: il Dockerfile usa il venv dell'immagine base `ghcr.io/italia/iam-proxy-italia:latest` (da v3.4.0: fork `peppelinux/pysaml2` + `SATOSA` 8.5.1 da PyPI; fino a v3.3 anche SATOSA era il fork `peppelinux/SATOSA`). `pyeudiw` ha un bug di packaging upstream (sottopacchetti `federation`/`trust`/ecc. assenti dal pacchetto installato). I file in `satosa/plugins/` sono override (`COPY` nel Dockerfile) sopra l'albero upstream clonato a build-time — non moduli autosufficienti.
-
-Unico modo per testarli davvero: build dell'immagine satosa e pytest dentro il container (`docker build -t satosa-test -f satosa/Dockerfile satosa/`, poi `docker run --entrypoint sh satosa-test -c "... PYTHONPATH=/satosa_proxy pytest ..."`, import tipo `from backends.spidsaml2 import ...`). Vedi `.github/workflows/satosa-tests.yml` job `test-satosa-plugins-docker`.
-
-Comando reale che funziona (quello sopra fallisce con `pytest: not found` — niente venv su PATH): `docker run --rm -v "<repo>/satosa/tests:/tests" --entrypoint sh satosa-test -c ". /.venv/bin/activate && python -m ensurepip > /dev/null && python -m pip install -q -r /tests/requirements-test.txt && cd /satosa_proxy && PYTHONPATH=/satosa_proxy pytest /tests/test_spidsaml2.py -v"` — venv del pacchetto fork attivato esplicitamente, test montati da `/tests` (non `/satosa_proxy/tests`), dipendenze installate da `requirements-test.txt`.
-
-Per testare modifiche ai plugin senza rebuild: montali sopra l'immagine (`-v "<repo>/satosa/plugins/spidsaml2.py:/satosa_proxy/backends/spidsaml2.py"`, `-v ".../cieoidc-backend/cieoidc.py:/satosa_proxy/backends/cieoidc/cieoidc.py"`) e usa `--ignore=/tests/test_redis_storage.py` come la CI (quel file fallisce nel container con `No module named 'redis_storage'`, gira nel job pytest separato).
-
-Su Windows/Git Bash, `-v "$PWD/...":...` nel `docker run` non risolve il path — usa `MSYS_NO_PATHCONV=1` e path assoluto `/c/Users/...`.
-
-**Venv satosa ripulito** (`satosa/Dockerfile`, `pip uninstall`): l'immagine upstream porta tool dev/packaging (poetry, pipx, flake8, pdbpp…) e orfani (pillow, satosa-oidcop/idpyoidc — il frontend OIDC è pyop —, httpx) con relative dipendenze: 118 → 65 pacchetti, Trivy HIGH 28 → 15. Lista = pacchetti non raggiungibili dalle radici (`satosa`, `pyeudiw`, `redis`, `sentry-sdk`, `uwsgi`) né importati (AST) da `/satosa_proxy` o `satosa/plugins`, poi verificata cercando pacchetti TENUTI che importano un rimosso senza dichiararlo. `device-detector`/`regex` restano (`pyeudiw/tools/mobile.py`), `pip` rimosso per ultimo, dopo `pip check` (da pip 26.3 Trivy segnala il `pkg_resources` vendorizzato come setuptools 70.3.0, CVE-2025-47273, senza percorso: non ignorabile per `paths`); i test nel container lo reinstallano con `python -m ensurepip` (installa solo `pip3`: usare `python -m pip`). Senza ensurepip, `pip` su PATH è quello di sistema → `externally-managed-environment`. Dopo un bump dell'immagine base, se `pip uninstall` segnala pacchetti mancanti va bene (`--quiet`, non fallisce); se Trivy trova un CVE su un pacchetto nuovo, prima verificare se è orfano (`pip show X` → `Required-by:` vuoto) e rimuoverlo invece di forzare un bump. Verifica: i test nel container NON bastano (`requirements-test.txt` reinstalla pygments/responses/…): fare anche import check dei moduli backend e boot reale della stack con CIE abilitato.
+### Dipendenze pip e parsing XML
+Test dei plugin `satosa/plugins/` (solo nel container, venv upstream, venv ripulito): vedi `satosa/CLAUDE.md`.
 
 **Dipendenze pip = file `.in` + lock con hash** (F3): si modificano SOLO i `.in` (`config-api/requirements.in` runtime, `requirements-dev.in` = runtime + test vincolato con `-c requirements.txt`, `satosa/requirements-runtime.in`, `satosa/tests/requirements-test.in`), poi `scripts/compile-requirements.sh` rigenera i `.txt` (pip-compile `--generate-hashes`, dirette + transitive). Lo script compila **dentro container Linux** con la Python di produzione (3.14 config-api, 3.12 satosa = venv upstream): compilare su Windows sbaglia i marker (es. `uvloop` sparisce). Install ovunque con `--require-hashes` (Dockerfile anche `--no-deps` + `pip check`; satosa: `pip check` dopo le rimozioni dal venv upstream, fallisce la build se un pacchetto tenuto perde una dipendenza). Dependabot riconosce l'header pip-compile e aggiorna `.in` + `.txt` insieme. `pip-audit --require-hashes --disable-pip` su dev config-api, test e runtime satosa.
 
@@ -266,17 +203,7 @@ Servizio one-shot **`verify-images`** (cosign `-dev`, ha la shell): con `VERIFY_
 Debug in container non-root: `docker compose exec -u 0 <servizio> sh` se serve root; i test plugin nel container satosa girano con `--user 0` (installano nel venv).
 
 ### Test e2e SPID (F8)
-`SMOKE_E2E_SPID=true scripts/smoke-stack.sh` (workflow `spid-e2e.yml`: PR/coda solo se cambia codice SPID/OIDC, settimanale su `:latest`): override `tests/e2e/docker-compose.yaml` aggiunge **spid-saml-check** come IdP demo nella rete interna, poi `tests/e2e/spid_login.py` (solo stdlib, container sulla rete dello stack) fa `/verifica/start` → discovery → AuthnRequest → login → ACS → callback due volte: persona fisica (`ada`, verifica il CF) e, dopo `POST /admin/legal-entity/toggle` (ACS index 4 nel metadata SP, metadata ri-registrato sull'IdP demo), persona giuridica (`subject=pg`, scope `legal_entity`, `spid:Purpose=PG`, utente `leonardo`, verifica la ragione sociale "Bottega Verrocchio"). Nessuna rete esterna: il client rifiuta host fuori da `E2E_ALLOWED_HOSTS`.
-
-Gotcha emersi (tutti già gestiti nello script):
-- spid-saml-check serve **HTTP** su 8443 (`useHttps: false`), non https.
-- L'IdP demo valida ogni AuthnRequest con **spid-sp-test strict**: `Destination` ammessa solo `<entityID>/samlsso` o l'entityID (`IDP_ENTITYID` = entityID del demo, imposto da spid-saml-check) → entityID del demo = `http://spid-saml-check:8443/demo`; `OrganizationDisplayName`/`OrganizationURL` vuoti = request rifiutata.
-- `/api/metadata-sp/download` accetta solo URL **https** (`https.get`): il metadata SP va scritto nello store via `database.setMetadata` (node nel container), utente `validator`, store `main`.
-- SATOSA legge il metadata degli IdP di test/eIDAS da `/satosa-conf/remote-metadata/<alias>.xml`. `_ensure_remote_metadata` lo riscrive da `metadata_cache` (refresh/cron) o lo riscarica se l'URL cambia (`<alias>.xml.url`); fino a #90 era scritto solo se mancante (refresh e cambio URL mai arrivati a SATOSA). Lo script e2e cancella comunque il file prima del toggle.
-- Con un solo backend (CIE spento) l'authorization endpoint è `/<backend>/OIDC/authorization`: `/verifica` lo legge dalla discovery di SATOSA (fix trovato dall'e2e).
-- Utenti demo in `src/config/spid_users.json` dell'immagine (password `password123`); `ada` = livello 2; con azienda: `leonardo` (livello 2), `montessori` (livello 3).
-- Metadata SP cambiato (es. persona giuridica on) = va ri-registrato nello store dell'IdP demo, altrimenti la request con ACS 4 non supera i controlli.
-- Smoke in locale con immagini `:latest`: fare prima `docker pull` — lo script non ripesca le immagini applicative e una `:latest` vecchia in cache sembra una regressione.
+`SMOKE_E2E_SPID=true scripts/smoke-stack.sh` (workflow `spid-e2e.yml`): login SPID completo contro spid-saml-check, persona fisica e giuridica. Dettagli e gotcha: `tests/e2e/CLAUDE.md`.
 
 ### Disaster recovery (volumi/container azzerati)
 Procedura testata end-to-end (volumi DB/`proxy_satosa_conf` distrutti con `docker compose down -v`, rebuild, restore): `docker compose up -d` → login WebUI → `POST /admin/backup/import` con l'ultimo bundle JSON → **nessun accesso console necessario**, `satosa` si auto-guarisce entro ~1-2 minuti (crash iniziale su cert mancante → `restart: unless-stopped` lo rilancia → al riavvio trova cert/chiavi già scritti dal restore).
@@ -298,56 +225,14 @@ Senza `LOGGING` in `proxy.yaml` il fork SATOSA (`proxy_server.make_app`) applica
 
 Test locale dello stack con `-p <nome>` separato: l'immagine GHCR `:latest` in cache può essere vecchia di mesi (Alembic "Can't locate revision") → `CONFIG_API_IMAGE=pa-sso-proxy-config-api:local SATOSA_IMAGE=pa-sso-proxy-satosa:local`; un DB ripristinato su volume `satosa-conf` nuovo non ha cert/chiavi (li scrive solo l'import backup WebUI) → satosa 500 "no python application", non è colpa del DB.
 
-### CI/CD
-`docker/metadata-action` con `tags:` custom deve includere `type=ref,event=pr`, altrimenti su evento PR i tag sono vuoti (rompe step che dipendono da `steps.meta.outputs.tags`, es. scan Trivy).
+### CI/CD e rilascio
+Dettagli (workflow, merge queue, `release.yml`, dependabot, autofix pip, Trivy, CodeQL, harden-runner, GitHub App): skill `ci-cd-release` (`.claude/skills/ci-cd-release/SKILL.md`). **Caricarla prima** di toccare workflow, ruleset, `dependabot.yml`, `FROM`/digest dei Dockerfile, o di diagnosticare un run fallito / gestire una PR dependabot. Regole sempre valide:
 
-Trivy su immagine satosa: gate ristretto a `CRITICAL` (non `HIGH`) — il venv del fork upstream (`iam-proxy-italia`) porta CVE HIGH non ancora patchate a monte, non risolvibili da questo repo. config-api/nginx restano bloccanti su HIGH+CRITICAL. Un CVE CRITICAL reale su dipendenza transitiva (es. `anyio`) va fissato forzando bump esplicito nella riga `pip install` del Dockerfile satosa (stesso pattern usato per `redis`/`sentry-sdk`), non ignorato in `.trivyignore`.
-
-**Piano di allineamento alla baseline ComunicaPA**: `docs/superpowers/specs/2026-11-03-ci-cd-security-baseline-design.md` (fasi F0–F8, decisioni, rischi). Leggerla prima di toccare workflow, ruleset o impostazioni repo.
-
-**CodeQL = default setup** (Settings → Code security, suite `extended`, linguaggi rilevati: python, actions, javascript-typescript) — niente più `codeql.yml`. Un workflow CodeQL "advanced" riaggiunto farebbe fallire l'upload finché il default setup è attivo. Il ruleset ha la regola `code_scanning` (CodeQL: `errors` + sicurezza `high_or_higher`): una PR non può introdurre alert nuovi. Alert falsi positivi (es. asserzioni `in` nei test, `py/incomplete-url-substring-sanitization`) → dismiss con motivazione, mai ignorati in silenzio.
-
-**Action consentite = elenco** (`allowed_actions: selected` + `sha_pinning_required: true`): GitHub-owned + `aquasecurity/trivy-action`, `aquasecurity/setup-trivy`, `dependabot/fetch-metadata`, `docker/{build-push,login,metadata,setup-buildx}-action`, `italia/publiccode-parser-action`, `ossf/scorecard-action`, `sigstore/cosign-installer`, `step-security/harden-runner`. **Una nuova action di terze parti va aggiunta all'elenco** (`PUT repos/…/actions/permissions/selected-actions`, l'elenco va passato completo) **prima** del merge della PR che la usa, altrimenti il workflow fallisce subito. Contano anche le action annidate nelle composite.
-
-**Governance (F7)**: `.github/CODEOWNERS` (unico maintainer, aree sensibili elencate), template PR (checklist SPID/metadata/Alembic/variabili/Action), `CONTRIBUTING.md`, `docs/ci-cd-security.md` (mappa completa controlli e workflow — aggiornarla quando si aggiunge un workflow), `scorecard.yml` settimanale + push main (`publish_results: true`: job minimale, niente env/defaults globali).
-
-**Regole per ogni workflow**: `permissions: contents: read` in testa, scritture solo nel job; `persist-credentials: false` su ogni checkout; primo step `step-security/harden-runner` con `egress-policy: block` e `allowed-endpoints` del job (`host:porta`, porta sempre esplicita). Elenchi presi dalla baseline StepSecurity in audit (`app.stepsecurity.io/github/<org>/<repo>/actions/runs/<id>?tab=recommendations`, pubblica per repo pubblici), più margine per CDN che cambiano (docker hub, trivy, sigstore). Un endpoint nuovo (immagine, tool, IdP di test) = step che fallisce con connessione rifiutata e annotazione harden-runner "blocked": aggiungerlo all'elenco del job, mai tornare ad `audit`. Anche il traffico dei container avviati nel job passa dal filtro (es. config-api che scarica il registro SPID nello smoke); `timeout-minutes` e `concurrency` ovunque; tool a versione fissa (`version: vX` di Trivy, `pipx run --spec pip-audit==X`) — `tool-version-check.yml` apre una issue `toolchain` quando esce una versione nuova da ≥7 giorni.
-
-**`@dependabot rebase` è no-op se il branch è già up-to-date con main** (non forza rebuild CI — utile per verificare se un fail Trivy era solo timing, patch Debian non ancora rilasciata al momento del build). Usa `@dependabot recreate` per forzare push fresco — ATTENZIONE: chiude la PR corrente e ne apre una NUOVA con numero diverso.
-
-**Mai push diretto su `main`**, nemmeno per fix minimi/urgenti — sempre branch + PR. Il ruleset ha la regola `pull_request` (0 approvazioni, thread risolti obbligatori, solo squash): il push diretto è rifiutato.
-
-**`gh run view --job X --log-failed`** spesso ritorna solo step di cleanup ("UNKNOWN STEP"), non l'errore vero. Usa `gh run view --job X --log | grep -iE "##\[error\]|CRITICAL"` sul log completo.
-
-`config-api/.coverage` è un file binario tracciato in git (pre-esistente) — non aggiungerlo/modificarlo nei commit, `git checkout -- config-api/.coverage` prima di committare dopo un run locale con `--cov`.
-
-Merge PR: solo squash, imposto sia dal ruleset sia a livello repo (`allow_merge_commit`/`allow_rebase_merge: false`, `delete_branch_on_merge: true`): `gh pr merge --squash`.
-
-**Tag `v*` protetti** (ruleset `release-tags`): creazione/modifica/cancellazione solo per il ruolo admin (bypass). Un tag pubblicato non si sposta.
-
-**Impostazioni sicurezza attive**: Dependabot security updates (advisory → PR subito, senza cooldown), secret scanning + push protection, private vulnerability reporting (canale primario in `SECURITY.md`).
-
-**`main` protetto** (ruleset "Main Branch", `enforcement:active`): required check **`CI gate`** (`ci-gate.yml`) SOLO, **merge queue** (squash, ALLGREEN, fino a 5, timeout 60 min), policy non strict (la coda rimette in pari da sola). Gli altri workflow sono path-filtrati sulla PR e NON possono essere required (un required check mai partito blocca la PR per sempre): `CI gate` parte su ogni PR e su ogni `merge_group`, aspetta tutti i workflow run dello stesso SHA (`pull_request.head.sha` / `merge_group.head_sha`) + i check di app esterne (es. validazione `.github/dependabot.yml`) e fallisce se uno fallisce. Ammessi: `success`/`skipped`/`neutral`.
-
-**Cosa gira dove**: PR = controlli leggeri, filtrati per path (pytest, pip-audit, publiccode, CodeQL). Merge queue (`merge_group`, nessun filtro path → tutto) = anche build immagini + smoke + Trivy assoluto e differenziale vs `:latest` (`docker.yml`, senza push; `scripts/trivy-diff.sh`, lo stesso di `release.yml`), smoke config-api su postgres, test nel container satosa. Push su main = `security.yml`, `security-alerts.yml`, CodeQL; nessuna pubblicazione (la fa `release.yml` alle 03:30 UTC, tag `:main` non più prodotto); ci/satosa-tests non girano più su push (doppione della coda). **Ogni workflow nuovo che deve bloccare il merge va messo anche su `merge_group`**, altrimenti in coda non parte e il gate non lo vede. Job pesanti "solo coda" con `if: github.event_name != 'pull_request'` a livello di job: va bene perché l'unico required è il gate (un job saltato = run `skipped`); se un giorno si rendono required check singoli, nelle matrici saltare per step. `docker.yml` non ha più login né push: costruisce e scansiona soltanto.
-
-**Merge di una PR**: `gh pr merge <n> --auto` (accoda quando i check della PR sono verdi; il metodo lo impone la coda). Niente `--squash`/`--admin`.
-
-### Pubblicazione immagini automatica
-- **Unico workflow che pubblica = `release.yml`** (F4). `docker.yml` costruisce, fa smoke e Trivy solo in merge queue, senza push. Trigger release: tag `v*`, schedule giornaliero 03:30 UTC, dispatch (`dry_run`, `rebuild_latest`). Flusso: `scripts/rebuild-check.sh` (solo schedule/dispatch: ricostruisce un'immagine solo con causa reale — a commit su main che toccano `satosa/`|`config-api/`|`nginx/` dopo la label `org.opencontainers.image.revision` di `:latest`; b patch apk/apt disponibili; c CVE HIGH/CRITICAL di sistema con fix; un controllo che fallisce = causa) → build e **push solo per digest** → smoke immagine → Trivy **differenziale** (blocca le HIGH/CRITICAL con fix nuove rispetto a `:latest`; sui tag anche soglia assoluta, satosa solo CRITICAL) → SBOM CycloneDX → attestazioni provenance + SBOM (`actions/attest-*`, push nel registry) → firma **cosign keyless** → `scripts/smoke-stack.sh` (compose di produzione, volumi vuoti, prima installazione via WebUI admin, metadata SPID firmato) → solo allora tag `latest`, `latest-YYYYMMDD`, `sha-<commit>` (+ `X.Y.Z`/`X.Y` sui tag). Un digest che non arriva ai tag resta orfano → `ghcr-cleanup.yml` (domenica; cancella davvero solo con variabile repo `GHCR_CLEANUP_DELETE=true`, altrimenti report; serve ruolo Admin del repo sui package). Label `pa-sso-proxy.rebuild.reason` sull'immagine = causa del rebuild. **Tag con `imagetools create --prefer-index=false`**: senza, una sola sorgente a manifest singolo (`provenance: false`) diventa un index NUOVO → `:latest` su un digest senza firma/attestazioni, verify-images in produzione "no signatures found" (successo con la prima release F6; lo smoke non se ne accorgeva perché verifica i digest, non i tag). Lo step Tag controlla che ogni tag punti al digest firmato.
-- **Portainer riscarica `:latest` da solo → pubblicare = andare in produzione**: ogni controllo sta prima dei tag, e niente rebuild senza causa (riavvierebbe la produzione). Rollback: `*_IMAGE=…:latest-YYYYMMDD` (giorno precedente) o `:sha-<commit>`. Smoke dello stack in locale: `SATOSA_IMAGE=… CONFIG_API_IMAGE=… NGINX_IMAGE=… scripts/smoke-stack.sh` (serve `jq`; su Windows lanciarlo in `docker:cli` con `apk add bash jq curl`, `SMOKE_HOST=host.docker.internal SMOKE_BIND=0.0.0.0`). `security-alerts.yml` (giornaliero): issue + job rosso se ci sono alert code scanning high/critical aperti su main.
-- **Gotcha `GITHUB_TOKEN`**: azioni fatte con `GITHUB_TOKEN` (merge da auto-merge, push, PR aperte da un workflow) NON avviano altri workflow (eccezione: `workflow_dispatch`). Per questo l'auto-merge e l'aggiornamento dei branch usano il token della **GitHub App `pa-sso-proxy-bot`** (`actions/create-github-app-token`): l'auto-merge attivato dall'App manda la PR in merge queue, che esegue il merge (i push della coda avviano i workflow su main). Il cron settimanale resta comunque l'unico che pubblica `:latest`.
-- **GitHub App `pa-sso-proxy-bot`** (org Provincia-di-Pescara, installata solo su questo repo, nessun bypass del ruleset): permessi Contents/Pull requests/**Workflows** read-write + Metadata. Workflows serve per mergiare/aggiornare PR che toccano `.github/workflows/` (bump Actions): senza, quei merge vengono rifiutati. Un permesso aggiunto dopo va **accettato sull'installazione** (Review request), altrimenti non è attivo. Secret `APP_CLIENT_ID` (pubblico, `app-id` è deprecato in create-github-app-token v3) e `APP_PRIVATE_KEY` salvati **sia tra i secret Actions sia tra i secret Dependabot**: i workflow avviati da una PR dependabot vedono solo i secret Dependabot. Rotazione chiave: nuova private key dalla pagina dell'App → aggiornare i 2 secret `APP_PRIVATE_KEY` → eliminare la chiave vecchia.
-- **Versioni Python**: config-api gira su `python:3.14-slim` → matrice pytest in `ci.yml` = 3.14 (bloccante) + versione successiva con `next: true` (`continue-on-error`, informativa: dice quando è sicuro aggiornare il FROM; il workflow run resta success, quindi il gate non la vede). Aggiornare matrice e FROM insieme. satosa-tests.yml resta 3.11/3.12: satosa gira sul venv 3.12 dell'immagine upstream. Il cambio di versione Python dell'immagine base (es. 3.14-slim → 3.15-slim) è "minor" per semver ma va in revisione manuale (regola in `dependabot-automerge.yml`).
-- **Immagini fissate per digest** (`FROM python:3.14-slim@sha256:…`, `nginx:alpine@sha256:…`, compose `postgres:18@sha256:…`, `redis:8-alpine@sha256:…`): con "Re-pull image" su Portainer un tag flottante porterebbe in produzione un'immagine mai scansionata. Dependabot aggiorna il digest (stesso tag); le major di `postgres` sono in `ignore` (migrazione dati manuale). Lo smoke Alembic di `ci.yml` avvia postgres leggendo tag+digest da `docker-compose.yaml` (niente secondo digest da allineare: i service container dei workflow dependabot non li aggiorna). Le patch OS restano coperte da `apk/apt upgrade` + `PKG_REFRESH` (data del giorno, invalida la cache GHA del layer).
-- `update-behind.yml` rimosso con la merge queue (F2): la coda testa ogni PR sopra main aggiornato, la policy strict non serve più.
-- Versione: footer WebUI = solo ultimo tag (`git describe --tags --abbrev=0` → `app_version.txt`); Sentry/GlitchTip = `git describe --tags --long --always` + `+YYYYMMDD` (`app_release.txt` per config-api via `get_release_version()`, build-arg `APP_VERSION` per satosa). Niente spazi né `/` nella release Sentry (non ammessi). Scelta utente: niente commit/data nel footer.
-- `dependabot-automerge.yml`: `gh pr merge --auto --squash` per patch/minor; **manuali** (label `revisione-manuale` + commento) major, `pysaml2`/`cryptojwt`/`cryptography`/`pyeudiw`/`satosa`, immagine base `iam-proxy-italia`. `cryptography` ha `exclude-patterns` nel gruppo config-api, così non trascina in revisione manuale tutto il gruppo. Richiede impostazione repo "Allow auto-merge". Gruppi dependabot con `update-types: [minor, patch]`: le major arrivano sempre come PR singola (mai mescolate a minor in un gruppo, che finirebbe tutto in revisione manuale) e restano aperte come promemoria; `open-pull-requests-limit: 10` perché major lasciate aperte non blocchino nuove PR (default 5 per directory).
-- Cosa fissiamo e chi lo controlla: `FROM iam-proxy-italia:latest@sha256` → dependabot docker (PR manuale); `satosa/requirements-runtime.txt` (redis, sentry-sdk, certifi aggiunti al venv upstream) → dependabot pip `/satosa`; `ARG IAM_PROXY_REF` (git clone upstream) → **invisibile a dependabot**, lo controlla `upstream-check.yml` (settimanale, apre una issue `upstream` a ogni nuova release). Digest dell'immagine e `IAM_PROXY_REF` vanno aggiornati INSIEME alla stessa release (venv dell'immagine e codice clonato devono corrispondere). Mai rimettere `pip install pkg==x` inline nel Dockerfile: dependabot non lo vede.
-- **Aggiornamento immagine base iam-proxy-italia = sempre manuale, mai automatizzarlo** (decisione utente dopo v3.4.0). Checklist, in UNA PR: (1) digest `FROM` + `ARG IAM_PROXY_REF` alla stessa release (la PR dependabot docker aggiorna solo il digest: va chiusa come superata); (2) changelog upstream — i breaking change di configurazione (es. `OIDC/`→`OIDCOP/`, Certbot, variabili Mongo/hostname) di solito NON ci toccano, la config SATOSA la genera config-api; (3) `git diff <vecchio>..<nuovo>` upstream sui file che sovrascriviamo (`satosa/plugins/` → `backends/...` nel Dockerfile): i fix lì, anche di sicurezza (es. callback CIE monouso in v3.4.0), NON arrivano da soli, vanno riportati a mano; (4) pacchetti nuovi nel venv → orfani? aggiungerli al `pip uninstall`; (5) test nel container + import check + Trivy differenziale (gira anche in coda); (6) dopo il merge `release.yml` con `dry_run=true` su main PRIMA di creare il tag (un tag `v*` protetto non si sposta: v0.10.0 è rimasto senza immagini). Restano invece automatici (patch/minor) `redis`/`sentry-sdk`/`certifi` di `requirements-runtime.txt`: periferici, coperti da test nel container ed e2e SPID in coda.
-**Tutte le Action pinnate per commit SHA** (`# vX` a commento) in tutti i workflow, imposto da `sha_pinning_required` — dependabot ecosistema `github-actions` apre PR per bump.
-**`dependabot.yml` cooldown**: `default-days: 7` (minimo accettato, valori più bassi restano segnalati come "mancanti" da tool di audit), `default-days` su tutti gli update block, `semver-major-days: 14` **solo sui block `pip`**: per `docker`/`docker-compose`/`github-actions` Dependabot lo rifiuta ("not supported for the package ecosystem") e invalida il file — errore visibile solo nel check `.github/dependabot.yml` di una PR che tocca quel file. 
-**Correzione autonoma pip (`security-autofix.yml`, F5)**: giornaliero 01:30 UTC + dopo `Security` fallito su main + dispatch (`force` salta solo le 48 h, `dry_run`). `scripts/security/pip_fix.py plan` = pip-audit sui 4 lock + severità OSV (HIGH/CRITICAL; sconosciuta = HIGH) + versione più bassa che corregge, pubblicata da ≥ 48 h, con provenienza PEP 740 dallo stesso repository della versione attuale (versione attuale senza attestazioni = non correggibile in autonomia → issue). `apply --group` mette il pin nei `.in` (transitiva: riga nuova con advisory e condizione di rimozione), poi `compile-requirements.sh`; commit via GraphQL `createCommitOnBranch` col token dell'App, file consentiti solo `requirements*.in/.txt`. Gruppo `auto` → auto-merge in coda; gruppo `manual` (pysaml2, cryptojwt, cryptography, pyeudiw, satosa, pyop) → PR `revisione-manuale`, MAI auto-merge (decisione: niente auto-merge su SPID/CIE finché non c'è un test e2e di login, F8). Issue unica di stato. Test su fixture fisse in `scripts/security/test/` (job `autofix-tests`, mai sui file vivi). Patch OS e digest base NON passano dall'autofix: li coprono `release.yml` (cause b/c) e dependabot.
-
-**`.trivyignore.yaml` a root** (formato YAML: ID + `paths` + `statement`), letto via env `TRIVY_IGNOREFILE` dagli step trivy-action di `docker.yml` (immagini) e `security.yml` (fs). Mai eccezioni senza `paths`. Oggi: `DS-0002` (container root) sui 3 Dockerfile fino a F6. `security.yml`: `dependency-review` (solo PR, HIGH+, anche dev/Actions) + `trivy-fs` (vuln lock, segreti, misconfig Dockerfile; PR, coda, main, giornaliero 03:00). CVE su package `pip/_vendor/*` (es. `setuptools`/`msgpack` vendorizzati DENTRO pip stesso, mai importati dal codice app) sono falsi positivi comuni su immagini `python:3.14-slim` con pip 26.x — verificare con `pip show <pkg>` (→ "not found" se è solo vendored) prima di ignorare o meglio: se pip non serve a runtime (solo l'app WSGI/ASGI), rimuoverlo fisicamente nel Dockerfile (`python -m pip uninstall -y pip setuptools`) elimina il CVE alla radice invece di ignorarlo.
-**`gh run rerun --failed` NON rilegge il workflow YAML aggiornato** — resta pinnato alla versione del file al momento del trigger originale. Un fix al workflow richiede un nuovo push/evento (su una PR dependabot: commentare `@dependabot rebase`, aspetta il bot — force-push manuale su branch dependabot è bloccato dal classificatore di sicurezza di Claude Code).
+- **Mai push diretto su `main`**, nemmeno per fix minimi/urgenti — sempre branch + PR (il ruleset lo rifiuta).
+- **Merge di una PR**: `gh pr merge <n> --auto` (merge queue, squash imposto). Niente `--squash`/`--admin`.
+- **Tag `v*` protetti**: un tag pubblicato non si sposta. Prima di creare un tag: `release.yml` con `dry_run=true` su main.
+- **Pubblicare = andare in produzione** (Portainer riscarica `:latest` da solo): solo `release.yml` pubblica, niente rebuild senza causa.
+- **Aggiornamento immagine base iam-proxy-italia = sempre manuale, mai automatizzarlo** (checklist nella skill).
+- `config-api/.coverage` è un binario tracciato: `git checkout -- config-api/.coverage` prima di committare dopo un run con `--cov`.
+- Nuova action di terze parti: va aggiunta all'elenco consentito PRIMA del merge; tutte le Action pinnate per commit SHA.
+- Mai `pip install pkg==x` inline nei Dockerfile (dependabot non lo vede); mai eccezioni Trivy senza `paths`; CVE CRITICAL reale = bump, non ignore.
