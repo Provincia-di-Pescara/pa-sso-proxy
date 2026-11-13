@@ -2,6 +2,6 @@
 # Tenuti qui e non inline nel Dockerfile perché dependabot li possa aggiornare.
 # Lock con hash: requirements-runtime.txt (scripts/compile-requirements.sh).
 redis==8.1.0
-sentry-sdk==2.73.0
+sentry-sdk==2.74.0
 # Fix GHSA-6q48-6c7w-9gw2 (CRITICAL) sulla copia 2026.4.22 del venv upstream.
 certifi==2026.10.23
