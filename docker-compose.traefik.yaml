@@ -1,0 +1,50 @@
+# OPZIONALE: esposizione tramite un Traefik v3 gia' in esecuzione sullo stesso host
+# (provider docker), al posto della porta pubblicata PROXY_HOST_PORT.
+#
+# Uso: docker compose -f docker-compose.yaml -f docker-compose.traefik.yaml up -d
+# Portainer (stack Git): Compose path docker-compose.yaml, Additional paths
+# docker-compose.traefik.yaml.
+#
+# L'hostname e' PROXY_HOSTNAME (gia' obbligatoria per SATOSA): nessuna variabile in piu'.
+# Due router sullo stesso service nginx:
+#   - tutto l'host (SSO per cittadini e applicazioni)
+#   - /admin (WebUI di amministrazione), con regola piu' lunga e quindi priorita' maggiore,
+#     a cui si possono applicare middleware propri
+#
+# Variabili dello stack:
+#   TRAEFIK_ADMIN_MIDDLEWARES middleware gia' definiti in Traefik da applicare a /admin,
+#                         separati da virgola (es. un ipallowlist per la sola rete
+#                         interna: lan-only@docker). Default: nessuno
+#   TRAEFIK_NETWORK       rete docker esterna condivisa con Traefik (default: proxy)
+#   TRAEFIK_ENTRYPOINT    entrypoint HTTPS di Traefik (default: websecure)
+#   TRAEFIK_ROUTER_PREFIX prefisso di router e service, unico per istanza se piu' stack
+#                         pa-sso-proxy girano sullo stesso Traefik (default: pa-sso-proxy)
+#
+# TLS: tls=true usa il certificato di default di Traefik (o il resolver configurato
+# sull'entrypoint).
+
+services:
+  nginx:
+    # Nessuna porta sull'host: si entra solo da Traefik.
+    ports: !reset []
+    networks:
+      - proxy-internal
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-proxy}
+      - traefik.http.services.${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}.loadbalancer.server.port=8080
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}.rule=Host(`${PROXY_HOSTNAME:?PROXY_HOSTNAME obbligatoria}`)
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}.tls=true
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}.service=${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}-admin.rule=Host(`${PROXY_HOSTNAME:?PROXY_HOSTNAME obbligatoria}`) && PathPrefix(`/admin`)
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}-admin.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}-admin.tls=true
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}-admin.middlewares=${TRAEFIK_ADMIN_MIDDLEWARES:-}
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}-admin.service=${TRAEFIK_ROUTER_PREFIX:-pa-sso-proxy}
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-proxy}
