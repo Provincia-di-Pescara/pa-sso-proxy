@@ -132,7 +132,7 @@ all'elenco **nella stessa PR** che le introduce.
 - `concurrency` in `dependabot-automerge.yml` (`cancel-in-progress: false`) e
   `upstream-check.yml`.
 - Tool fissati: `pip-audit==<versione>` (non `pipx run` flottante), niente
-  `pip install --upgrade pip` (o pip a versione fissa); Trivy `v0.76.1`.
+  `pip install --upgrade pip` (o pip a versione fissa); Trivy `v0.76.2`.
 - Nuovo `tool-version-check.yml` (settimanale, lunedì): apre una issue quando escono nuove
   versioni di Trivy / pip-audit fissati (stesso schema di `upstream-check.yml`).
 - CodeQL → **default setup**, suite `extended`, linguaggi `python` + `actions`; rimuovere
