@@ -183,6 +183,10 @@ services:
       # vedi CLAUDE.md "Disaster recovery".
       satosa:
         condition: service_started
+    environment:
+      # IP/CIDR dei reverse proxy fidati per X-Forwarded-For (es. subnet della rete
+      # Docker di Traefik). Vuota = $remote_addr e' l'IP del proxy. Vedi docs/deployment.md.
+      - NGINX_TRUSTED_PROXIES=${NGINX_TRUSTED_PROXIES:-}
     ports:
       # nginx-unprivileged ascolta su 8080 nel container.
       - "${PROXY_HOST_PORT:-127.0.0.1:18080}:8080"

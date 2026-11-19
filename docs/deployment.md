@@ -117,6 +117,15 @@ server {
 
 `X-Forwarded-Proto` e `X-Forwarded-Host` sono obbligatori — SATOSA li usa per generare redirect URI.
 
+### IP reale del client
+
+Dietro un reverse proxy nginx vede come indirizzo del client quello del proxy, e lo passa a
+config-api in `X-Real-IP`: rate limit e ban del login `/admin` e log di accesso tratterebbero
+tutti come un unico IP. `NGINX_TRUSTED_PROXIES` (IP o CIDR separati da virgola) elenca i
+proxy da cui accettare `X-Forwarded-For` (`real_ip` di nginx, `25-real-ip.sh`): l'IP del
+reverse proxy come lo vede nginx, cioè il gateway della rete dello stack con la porta
+pubblicata, o la subnet della rete Docker condivisa con Traefik.
+
 ## Traefik sullo stesso host (opzionale)
 
 Con un Traefik v3 già in esecuzione sullo stesso host (provider docker) aggiungere in Portainer
