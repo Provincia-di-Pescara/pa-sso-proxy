@@ -117,6 +117,19 @@ server {
 
 `X-Forwarded-Proto` e `X-Forwarded-Host` sono obbligatori — SATOSA li usa per generare redirect URI.
 
+## Traefik sullo stesso host (opzionale)
+
+Con un Traefik v3 già in esecuzione sullo stesso host (provider docker) aggiungere in Portainer
+*Additional paths* → `docker-compose.traefik.yaml`: nginx entra nella rete Docker di Traefik con
+le label dei router e la porta host si chiude (`ports: !reset []`, `PROXY_HOST_PORT` non serve più).
+L'hostname è `PROXY_HOSTNAME`.
+
+Due router sullo stesso service: l'intero host (SSO) e `/admin` (WebUI), a cui
+`TRAEFIK_ADMIN_MIDDLEWARES` applica middleware già definiti in Traefik, es. un ipallowlist
+`lan-only@docker` per amministrare solo dalla rete interna. Le altre variabili
+(`TRAEFIK_NETWORK`, `TRAEFIK_ENTRYPOINT`, `TRAEFIK_ROUTER_PREFIX`) hanno default e sono
+descritte in testa al file.
+
 ## Integrazione app (client OIDC)
 
 ### Setup client
