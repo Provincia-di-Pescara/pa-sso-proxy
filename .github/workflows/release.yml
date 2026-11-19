@@ -47,7 +47,7 @@ concurrency:
 
 env:
   IMAGE_BASE: ghcr.io/provincia-di-pescara/pa-sso-proxy
-  TRIVY_VERSION: v0.76.1
+  TRIVY_VERSION: v0.76.2
 
 jobs:
   setup:
