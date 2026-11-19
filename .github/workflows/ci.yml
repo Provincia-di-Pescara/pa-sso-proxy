@@ -34,11 +34,11 @@ jobs:
       fail-fast: false
       matrix:
         # Allineata all'immagine di produzione (config-api/Dockerfile:
-        # python:3.14-slim) + versione successiva. Aggiornare insieme al FROM.
+        # python:3.15-slim) + versione successiva. Aggiornare insieme al FROM.
         include:
-          - python-version: "3.14"
-            next: false
           - python-version: "3.15"
+            next: false
+          - python-version: "3.16"
             next: true
 
     steps:
@@ -66,6 +66,8 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: ${{ matrix.python-version }}
+          # La versione next può essere ancora alpha/beta.
+          allow-prereleases: ${{ matrix.next }}
           cache: pip
           cache-dependency-path: |
             config-api/requirements.txt
@@ -104,7 +106,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.14"
+          python-version: "3.15"
 
       - name: Run pip-audit
         run: pipx run --spec pip-audit==2.10.1 pip-audit --require-hashes --disable-pip -r config-api/requirements-dev.txt

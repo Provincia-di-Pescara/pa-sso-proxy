@@ -3,7 +3,7 @@
 # Compila dentro container Linux con la stessa versione Python delle immagini:
 # i marker di piattaforma (es. uvloop, solo non-Windows) devono essere quelli
 # di produzione, non quelli del PC di chi lancia lo script.
-#   config-api       → python 3.14 (config-api/Dockerfile)
+#   config-api       → python 3.15 (config-api/Dockerfile)
 #   satosa runtime   → python 3.12 (venv dell'immagine iam-proxy-italia)
 #   satosa tests     → python 3.12
 # Uso: scripts/compile-requirements.sh [--upgrade-package PKG ...]
@@ -17,7 +17,7 @@ compile() { # $1=python $2=dir $3=in $4=out, resto = argomenti extra
      pip-compile -q --generate-hashes --allow-unsafe --strip-extras --no-emit-index-url \
        --output-file $out $* $src"
 }
-compile 3.14 config-api requirements.in requirements.txt "$@"
-compile 3.14 config-api requirements-dev.in requirements-dev.txt "$@"
+compile 3.15 config-api requirements.in requirements.txt "$@"
+compile 3.15 config-api requirements-dev.in requirements-dev.txt "$@"
 compile 3.12 satosa requirements-runtime.in requirements-runtime.txt "$@"
 compile 3.12 satosa/tests requirements-test.in requirements-test.txt "$@"
