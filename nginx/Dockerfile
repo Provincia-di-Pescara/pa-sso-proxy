@@ -16,5 +16,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 # /etc/resolv.conf), usato dalla direttiva resolver nel template.
 ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY templates/proxy.conf.template /etc/nginx/templates/proxy.conf.template
+# real_ip da X-Forwarded-For per i proxy in NGINX_TRUSTED_PROXIES (vedi lo script).
+COPY --chmod=0755 entrypoint/25-real-ip.sh /docker-entrypoint.d/25-real-ip.sh
 
 USER 101
