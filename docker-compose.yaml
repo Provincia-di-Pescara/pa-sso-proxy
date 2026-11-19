@@ -80,7 +80,7 @@ services:
     # Major fissata: con "Re-pull image" su Portainer un tag flottante (redis:alpine)
     # porterebbe in produzione una nuova major senza PR né test. Le major arrivano
     # come PR dependabot in revisione manuale.
-    image: redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
+    image: redis:8-alpine@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
     <<: [*hardening, *official-entrypoint-caps]
     restart: unless-stopped
     # Nessuna persistenza (stato di sessione CIE OIDC): /data in tmpfs.
