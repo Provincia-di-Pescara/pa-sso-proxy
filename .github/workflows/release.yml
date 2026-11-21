@@ -76,6 +76,7 @@ jobs:
             github.com:443
             mirror.gcr.io:443
             pkg-containers.githubusercontent.com:443
+            production.cloudflare.docker.com:443
             production.cloudfront.docker.com:443
             registry-1.docker.io:443
             release-assets.githubusercontent.com:443
@@ -163,6 +164,7 @@ jobs:
             github.com:443
             mirror.gcr.io:443
             pkg-containers.githubusercontent.com:443
+            production.cloudflare.docker.com:443
             production.cloudfront.docker.com:443
             pypi.org:443
             raw.githubusercontent.com:443
@@ -293,8 +295,10 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
+      # actions/attest-sbom è deprecata ("please use actions/attest instead"):
+      # actions/attest accetta gli stessi input (sbom-path).
       - name: Attest SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ env.IMG }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -348,6 +352,7 @@ jobs:
             ghcr.io:443
             github.com:443
             pkg-containers.githubusercontent.com:443
+            production.cloudflare.docker.com:443
             production.cloudfront.docker.com:443
             raw.githubusercontent.com:443
             registry-1.docker.io:443
@@ -424,6 +429,7 @@ jobs:
             ghcr.io:443
             github.com:443
             pkg-containers.githubusercontent.com:443
+            production.cloudflare.docker.com:443
             production.cloudfront.docker.com:443
             registry-1.docker.io:443
 

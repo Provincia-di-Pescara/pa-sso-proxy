@@ -52,6 +52,7 @@ jobs:
 
     env:
       IMAGE: pa-sso-proxy-${{ matrix.image }}:ci
+      BASE_SHA: ${{ github.event.merge_group.base_sha }}
     steps:
       - name: Harden runner
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
@@ -71,6 +72,7 @@ jobs:
             github.com:443
             mirror.gcr.io:443
             pkg-containers.githubusercontent.com:443
+            production.cloudflare.docker.com:443
             production.cloudfront.docker.com:443
             pypi.org:443
             registry-1.docker.io:443
@@ -78,6 +80,18 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
+
+      # Base della coda in .base: il gate differenziale usa trivy-diff.sh di
+      # main, non quello della PR (che altrimenti potrebbe indebolire il gate
+      # che la giudica). .trivyignore.yaml resta quello della PR: un'eccezione
+      # nuova è visibile in review (CODEOWNERS) e deve poter sbloccare la coda.
+      - name: Checkout base
+        if: github.event_name == 'merge_group'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.BASE_SHA }}
+          path: .base
           persist-credentials: false
 
       - name: Set up Docker Buildx
@@ -123,4 +137,9 @@ jobs:
           OLD: ghcr.io/provincia-di-pescara/pa-sso-proxy-${{ matrix.image }}:latest
           NAME: ${{ matrix.image }}
           TRIVY_IGNOREFILE: .trivyignore.yaml
-        run: scripts/trivy-diff.sh "$IMAGE" "$OLD" "$NAME"
+        run: |
+          set -euo pipefail
+          # Dispatch manuale (niente coda): script del checkout.
+          gate=.base/scripts/trivy-diff.sh
+          [ -f "$gate" ] || gate=scripts/trivy-diff.sh
+          "$gate" "$IMAGE" "$OLD" "$NAME"

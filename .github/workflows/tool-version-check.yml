@@ -2,9 +2,13 @@ name: Tool version check
 
 # Trivy e pip-audit sono fissati a una versione nei workflow (dependabot non li
 # vede: non sono action né dipendenze). Ogni lunedì confronta la versione
-# fissata con l'ultima release e, se ce n'è una più recente pubblicata da
-# almeno 7 giorni (stesso cooldown di dependabot), apre una issue (una sola per
-# versione).
+# fissata con l'ultima release:
+# - Trivy: apre direttamente la PR che aggiorna la versione (dopo 3 giorni,
+#   per non adottare subito una release potenzialmente compromessa). Commit
+#   verificato via GraphQL col token della GitHub App, così la PR fa partire i
+#   check (con GITHUB_TOKEN resterebbe senza). NESSUN auto-merge: il cambio
+#   del binario dello scanner resta una decisione umana.
+# - pip-audit: issue `toolchain` (dopo 7 giorni, stesso cooldown di dependabot).
 
 on:
   schedule:
@@ -18,9 +22,122 @@ concurrency:
   group: tool-version-check
   cancel-in-progress: false
 
+env:
+  # Unici punti dove è fissata la versione di Trivy (release.yml la passa via env).
+  TRIVY_FILES: .github/workflows/docker.yml .github/workflows/security.yml .github/workflows/release.yml
+  TRIVY_PIN_RE: '^\s+(version|TRIVY_VERSION): v[0-9]+\.[0-9]+\.[0-9]+$'
+
 jobs:
-  check:
-    name: Tool version check
+  trivy:
+    name: Trivy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Compare pinned version with latest release
+        id: cmp
+        env:
+          COOLDOWN_DAYS: "3"
+        run: |
+          set -euo pipefail
+          pinned="$(grep -hoE "$TRIVY_PIN_RE" $TRIVY_FILES | awk '{print $2}' | sort -u)"
+          if [ -z "$pinned" ] || [ "$(printf '%s\n' "$pinned" | wc -l)" -ne 1 ]; then
+            echo "::error::Versioni Trivy fissate incoerenti o assenti: $(tr '\n' ' ' <<< "$pinned")"
+            exit 1
+          fi
+
+          # Chiamata anonima: l'org aquasecurity ha un IP allow list che rifiuta
+          # le richieste autenticate (GITHUB_TOKEN) dai runner.
+          read -r latest published < <(curl -fsSL --retry 3 https://api.github.com/repos/aquasecurity/trivy/releases/latest \
+            | jq -r '[.tag_name, .published_at] | @tsv')
+          # Dato esterno: finisce in sed e nei file dei workflow, solo forma vX.Y.Z.
+          if ! [[ "$latest" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag di release inatteso: $latest"
+            exit 1
+          fi
+          age_days=$(( ( $(date -u +%s) - $(date -u -d "$published" +%s) ) / 86400 ))
+          echo "trivy fissata=$pinned ultima=$latest (pubblicata $published, $age_days giorni fa)"
+
+          [ "$latest" = "$pinned" ] && { echo "Trivy aggiornato."; exit 0; }
+          if [ "$(printf '%s\n%s\n' "$pinned" "$latest" | sort -V | tail -n1)" != "$latest" ]; then
+            echo "Fissata più recente dell'ultima release, niente da fare."; exit 0
+          fi
+          [ "$age_days" -lt "$COOLDOWN_DAYS" ] && { echo "Release troppo recente, attendo."; exit 0; }
+          printf 'pinned=%s\nlatest=%s\npublished=%s\n' "$pinned" "$latest" "$published" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub App token
+        id: app-token
+        if: steps.cmp.outputs.latest != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          # Commit su trivy-version/* (file in .github/workflows) e apertura PR.
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
+      - name: Open update PR
+        if: steps.cmp.outputs.latest != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          PINNED: ${{ steps.cmp.outputs.pinned }}
+          LATEST: ${{ steps.cmp.outputs.latest }}
+          PUBLISHED: ${{ steps.cmp.outputs.published }}
+        run: |
+          set -euo pipefail
+          branch="trivy-version/$LATEST"
+          existing="$(gh pr list --repo "$REPO" --state open --head "$branch" --json number --jq '.[0].number // empty')"
+          [ -n "$existing" ] && { echo "PR già aperta: #$existing"; exit 0; }
+
+          # Solo le righe di pin (versione già verificata unica e coerente).
+          pinned_re="${PINNED//./\\.}"
+          for f in $TRIVY_FILES; do
+            sed -i -E "s/^(\s+(version|TRIVY_VERSION): )$pinned_re\$/\1$LATEST/" "$f"
+          done
+          if grep -qE "^\s+(version|TRIVY_VERSION): $pinned_re\$" $TRIVY_FILES; then
+            echo "::error::Sostituzione incompleta"; exit 1
+          fi
+          changed="$(git diff --name-only)"
+          [ -n "$changed" ] || { echo "::error::Nessuna modifica"; exit 1; }
+          if bad="$(grep -vxF -f <(tr ' ' '\n' <<< "$TRIVY_FILES") <<< "$changed")"; then
+            echo "::error::File fuori dall'elenco consentito: $bad"; exit 1
+          fi
+          git diff --stat
+
+          # Branch nuovo da main (eventuale branch vecchio senza PR: ricreato).
+          base="$(git rev-parse HEAD)"
+          gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1 || true
+          gh api "repos/$REPO/git/refs" -f "ref=refs/heads/$branch" -f "sha=$base" >/dev/null
+          jq -n --arg repo "$REPO" --arg branch "$branch" --arg oid "$base" --arg head "ci: Trivy $LATEST" \
+                --argjson files "$(for f in $changed; do jq -n --arg p "$f" --arg c "$(base64 -w0 "$f")" '{path:$p, contents:$c}'; done | jq -s .)" \
+            '{query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+              variables: {input: {branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                                  expectedHeadOid: $oid,
+                                  message: {headline: $head},
+                                  fileChanges: {additions: $files}}}}' > "$RUNNER_TEMP/commit.json"
+          gh api graphql --input "$RUNNER_TEMP/commit.json" --jq '.data.createCommitOnBranch.commit.oid'
+
+          body="$(printf 'Aggiorna Trivy da **%s** a **%s** (pubblicata %s) in `docker.yml`, `security.yml` e `release.yml`.\n\nRelease notes: https://github.com/aquasecurity/trivy/releases/tag/%s\n\nNessun auto-merge: leggere le release notes e mergiare a mano (`gh pr merge --auto`) se i check sono verdi.\n\n_PR aperta da `tool-version-check.yml`._\n' "$PINNED" "$LATEST" "$PUBLISHED" "$LATEST")"
+          url="$(gh pr create --repo "$REPO" --base main --head "$branch" --title "ci: Trivy $LATEST" --body "$body")"
+          echo "PR: $url" >> "$GITHUB_STEP_SUMMARY"
+
+  pip-audit:
+    name: pip-audit
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -40,40 +157,24 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Compare pinned versions with latest releases
+      - name: Compare pinned version with latest release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           cutoff="$(date -u -d '7 days ago' +%s)"
-          gh label create toolchain --color 1D76DB --description "Aggiornamento tool CI fissati" 2>/dev/null || true
-
-          open_issue() { # $1=tool $2=fissata $3=ultima $4=dove
-            title="$1 $3 disponibile (fissata: $2)"
-            if [ "$(gh issue list --state open --search "in:title \"$1 $3\"" --json number --jq 'length')" != "0" ]; then
-              echo "$1: issue già aperta."; return
-            fi
-            gh issue create --title "$title" --label toolchain --body "$(printf 'È disponibile **%s %s** (pubblicata da almeno 7 giorni); i workflow usano ancora `%s`.\n\nDa aggiornare in una PR: %s.\n' "$1" "$3" "$2" "$4")"
-          }
-
           newer() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1)" = "$2" ]; }
 
-          # Trivy (versione binario in trivy-action)
-          trivy_pinned="$(grep -hoE 'version: v[0-9]+\.[0-9]+\.[0-9]+' .github/workflows/*.yml | sort -u | sed 's/version: //' | head -n1)"
-          # Chiamata anonima: l'org aquasecurity ha un IP allow list che rifiuta
-          # le richieste autenticate (gh api col GITHUB_TOKEN) dai runner.
-          read -r trivy_latest trivy_date < <(curl -fsS https://api.github.com/repos/aquasecurity/trivy/releases/latest | jq -r '[.tag_name, .published_at] | @tsv')
-          echo "trivy fissata=$trivy_pinned ultima=$trivy_latest ($trivy_date)"
-          if newer "${trivy_pinned#v}" "${trivy_latest#v}" && [ "$(date -u -d "$trivy_date" +%s)" -le "$cutoff" ]; then
-            open_issue Trivy "$trivy_pinned" "$trivy_latest" "\`version:\` dello step trivy-action in tutti i workflow"
-          fi
-
-          # pip-audit (pipx run --spec pip-audit==X)
           pa_pinned="$(grep -hoE 'pip-audit==[0-9.]+' .github/workflows/*.yml | sort -u | sed 's/pip-audit==//' | head -n1)"
           pa_json="$(curl -fsS https://pypi.org/pypi/pip-audit/json)"
           pa_latest="$(jq -r .info.version <<< "$pa_json")"
           pa_date="$(jq -r --arg v "$pa_latest" '.releases[$v][0].upload_time_iso_8601' <<< "$pa_json")"
           echo "pip-audit fissata=$pa_pinned ultima=$pa_latest ($pa_date)"
-          if newer "$pa_pinned" "$pa_latest" && [ "$(date -u -d "$pa_date" +%s)" -le "$cutoff" ]; then
-            open_issue pip-audit "$pa_pinned" "$pa_latest" "\`pip-audit==\` in ci.yml e satosa-tests.yml"
+          newer "$pa_pinned" "$pa_latest" && [ "$(date -u -d "$pa_date" +%s)" -le "$cutoff" ] || exit 0
+
+          gh label create toolchain --color 1D76DB --description "Aggiornamento tool CI fissati" 2>/dev/null || true
+          if [ "$(gh issue list --state open --search "in:title \"pip-audit $pa_latest\"" --json number --jq 'length')" != "0" ]; then
+            echo "pip-audit: issue già aperta."; exit 0
           fi
+          gh issue create --title "pip-audit $pa_latest disponibile (fissata: $pa_pinned)" --label toolchain \
+            --body "$(printf 'È disponibile **pip-audit %s** (pubblicata da almeno 7 giorni); i workflow usano ancora `%s`.\n\nDa aggiornare in una PR: `pip-audit==` in ci.yml e satosa-tests.yml.\n' "$pa_latest" "$pa_pinned")"
