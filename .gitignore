@@ -14,3 +14,6 @@ satosa/conf/generated/
 config-api/app_version.txt
 config-api/app_release.txt
 .hypothesis/
+
+# Report HTML di copertura pytest (--cov-report=html)
+htmlcov/

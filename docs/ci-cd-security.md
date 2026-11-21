@@ -21,21 +21,22 @@ Stato dell'allineamento alla baseline ComunicaPA
 | Workflow | Quando | Cosa |
 |---|---|---|
 | `ci-gate.yml` | PR, merge queue | aspetta tutti i run dello stesso SHA; unico required check |
-| `ci.yml` | PR (path), coda | pytest config-api, pip-audit, smoke Alembic su postgres |
+| `ci.yml` | PR (path), coda | pytest config-api (report HTML di copertura come artifact `coverage-*`, 7 giorni), pip-audit, smoke Alembic su postgres |
 | `satosa-tests.yml` | PR (path), coda | test host + test plugin nel container satosa (solo coda) |
 | `spid-e2e.yml` | PR/coda se cambia codice SPID/OIDC, settimanale (`:latest`) | login SPID end-to-end con spid-saml-check locale (AuthnRequest validata strict da spid-sp-test) |
-| `docker.yml` | coda, dispatch | build 3 immagini, smoke, Trivy (soglia assoluta + differenziale vs `:latest`, `scripts/trivy-diff.sh`) — senza push |
+| `docker.yml` | coda, dispatch | build 3 immagini, smoke, Trivy (soglia assoluta + differenziale vs `:latest`, `scripts/trivy-diff.sh` preso dalla base della coda in `.base`, così la PR non può indebolire il gate che la giudica; `.trivyignore.yaml` resta quello della PR, visibile in review) — senza push |
 | `security.yml` | PR, coda, main, giornaliero | dependency-review, Trivy fs (vuln/segreti/misconfig), test autofix |
 | `security-autofix.yml` | giornaliero, Security fallito su main | PR di correzione pip HIGH/CRITICAL (SPID/CIE solo revisione manuale) |
-| `release.yml` | tag `v*`, giornaliero 03:30 UTC, dispatch | rebuild condizionato, push per digest, Trivy differenziale, SBOM, attestazioni, firma cosign, smoke stack, tag `latest` |
+| `release.yml` | tag `v*`, giornaliero 03:30 UTC, dispatch | rebuild condizionato, push per digest, Trivy differenziale, SBOM, attestazioni (`attest-build-provenance` + `actions/attest` con `sbom-path`; `attest-sbom` è deprecata), firma cosign, smoke stack, tag `latest` |
 | `security-alerts.yml` | giornaliero | issue + fallimento se alert code scanning high/critical aperti |
 | `ghcr-cleanup.yml` | settimanale | digest orfani (report, cancellazione con `GHCR_CLEANUP_DELETE`) |
-| `tool-version-check.yml`, `upstream-check.yml` | settimanale | issue per nuove versioni di tool fissati / iam-proxy-italia |
+| `tool-version-check.yml` | settimanale (lunedì) | Trivy: PR di aggiornamento (token GitHub App, permesso `workflows`, dopo 3 giorni, mai auto-merge); pip-audit: issue `toolchain` dopo 7 giorni |
+| `upstream-check.yml` | settimanale | issue per nuove release di iam-proxy-italia |
 | `dependabot-automerge.yml` | PR dependabot | auto-merge patch/minor, revisione manuale per major e librerie SPID/CIE |
 | `scorecard.yml` | settimanale, main | OpenSSF Scorecard |
 
 Ogni workflow: permessi minimi a livello di job, `persist-credentials: false`,
-`step-security/harden-runner` (`block`, endpoint consentiti per job), `timeout-minutes`, `concurrency`, tool a versione fissa.
+`step-security/harden-runner` (`block`, endpoint consentiti per job; Docker Hub serve i layer da più CDN, vanno consentiti tutti: `production.cloudflare.docker.com`, `production.cloudfront.docker.com`, `docker-images-prod.s3.dualstack.us-east-1.amazonaws.com`), `timeout-minutes`, `concurrency`, tool a versione fissa.
 
 ## Dipendenze
 
