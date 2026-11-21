@@ -35,11 +35,13 @@ jobs:
       matrix:
         # Allineata all'immagine di produzione (config-api/Dockerfile:
         # python:3.15-slim) + versione successiva. Aggiornare insieme al FROM.
+        # Versione successiva solo da rc in poi: prima pydantic-core non ha
+        # wheel, compila Rust da sorgente e harden-runner blocca crates.io
+        # (job rosso su ogni PR, nessuna informazione utile). Riaggiungere
+        # 3.16 con `next: true` quando esce la 3.16.0rc1.
         include:
           - python-version: "3.15"
             next: false
-          - python-version: "3.16"
-            next: true
 
     steps:
       - name: Harden runner
