@@ -22,6 +22,8 @@ Test flussi SATOSA via script su `http://localhost:<porta>`: il cookie `satosa_s
 
 `POST /admin/eidas/toggle` da form: checkbox `eidas_enabled=yes` per abilitare (assente = disabilita), **richiede anche `confirmed=yes`** altrimenti redirect a warning senza applicare nulla (stesso `window.confirm()` della UI) — utile saperlo per test via curl/script.
 
+Sessione admin (`app/admin_sessions.py`): cookie con solo `user`+`sid`, stato in memoria del processo (un solo worker uvicorn: con `--workers` va spostato in DB/redis). Logout revoca, riavvio di config-api chiude tutte le sessioni, inattività `SESSION_MAX_AGE` e durata `ADMIN_SESSION_MAX_LIFETIME` misurate lato server. Il middleware `admin_guard_middleware` rifiuta POST/PUT/PATCH/DELETE su `/admin` da altra origine (403: `Sec-Fetch-Site`, poi `Origin`, poi `Referer`, confronto solo host; nessuno dei tre = client non browser, ammesso) e rimanda al login ogni `/admin` non pubblico senza sessione valida (test `test_every_admin_route_requires_login`). Cookie `Secure` (`SESSION_HTTPS_ONLY`, default true; i test lo mettono a false in `conftest.py` prima dell'import di `app.main`). Mai segreti nella sessione (firmata, non cifrata). Secondo fattore: oltre al ban per IP, blocco globale dopo `TOTP_MAX_FAILURES` codici errati (chiave `totp:global` in `login_attempts`).
+
 Login admin via curl/script: con 2FA attivo (default) `POST /admin/login` dà solo `pending_2fa` → serve `POST /admin/login/2fa` con `code` TOTP. In locale più semplice `ADMIN_2FA_ENABLED=false`. Reset TOTP: `docker compose exec config-api python -m app.cli reset-2fa`. Nei test pytest il 2FA è off di default (fixture autouse in `tests/conftest.py`); i test 2FA lo riattivano con `monkeypatch.setenv("ADMIN_2FA_ENABLED", "true")`.
 
 ## Cos'è

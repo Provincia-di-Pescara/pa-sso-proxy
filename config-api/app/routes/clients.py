@@ -83,21 +83,28 @@ async def clients_create(
     await generate_and_write(db)
     await asyncio.to_thread(reload_satosa)
 
-    request.session["reveal_secret"] = client_secret
-    request.session["reveal_client_id"] = client_id
-    request.session["reveal_is_new"] = True
+    # Solo l'id nel cookie (firmato, non cifrato): il secret lo legge la pagina
+    # reveal dal DB, una volta sola.
+    request.session["reveal_client_pk"] = c.id
     return RedirectResponse(f"/admin/clients/{c.id}/reveal", status_code=302)
 
 
 @router.get("/clients/{client_id}/reveal", response_class=HTMLResponse)
-async def clients_reveal(request: Request, client_id: int):
+async def clients_reveal(request: Request, client_id: int, db: AsyncSession = Depends(get_db)):
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
-    secret = request.session.pop("reveal_secret", None)
-    cid = request.session.pop("reveal_client_id", None)
-    is_new = request.session.pop("reveal_is_new", False)
+    pk = request.session.pop("reveal_client_pk", None)
+    client = None
+    if pk is not None and pk == client_id:
+        client = (await db.execute(select(OIDCClient).where(OIDCClient.id == client_id))).scalar_one_or_none()
     return templates.TemplateResponse(
-        request, "clients/reveal.html.j2", {"client_id": cid, "client_secret": secret, "is_new": is_new}
+        request,
+        "clients/reveal.html.j2",
+        {
+            "client_id": client.client_id if client else None,
+            "client_secret": client.client_secret_plain if client else None,
+            "is_new": client is not None,
+        },
     )
 
 

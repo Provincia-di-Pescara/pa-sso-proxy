@@ -28,6 +28,8 @@ PROXY_HOST_PORT=${SMOKE_BIND:-127.0.0.1}:${port}
 ADMIN_USER=admin
 ADMIN_PASSWORD=$(rand)
 ADMIN_2FA_ENABLED=false
+# Lo smoke parla con nginx in http (anche host.docker.internal): cookie admin senza Secure.
+SESSION_HTTPS_ONLY=false
 SESSION_SECRET=$(rand)
 POSTGRES_PASSWORD=$(rand)
 SATOSA_HASH_SALT=$(rand)

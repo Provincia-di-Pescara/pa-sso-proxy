@@ -1,3 +1,9 @@
+import os
+
+# Cookie di sessione senza flag Secure: httpx non lo rimanda su http://test.
+# Va impostato prima dell'import di app.main (letto all'avvio).
+os.environ.setdefault("SESSION_HTTPS_ONLY", "false")
+
 import pytest
 import pytest_asyncio
 from sqlalchemy import JSON, Text
@@ -18,6 +24,14 @@ def _admin_2fa_disabled_by_default(monkeypatch):
     """I test esistenti fanno login con sola password: 2FA off salvo override esplicito."""
     monkeypatch.setenv("ADMIN_2FA_ENABLED", "false")
     monkeypatch.delenv("ADMIN_2FA_RESET", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _reset_admin_sessions():
+    from app import admin_sessions
+    admin_sessions.revoke_all()
+    yield
+    admin_sessions.revoke_all()
 
 
 @pytest_asyncio.fixture(scope="function")

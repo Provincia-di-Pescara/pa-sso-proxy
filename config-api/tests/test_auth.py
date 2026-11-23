@@ -77,7 +77,8 @@ async def test_session_inactivity_expiry_and_rolling(override_db, monkeypatch):
     import app.main as main_mod
 
     # Set a custom SESSION_MAX_AGE for testing (e.g. 5 seconds)
-    monkeypatch.setattr(main_mod, "SESSION_MAX_AGE", 5)
+    from app import admin_sessions
+    monkeypatch.setattr(admin_sessions, "IDLE_TIMEOUT", 5)
 
     # Mock time.time to return a controlled mock time
     start_time = 100000.0
