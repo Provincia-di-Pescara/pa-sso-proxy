@@ -69,7 +69,7 @@ services:
       - /var/run/postgresql:mode=1777
       - /tmp:mode=1777
     networks:
-      - proxy-internal
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U proxy"]
       interval: 10s
@@ -88,7 +88,7 @@ services:
       - /data:mode=1777
       - /tmp:mode=1777
     networks:
-      - proxy-internal
+      - backend
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -120,6 +120,7 @@ services:
       - /tmp:mode=1777
     networks:
       - proxy-internal
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/.well-known/openid-configuration > /dev/null || exit 1"]
       interval: 20s
@@ -162,6 +163,7 @@ services:
       - /tmp:mode=1777
     networks:
       - proxy-internal
+      - backend
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
       interval: 10s
@@ -187,6 +189,9 @@ services:
       # IP/CIDR dei reverse proxy fidati per X-Forwarded-For (es. subnet della rete
       # Docker di Traefik). Vuota = $remote_addr e' l'IP del proxy. Vedi docs/deployment.md.
       - NGINX_TRUSTED_PROXIES=${NGINX_TRUSTED_PROXIES:-}
+      # IP/CIDR ammessi su /admin (separati da virgola). Vuota = nessuna restrizione
+      # (opt-in: es. quando la fa già il reverse proxy). Vedi docs/deployment.md.
+      - ADMIN_ALLOWED_CIDRS=${ADMIN_ALLOWED_CIDRS:-}
     ports:
       # nginx-unprivileged ascolta su 8080 nel container.
       - "${PROXY_HOST_PORT:-127.0.0.1:18080}:8080"
@@ -208,8 +213,14 @@ services:
       - proxy-internal
 
 networks:
+  # nginx, satosa, config-api (e spid-saml-check nel test e2e).
   proxy-internal:
     driver: bridge
+  # postgres e redis: raggiungibili solo da satosa e config-api, non da nginx;
+  # internal = nessuna uscita verso Internet per i container del database.
+  backend:
+    driver: bridge
+    internal: true
 
 volumes:
   proxy_db_data_pg18:

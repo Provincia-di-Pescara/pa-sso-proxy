@@ -12,6 +12,19 @@
 # Podman (aardvark-dns).
 resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
 
+# Nessuna versione di nginx in header e pagine di errore.
+server_tokens off;
+
+# Rate limit per IP client (IP reale con NGINX_TRUSTED_PROXIES, 25-real-ip.sh).
+#   admin_login  login admin + 2FA: rallenta brute force e enumerazione,
+#                in aggiunta al ban applicativo di config-api.
+#   sso          flussi SATOSA e /verifica: limite largo (la discovery carica
+#                decine di asset, e gli uffici escono spesso da un solo IP NAT),
+#                ferma solo il flood.
+limit_req_zone $binary_remote_addr zone=admin_login:10m rate=10r/m;
+limit_req_zone $binary_remote_addr zone=sso:10m rate=30r/s;
+limit_req_status 429;
+
 server {
     # nginx-unprivileged: niente porte < 1024 senza root.
     listen 8080;
@@ -21,18 +34,41 @@ server {
     set $config_api_upstream http://config-api:8000;
     set $satosa_upstream http://satosa:8080;
 
-    # Admin UI → config-api
-    location /admin {
+    # Admin UI → config-api.
+    # CSP: i template admin usano ancora handler inline (onclick/onsubmit), da
+    # qui 'unsafe-inline' sugli script; il resto (connect/form/base/frame)
+    # impedisce di esfiltrare dati verso altre origini anche in caso di XSS.
+    # img-src https: per i loghi di ente e IdP (domini esterni).
+    location ^~ /admin {
+        include /etc/nginx/conf.d/admin-access.inc;
         proxy_pass $config_api_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
+        add_header Cache-Control "no-store" always;
+    }
+
+    # Login admin e 2FA: stessa config di /admin più il rate limit.
+    location ^~ /admin/login {
+        limit_req zone=admin_login burst=10 nodelay;
+        include /etc/nginx/conf.d/admin-access.inc;
+        proxy_pass $config_api_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
+        add_header Cache-Control "no-store" always;
     }
 
     # Health check config-api
     location /health {
         proxy_pass $config_api_upstream;
+        include /etc/nginx/snippets/security-headers.conf;
     }
 
     # Shortcut: root well-known → CIE OIDC backend
@@ -56,15 +92,21 @@ server {
 
     # Pagina pubblica verifica SPID (attiva solo con validator/demo IdP)
     location /verifica {
+        limit_req zone=sso burst=200 nodelay;
         proxy_pass $config_api_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
     }
 
-    # SATOSA OIDC/SAML endpoints
+    # SATOSA OIDC/SAML endpoints.
+    # CSP minima: le pagine SAML fanno POST automatici verso IdP di domini
+    # diversi (form-action non restringibile) e la discovery ha script inline.
     location / {
+        limit_req zone=sso burst=200 nodelay;
         proxy_pass $satosa_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -73,16 +115,21 @@ server {
         proxy_set_header X-Forwarded-Host $host;
         proxy_buffer_size 16k;
         proxy_buffers 4 16k;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Content-Security-Policy "frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
     }
 
     # Disable caching for json configurations
     location ~* \.json$ {
+        limit_req zone=sso burst=200 nodelay;
         proxy_pass $satosa_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Content-Security-Policy "frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
         add_header Cache-Control "no-cache, no-store, must-revalidate" always;
         add_header Pragma "no-cache" always;
         expires 0;

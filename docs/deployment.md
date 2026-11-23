@@ -126,6 +126,23 @@ proxy da cui accettare `X-Forwarded-For` (`real_ip` di nginx, `25-real-ip.sh`): 
 reverse proxy come lo vede nginx, cioè il gateway della rete dello stack con la porta
 pubblicata, o la subnet della rete Docker condivisa con Traefik.
 
+### Accesso alla WebUI e protezioni di nginx
+
+`ADMIN_ALLOWED_CIDRS` (IP o CIDR separati da virgola, opzionale) limita `/admin` agli
+indirizzi elencati: gli altri ricevono 403 da nginx (`26-admin-access.sh`). Vuota = nessuna
+restrizione, per quando la fa già il reverse proxy (es. `TRAEFIK_ADMIN_MIDDLEWARES`). Dietro
+un reverse proxy va impostata anche `NGINX_TRUSTED_PROXIES`, altrimenti nginx confronta
+l'IP del proxy. Valore con caratteri non validi → nginx non parte.
+
+Sempre attivi: header di sicurezza su tutte le risposte (HSTS, `nosniff`, `X-Frame-Options:
+DENY`, Referrer-Policy, Permissions-Policy, CSP per `/admin` e `/verifica`), rate limit per IP
+(`/admin/login*` 10 richieste/minuto con burst 10; flussi SSO 30/s con burst 200, risposta
+429) e `server_tokens off`. Se il reverse proxy imposta già HSTS o altri header, i doppioni
+sono innocui.
+
+postgres e redis stanno sulla rete `backend` (`internal: true`): li raggiungono solo satosa
+e config-api, non nginx, e non hanno uscita verso Internet.
+
 ## Traefik sullo stesso host (opzionale)
 
 Con un Traefik v3 già in esecuzione sullo stesso host (provider docker) aggiungere in Portainer
