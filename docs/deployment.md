@@ -71,7 +71,9 @@ fiscali nel log accessi e il secret del client `__spid_verifica__`.
 
 I container girano non-root, senza capability e con filesystem in sola lettura; il
 volume `proxy_satosa_conf` appartiene all'uid 10001 di satosa e config-api (impostato
-dalle immagini alla creazione del volume). Con `VERIFY_IMAGES=true` le immagini partono solo se la firma cosign è valida.
+dalle immagini alla creazione del volume). Le immagini partono solo se la firma cosign è valida (`VERIFY_IMAGES`, default `true`;
+`false` solo in sviluppo con immagini costruite in locale). Il servizio `verify-images` deve
+poter raggiungere in HTTPS `ghcr.io`, `tuf-repo-cdn.sigstore.dev` e `rekor.sigstore.dev`.
 
 ## Immagini: verifica e rollback
 

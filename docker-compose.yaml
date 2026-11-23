@@ -22,7 +22,8 @@ x-official-entrypoint-caps: &official-entrypoint-caps
     - SETGID
 
 services:
-  # Verifica delle firme cosign prima dell'avvio (attiva con VERIFY_IMAGES=true).
+  # Verifica delle firme cosign prima dell'avvio (default attiva; VERIFY_IMAGES=false
+  # solo per immagini costruite in locale, che non sono firmate).
   # Firma assente o non emessa da release.yml di questo repo → satosa,
   # config-api e nginx vengono creati ma non avviati. Variabile e non profilo:
   # con un profilo opzionale una verifica fallita darebbe solo un warning.
@@ -31,7 +32,7 @@ services:
     <<: *hardening
     restart: "no"
     environment:
-      VERIFY_IMAGES: ${VERIFY_IMAGES:-false}
+      VERIFY_IMAGES: ${VERIFY_IMAGES:-true}
       SATOSA_IMAGE: ${SATOSA_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-satosa:latest}
       CONFIG_API_IMAGE: ${CONFIG_API_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-config-api:latest}
       NGINX_IMAGE: ${NGINX_IMAGE:-ghcr.io/provincia-di-pescara/pa-sso-proxy-nginx:latest}

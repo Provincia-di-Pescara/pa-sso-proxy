@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Comandi rapidi
 
 ```bash
-docker compose up -d --build   # build + avvia stack
+docker compose up -d --build   # build + avvia stack (in .env: VERIFY_IMAGES=false, immagini locali non firmate)
 docker compose logs -f config-api
 docker compose logs -f satosa
 docker compose restart satosa  # dopo modifica manuale a satosa-conf
@@ -198,7 +198,7 @@ Test dei plugin `satosa/plugins/` (solo nel container, venv upstream, venv ripul
 
 **Proprietà di `/satosa-conf`**: i Dockerfile di satosa e config-api creano `/satosa-conf` di 10001; un volume nominato vuoto la eredita al primo mount (Docker e Podman), quindi niente chown a runtime. Il servizio one-shot `init-perms` (chown root a ogni avvio, F6) è stato rimosso dopo che aveva sistemato i volumi di produzione pre-F6. **Rollback a un'immagine pre-F6 (root)**: i file che scrive nel volume restano di root e, tornando avanti, le scritture di 10001 falliscono — serve un chown una tantum (es. reintrodurre per un deploy un servizio `user: 0` con `chown -R 10001:10001 /satosa-conf`, come in `b64d62e`).
 
-Servizio one-shot **`verify-images`** (cosign `-dev`, ha la shell): con `VERIFY_IMAGES=true` verifica le firme keyless di `SATOSA_IMAGE`/`CONFIG_API_IMAGE`/`NGINX_IMAGE` (identità `release.yml@refs/(tags/v.*|heads/main)`); fallita → app create ma non avviate. Variabile, non profilo. Default `false` (immagini locali non firmate); lo smoke di `release.yml` la mette a `true`.
+Servizio one-shot **`verify-images`** (cosign `-dev`, ha la shell): con `VERIFY_IMAGES=true` verifica le firme keyless di `SATOSA_IMAGE`/`CONFIG_API_IMAGE`/`NGINX_IMAGE` (identità `release.yml@refs/(tags/v.*|heads/main)`); fallita → app create ma non avviate. Variabile, non profilo. **Default `true`** (anche con variabile assente): in sviluppo con `docker compose up --build` serve `VERIFY_IMAGES=false` nel `.env` (immagini locali non firmate). `scripts/smoke-stack.sh` scrive il suo env-file (default `false`, `release.yml` passa `true`).
 
 **Segreti obbligatori** con `${VAR:?}`: `POSTGRES_PASSWORD`, `ADMIN_USER`, `ADMIN_PASSWORD`, `SESSION_SECRET`, `SATOSA_HASH_SALT`, `SATOSA_STATE_ENCRYPTION_KEY`, `PROXY_HOSTNAME` — prima i default `changeme-…` facevano partire lo stack con chiavi note. Uno stack Portainer senza una di queste variabili NON si avvia più.
 

@@ -107,6 +107,38 @@ updates:
     cooldown:
       default-days: 7
 
+  # pip-tools usato da scripts/compile-requirements.sh (lock con hash).
+  - package-ecosystem: "pip"
+    directory: "/scripts/pip-compile"
+    schedule:
+      interval: "daily"
+      time: "01:00"
+      timezone: "Europe/Rome"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      pip-compile-tooling:
+        patterns:
+          - "*"
+        update-types: ["minor", "patch"]
+
+  # Python 3.12 dei lock satosa (scripts/compile-requirements.sh): solo digest.
+  # La minor segue il venv dell'immagine iam-proxy-italia (aggiornamento manuale).
+  - package-ecosystem: "docker"
+    directory: "/scripts/pip-compile"
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    schedule:
+      interval: "daily"
+      time: "01:00"
+      timezone: "Europe/Rome"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

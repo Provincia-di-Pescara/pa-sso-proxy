@@ -32,7 +32,7 @@ Stato dell'allineamento alla baseline ComunicaPA
 | `ghcr-cleanup.yml` | settimanale | digest orfani (report, cancellazione con `GHCR_CLEANUP_DELETE`) |
 | `tool-version-check.yml` | settimanale (lunedì) | Trivy: PR di aggiornamento (token GitHub App, permesso `workflows`, dopo 3 giorni, mai auto-merge); pip-audit: issue `toolchain` dopo 7 giorni |
 | `upstream-check.yml` | settimanale | issue per nuove release di iam-proxy-italia |
-| `dependabot-automerge.yml` | PR dependabot | auto-merge patch/minor, revisione manuale per major e librerie SPID/CIE |
+| `dependabot-automerge.yml` | PR dependabot | auto-merge patch/minor solo se la PR ha solo commit dependabot verificati e file dell'ecosistema aggiornato (altrimenti auto-merge tolto); revisione manuale per major e librerie SPID/CIE |
 | `scorecard.yml` | settimanale, main | OpenSSF Scorecard |
 
 Ogni workflow: permessi minimi a livello di job, `persist-credentials: false`,
@@ -41,6 +41,7 @@ Ogni workflow: permessi minimi a livello di job, `persist-credentials: false`,
 ## Dipendenze
 
 - pip: `.in` + lock con hash, install `--require-hashes` (+ `--no-deps` e `pip check` nei Dockerfile).
+- `scripts/compile-requirements.sh`: immagini Python per digest (`config-api/Dockerfile`, `scripts/pip-compile/Dockerfile`) e pip-tools da lock con hash (`scripts/pip-compile/requirements.txt`).
 - Immagini base e servizi del compose fissati per digest.
 - Dependabot giornaliero con cooldown 7 giorni (14 per le major pip); security update senza cooldown.
 
@@ -48,7 +49,7 @@ Ogni workflow: permessi minimi a livello di job, `persist-credentials: false`,
 
 - Firma cosign keyless, attestazioni provenance e SBOM CycloneDX su ogni immagine pubblicata.
 - Container non-root, `cap_drop: ALL`, `no-new-privileges`, filesystem read-only.
-- `VERIFY_IMAGES=true`: lo stack parte solo con firme valide di `release.yml`.
+- `VERIFY_IMAGES` (default `true`): lo stack parte solo con firme valide di `release.yml`.
 - Verifica manuale e rollback: `docs/deployment.md`.
 
 ## Aperto

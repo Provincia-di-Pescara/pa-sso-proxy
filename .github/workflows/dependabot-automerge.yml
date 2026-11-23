@@ -49,17 +49,49 @@ jobs:
         id: meta
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
 
+      # La decisione si basa sui metadati dichiarati da dependabot: vale solo se la
+      # PR contiene esclusivamente commit di dependabot (verificati) e file
+      # dell'ecosistema aggiornato. Un commit aggiunto a mano al branch (anche da
+      # chi ha accesso in scrittura) o un file inatteso → revisione manuale.
+      - name: Check PR content
+        id: content
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
+        run: |
+          set -euo pipefail
+          foreign="$(gh api --paginate "repos/$REPO/pulls/$PR/commits" \
+            --jq '.[] | select(.author.login != "dependabot[bot]" or .commit.verification.verified != true) | .sha')"
+          case "$ECOSYSTEM" in
+            pip) allowed='(^|/)requirements[^/]*\.(in|txt)$' ;;
+            docker) allowed='(^|/)Dockerfile[^/]*$' ;;
+            docker_compose|docker-compose) allowed='(^|/)docker-compose[^/]*\.ya?ml$' ;;
+            github_actions|github-actions) allowed='^\.github/(workflows/[^/]+\.ya?ml|actions/.+/action\.ya?ml)$' ;;
+            *) allowed='^$' ;;
+          esac
+          unexpected="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename' | grep -vE "$allowed" || true)"
+          problem=""
+          if [ -n "$foreign" ]; then problem="commit non di dependabot o non verificati: $(echo $foreign)"; fi
+          if [ -n "$unexpected" ]; then problem="${problem:+$problem; }file fuori dall'ecosistema $ECOSYSTEM: $(echo $unexpected)"; fi
+          echo "problem=${problem:-none}"
+          echo "problem=$problem" >> "$GITHUB_OUTPUT"
+
       - name: Decide
         id: decide
         env:
           DEPS: ${{ steps.meta.outputs.dependency-names }}
           UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
           ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
+          PROBLEM: ${{ steps.content.outputs.problem }}
         run: |
           # Dipendenze che toccano firma SAML/JWT o il core SPID/CIE.
           manual_re='(^|[ ,])(pysaml2|cryptojwt|cryptography|pyeudiw|satosa|ghcr\.io/italia/iam-proxy-italia|italia/iam-proxy-italia)([ ,]|$)'
           reason=""
-          if printf '%s' "$DEPS" | grep -qiE "$manual_re"; then
+          if [ -n "$PROBLEM" ]; then
+            reason="PR modificata fuori da dependabot ($PROBLEM)"
+          elif printf '%s' "$DEPS" | grep -qiE "$manual_re"; then
             reason="dipendenza SPID/CIE o immagine base iam-proxy-italia"
           elif [ "$ECOSYSTEM" = "docker" ] && printf '%s' "$DEPS" | grep -qiE '(^|[ ,])(library/)?python([ ,]|$)'; then
             # python:3.14-slim → 3.15-slim è "minor" per semver, ma cambia
@@ -73,6 +105,8 @@ jobs:
           fi
           echo "deps=$DEPS type=$UPDATE_TYPE reason=${reason:-auto}"
           echo "reason=$reason" >> "$GITHUB_OUTPUT"
+          # Le PR alterate vanno segnalate anche su synchronize (è lì che succede).
+          [ -n "$PROBLEM" ] && echo "tampered=true" >> "$GITHUB_OUTPUT" || true
 
       - name: GitHub App token
         id: app-token
@@ -81,6 +115,11 @@ jobs:
         with:
           client-id: ${{ secrets.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          # Solo i permessi che servono, non tutti quelli dell'App. Workflows
+          # solo per i bump delle Action (PR che toccano .github/workflows/).
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: ${{ steps.meta.outputs.package-ecosystem == 'github_actions' && 'write' || '' }}
 
       - name: Enable auto-merge
         if: steps.decide.outputs.reason == ''
@@ -91,8 +130,17 @@ jobs:
         # il metodo (squash) lo impone la coda.
         run: gh pr merge --auto "$PR_URL"
 
+      # Auto-merge attivato su un push precedente: va tolto se ora la PR non è
+      # più idonea (es. commit aggiunto al branch dopo l'apertura).
+      - name: Disable auto-merge
+        if: steps.decide.outputs.reason != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --disable-auto "$PR_URL" 2>/dev/null || true
+
       - name: Flag for manual review
-        if: steps.decide.outputs.reason != '' && github.event.action != 'synchronize'
+        if: steps.decide.outputs.reason != '' && (github.event.action != 'synchronize' || steps.decide.outputs.tampered == 'true')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
