@@ -1,4 +1,4 @@
 # pip-tools per scripts/compile-requirements.sh, installato con --require-hashes
 # dentro i container di compilazione (gira anche in security-autofix.yml, nello
 # stesso job del token della GitHub App). Lock: rigenerato da compile-requirements.sh.
-pip-tools==7.6.2
+pip-tools==7.7.0
