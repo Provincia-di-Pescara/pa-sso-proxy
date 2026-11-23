@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
+from app.secret_box import EncryptedString
 from .base import Base
 
 
@@ -12,7 +13,9 @@ class OIDCClient(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     client_id: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     client_secret_hash: Mapped[str] = mapped_column(String(256), nullable=False)
-    client_secret_plain: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    # Cifrato a riposo (app/secret_box.py): SATOSA vuole il secret in chiaro,
+    # config-api lo decifra solo per generare la config e mostrarlo all'admin.
+    client_secret_plain: Mapped[Optional[str]] = mapped_column(EncryptedString(256), nullable=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     redirect_uris: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, default=list)
     allowed_scopes: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, default=list)

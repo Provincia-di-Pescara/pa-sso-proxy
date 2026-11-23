@@ -1,4 +1,5 @@
 import asyncio
+from urllib.parse import urlsplit
 import secrets
 
 import bcrypt
@@ -15,6 +16,43 @@ from app.satosa_reload import reload_satosa
 
 router = APIRouter()
 
+
+
+_LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
+
+
+def validate_redirect_uris(uris: list[str]) -> str | None:
+    """Messaggio d'errore se una redirect URI non è accettabile, altrimenti None.
+
+    Il code OIDC finisce su queste URI: una URI sbagliata (http in chiaro,
+    dominio altrui, wildcard) consegna l'autenticazione del cittadino a terzi.
+    Ammesse solo URI assolute https, http solo verso loopback (sviluppo),
+    senza frammento, credenziali o caratteri jolly.
+    """
+    if not uris:
+        return "Almeno una redirect URI obbligatoria"
+    for uri in uris:
+        if len(uri) > 2048 or any(ch.isspace() for ch in uri) or "*" in uri:
+            return f"Redirect URI non valida: {uri}"
+        try:
+            parts = urlsplit(uri)
+            parts.port  # solleva ValueError se la porta non è valida
+        except ValueError:
+            return f"Redirect URI non valida: {uri}"
+        host = (parts.hostname or "").lower()
+        netloc_host = f"[{host}]" if ":" in host else host
+        if parts.scheme == "http":
+            if netloc_host not in _LOOPBACK_HOSTS:
+                return f"Redirect URI in http ammessa solo verso localhost: {uri}"
+        elif parts.scheme != "https":
+            return f"Redirect URI: serve https:// ({uri})"
+        if not host:
+            return f"Redirect URI senza host: {uri}"
+        if parts.username is not None or parts.password is not None:
+            return f"Redirect URI con credenziali non ammessa: {uri}"
+        if parts.fragment or "#" in uri:
+            return f"Redirect URI con frammento (#) non ammessa: {uri}"
+    return None
 
 
 def _auth_check(request: Request):
@@ -55,11 +93,12 @@ async def clients_create(
         return RedirectResponse("/admin/login", status_code=302)
 
     uris = [u.strip() for u in redirect_uris.splitlines() if u.strip()]
-    if not uris:
+    uri_error = validate_redirect_uris(uris)
+    if uri_error:
         return templates.TemplateResponse(
             request,
             "clients/form.html.j2",
-            {"client": None, "error": "Almeno una redirect URI obbligatoria"},
+            {"client": None, "error": uri_error},
             status_code=400,
         )
 
@@ -160,11 +199,12 @@ async def clients_update(
         return RedirectResponse("/admin/clients", status_code=302)
 
     uris = [u.strip() for u in redirect_uris.splitlines() if u.strip()]
-    if not uris:
+    uri_error = validate_redirect_uris(uris)
+    if uri_error:
         return templates.TemplateResponse(
             request,
             "clients/form.html.j2",
-            {"client": client, "error": "Almeno una redirect URI obbligatoria"},
+            {"client": client, "error": uri_error},
             status_code=400,
         )
     client.name = name

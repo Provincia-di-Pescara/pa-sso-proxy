@@ -167,6 +167,8 @@ Discovery, pagina di errore e messaggi dei backend in `it/en/fr/de/es`. Fonte un
 ### SATOSA OIDC multi-client
 La sezione `clients` nel config OIDC di SATOSA è generata da `satosa_generator.py`. Ogni client ha: `client_id`, `client_secret` (hash), `redirect_uris`, `allowed_scopes`. Il generator scrive il file e triggera reload.
 
+`oidc_clients.client_secret_plain` è **cifrato a riposo** (`app/secret_box.py`, `EncryptedString`: Fernet con chiave HKDF da `SATOSA_HASH_SALT`, prefisso `enc:v1:`; righe in chiaro lette come sono e cifrate all'avvio da `encrypt_legacy_rows`). SATOSA vuole il secret in chiaro: lo YAML in `/satosa-conf` resta in chiaro per forza. `client_secret_hash` = sempre bcrypt (anche `__admin_test__`). Il test client admin tiene risultato del login e `id_token` in memoria (`_STORE`), nel cookie solo un riferimento. Redirect URI validate al salvataggio (`validate_redirect_uris`: https, http solo loopback, niente `#`/credenziali/`*`).
+
 Client speciale `__spid_verifica__`: nessun record DB — secret derivato deterministicamente da `SATOSA_HASH_SALT` via HMAC-SHA256. Iniettato nel config SATOSA solo quando almeno un IdP con alias `spid-demo` o `spid-validator` è abilitato.
 
 ### Plugin SATOSA generati a runtime

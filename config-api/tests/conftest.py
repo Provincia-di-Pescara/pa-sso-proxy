@@ -3,6 +3,8 @@ import os
 # Cookie di sessione senza flag Secure: httpx non lo rimanda su http://test.
 # Va impostato prima dell'import di app.main (letto all'avvio).
 os.environ.setdefault("SESSION_HTTPS_ONLY", "false")
+# Chiave di cifratura dei secret client (app/secret_box.py).
+os.environ.setdefault("SATOSA_HASH_SALT", "test-hash-salt")
 
 import pytest
 import pytest_asyncio
