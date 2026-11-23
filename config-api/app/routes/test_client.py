@@ -4,8 +4,10 @@ import hashlib
 import json
 import os
 import secrets
+import time
 from urllib.parse import urlencode
 
+import bcrypt
 import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -22,6 +24,35 @@ router = APIRouter()
 
 
 TEST_CLIENT_ID = "__admin_test__"
+
+# Risultato del login di prova (claim, userinfo, id_token = dati personali) e
+# id_token per il logout: in memoria, non nel cookie di sessione (firmato ma
+# non cifrato). Nel cookie solo un riferimento casuale. Un solo processo
+# uvicorn (vedi Dockerfile); un riavvio perde i risultati non ancora letti.
+_STORE_TTL = 900
+_STORE: dict[str, tuple[float, object]] = {}
+
+
+def _store_put(request: Request, key: str, value: object) -> None:
+    now = time.time()
+    for ref in [r for r, (ts, _) in _STORE.items() if now - ts > _STORE_TTL]:
+        _STORE.pop(ref, None)
+    old = request.session.get(key)
+    if old:
+        _STORE.pop(old, None)
+    ref = secrets.token_urlsafe(16)
+    _STORE[ref] = (now, value)
+    request.session[key] = ref
+
+
+def _store_get(request: Request, key: str, pop: bool = False):
+    ref = request.session.pop(key, None) if pop else request.session.get(key)
+    if not ref:
+        return None
+    item = _STORE.pop(ref, None) if pop else _STORE.get(ref)
+    if item is None or time.time() - item[0] > _STORE_TTL:
+        return None
+    return item[1]
 SATOSA_INTERNAL_URL = os.environ.get("SATOSA_INTERNAL_URL", "http://satosa:8080")
 
 
@@ -62,7 +93,7 @@ async def test_client_page(request: Request, db: AsyncSession = Depends(get_db))
         "client": client,
         "callback_uri": _callback_uri(request),
         "test_client_id": TEST_CLIENT_ID,
-        "has_secret": bool(request.session.get("test_client_secret")),
+        "has_secret": bool(client and client.client_secret_plain),
     })
 
 
@@ -73,12 +104,13 @@ async def test_client_setup(request: Request, db: AsyncSession = Depends(get_db)
 
     callback_uri = _callback_uri(request)
     plaintext_secret = secrets.token_urlsafe(32)
+    secret_hash = bcrypt.hashpw(plaintext_secret.encode(), bcrypt.gensalt()).decode()
 
     client = await _get_test_client(db)
     if client is None:
         client = OIDCClient(
             client_id=TEST_CLIENT_ID,
-            client_secret_hash=plaintext_secret,
+            client_secret_hash=secret_hash,
             client_secret_plain=plaintext_secret,
             name="Admin Test Client (interno)",
             redirect_uris=[callback_uri],
@@ -87,7 +119,7 @@ async def test_client_setup(request: Request, db: AsyncSession = Depends(get_db)
         )
         db.add(client)
     else:
-        client.client_secret_hash = plaintext_secret
+        client.client_secret_hash = secret_hash
         client.client_secret_plain = plaintext_secret
         client.redirect_uris = [callback_uri]
         client.enabled = True
@@ -96,7 +128,6 @@ async def test_client_setup(request: Request, db: AsyncSession = Depends(get_db)
     await generate_and_write(db)
     await asyncio.to_thread(reload_satosa)
 
-    request.session["test_client_secret"] = plaintext_secret
     return RedirectResponse("/admin/test-client", status_code=302)
 
 
@@ -113,7 +144,7 @@ async def test_client_start(request: Request, db: AsyncSession = Depends(get_db)
         return RedirectResponse("/admin/login", status_code=302)
 
     client = await _get_test_client(db)
-    if not client or not request.session.get("test_client_secret"):
+    if not client or not client.client_secret_plain:
         return RedirectResponse("/admin/test-client", status_code=302)
 
     code_verifier = secrets.token_urlsafe(64)
@@ -156,32 +187,33 @@ async def test_client_start(request: Request, db: AsyncSession = Depends(get_db)
 
 
 @router.get("/test-client/callback")
-async def test_client_callback(request: Request):
+async def test_client_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """Handles SATOSA redirect. Exchanges code and stores result in session, then redirects to /result."""
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
 
     error = request.query_params.get("error")
     if error:
-        request.session["test_result"] = {
+        _store_put(request, "test_result", {
             "success": False,
             "error": error,
             "error_description": request.query_params.get("error_description", ""),
-        }
+        })
         return RedirectResponse("/admin/test-client/result", status_code=302)
 
     code = request.query_params.get("code")
     state = request.query_params.get("state")
     saved_state = request.session.pop("test_pkce_state", None)
     code_verifier = request.session.pop("test_pkce_verifier", None)
-    client_secret = request.session.get("test_client_secret")
+    client = await _get_test_client(db)
+    client_secret = client.client_secret_plain if client else None
 
     if state != saved_state:
-        request.session["test_result"] = {
+        _store_put(request, "test_result", {
             "success": False,
             "error": "state_mismatch",
             "error_description": f"State atteso: {saved_state!r}, ricevuto: {state!r}",
-        }
+        })
         return RedirectResponse("/admin/test-client/result", status_code=302)
 
     try:
@@ -198,20 +230,20 @@ async def test_client_callback(request: Request):
             )
         token_data = resp.json()
     except Exception as exc:
-        request.session["test_result"] = {
+        _store_put(request, "test_result", {
             "success": False,
             "error": "token_exchange_failed",
             "error_description": str(exc),
-        }
+        })
         return RedirectResponse("/admin/test-client/result", status_code=302)
 
     if "error" in token_data:
-        request.session["test_result"] = {
+        _store_put(request, "test_result", {
             "success": False,
             "error": token_data["error"],
             "error_description": token_data.get("error_description", ""),
             "raw": json.dumps(token_data, indent=2),
-        }
+        })
         return RedirectResponse("/admin/test-client/result", status_code=302)
 
     id_token = token_data.get("id_token", "")
@@ -238,8 +270,8 @@ async def test_client_callback(request: Request):
         except Exception:
             pass
 
-    request.session["test_id_token"] = id_token
-    request.session["test_result"] = {
+    _store_put(request, "test_id_token", id_token)
+    _store_put(request, "test_result", {
         "success": True,
         "claims": json.dumps(claims, indent=2, ensure_ascii=False),
         "userinfo": json.dumps(userinfo, indent=2, ensure_ascii=False),
@@ -247,7 +279,7 @@ async def test_client_callback(request: Request):
             {k: v for k, v in token_data.items() if k != "id_token"}, indent=2, ensure_ascii=False
         ),
         "id_token": id_token,
-    }
+    })
     return RedirectResponse("/admin/test-client/result", status_code=302)
 
 
@@ -256,12 +288,12 @@ async def test_client_result(request: Request, db: AsyncSession = Depends(get_db
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
 
-    result = request.session.pop("test_result", None)
+    result = _store_get(request, "test_result", pop=True)
     if result is None:
         return RedirectResponse("/admin/test-client", status_code=302)
 
     satosa_base = await _satosa_base(db)
-    id_token = request.session.get("test_id_token", "")
+    id_token = _store_get(request, "test_id_token") or ""
     callback_base = _public_base(request)
     logout_url = (
         f"{satosa_base}/OIDC/end_session?"
@@ -279,5 +311,5 @@ async def test_client_result(request: Request, db: AsyncSession = Depends(get_db
 async def test_client_logout_done(request: Request):
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
-    request.session.pop("test_id_token", None)
+    _store_get(request, "test_id_token", pop=True)
     return RedirectResponse("/admin/test-client", status_code=302)

@@ -17,6 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app import admin_sessions
+from app import secret_box
 from app.database import AsyncSessionLocal, engine, get_db
 from app.models import EnteSettings
 from app.rate_limiter import is_ip_banned, record_failed_attempt, clear_attempts
@@ -144,6 +145,9 @@ async def lifespan(app: FastAPI):
     await _migrate_cie_oidc_columns()
     await _migrate_spid_registry_columns()
     await _migrate_client_secret_plain()
+    encrypted = await secret_box.encrypt_legacy_rows(engine)
+    if encrypted:
+        logger.info("Secret client OIDC cifrati a riposo: %d", encrypted)
     try:
         await fetch_spid_aggregate()
     except Exception:
