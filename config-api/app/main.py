@@ -16,6 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from sqlalchemy import inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from app import admin_sessions
 from app.database import AsyncSessionLocal, engine, get_db
 from app.models import EnteSettings
 from app.rate_limiter import is_ip_banned, record_failed_attempt, clear_attempts
@@ -198,29 +199,23 @@ async def add_settings_to_state(request: Request, call_next):
 
 
 @app.middleware("http")
-async def admin_session_expiry_middleware(request: Request, call_next):
-    path = request.url.path
-    if path.startswith("/admin") and not (
-        path.startswith("/admin/login") or 
-        path.startswith("/admin/static") or 
-        path == "/admin/logout"
-    ):
-        user = request.session.get("user")
-        if user:
-            now = int(time.time())
-            last_activity = request.session.get("last_activity")
-            if last_activity and (now - last_activity > SESSION_MAX_AGE):
-                request.session.clear()
-                return RedirectResponse("/admin/login?timeout=1", status_code=302)
-            request.session["last_activity"] = now
-    response = await call_next(request)
-    return response
+async def admin_guard_middleware(request: Request, call_next):
+    """CSRF + sessione server-side valida su ogni /admin non pubblico (admin_sessions)."""
+    blocked = admin_sessions.guard_request(request)
+    if blocked is not None:
+        return blocked
+    return await call_next(request)
 
 
+# Cookie firmato con solo user + sid (stato vero lato server, admin_sessions).
+# https_only: flag Secure; SESSION_HTTPS_ONLY=false solo per sviluppo/test su
+# http non-localhost. max_age = durata massima assoluta (inattività: server).
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
-    max_age=SESSION_MAX_AGE,
+    max_age=admin_sessions.ABSOLUTE_LIFETIME,
+    https_only=admin_sessions.env_flag("SESSION_HTTPS_ONLY", True),
+    same_site="lax",
 )
 
 app.mount("/admin/static", StaticFiles(directory="app/static"), name="static")
@@ -305,8 +300,7 @@ async def login_post(
     if user_ok & password_ok:
         if not is_2fa_enabled():
             await clear_attempts(db, ip_address)
-            request.session["user"] = username
-            request.session["last_activity"] = int(time.time())
+            admin_sessions.start(request, username)
             return RedirectResponse("/admin/", status_code=302)
         # Password ok ma sessione NON autenticata finché il TOTP non è verificato
         # (clear_attempts rimandato a dopo il secondo fattore).
@@ -334,5 +328,5 @@ async def login_post(
 
 @app.post("/admin/logout")
 async def logout(request: Request):
-    request.session.clear()
+    admin_sessions.end(request)
     return RedirectResponse("/admin/login", status_code=302)
