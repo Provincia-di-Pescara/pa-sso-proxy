@@ -179,7 +179,8 @@ from app.sentry import init_sentry
 
 init_sentry()
 
-app = FastAPI(lifespan=lifespan)
+# Niente /docs, /redoc, /openapi.json: elencherebbero tutte le route admin.
+app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
 
 

@@ -90,13 +90,13 @@ async def test_absolute_lifetime(app_admin, monkeypatch):
 # --- guard globale -------------------------------------------------------------
 
 def _admin_paths(app):
+    # Schema OpenAPI (API pubblica): la struttura interna di app.routes cambia
+    # tra le versioni di FastAPI (router inclusi come _IncludedRouter).
     public = ("/admin/login", "/admin/static", "/admin/logout")
-    for route in app.routes:
-        path = getattr(route, "path", "")
-        methods = getattr(route, "methods", None) or set()
+    for path, ops in app.openapi()["paths"].items():
         if not path.startswith("/admin") or path.startswith(public):
             continue
-        yield re.sub(r"\{[^}]+\}", "1", path), methods
+        yield re.sub(r"\{[^}]+\}", "1", path), {m.upper() for m in ops}
 
 
 async def test_every_admin_route_requires_login(app_admin):
