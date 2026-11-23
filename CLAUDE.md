@@ -208,9 +208,10 @@ Debug in container non-root: `docker compose exec -u 0 <servizio> sh` se serve r
 `SMOKE_E2E_SPID=true scripts/smoke-stack.sh` (workflow `spid-e2e.yml`): login SPID completo contro spid-saml-check, persona fisica e giuridica. Dettagli e gotcha: `tests/e2e/CLAUDE.md`.
 
 ### Disaster recovery (volumi/container azzerati)
-Procedura testata end-to-end (volumi DB/`proxy_satosa_conf` distrutti con `docker compose down -v`, rebuild, restore): `docker compose up -d` → login WebUI → `POST /admin/backup/import` con l'ultimo bundle JSON → **nessun accesso console necessario**, `satosa` si auto-guarisce entro ~1-2 minuti (crash iniziale su cert mancante → `restart: unless-stopped` lo rilancia → al riavvio trova cert/chiavi già scritti dal restore).
+Procedura testata end-to-end (volumi DB/`proxy_satosa_conf` distrutti con `docker compose down -v`, rebuild, restore): `docker compose up -d` → login WebUI (con 2FA: enrollment TOTP nuovo, il TOTP non è nel backup) → `POST /admin/backup/import` con l'ultimo bundle cifrato + passphrase + password admin (+ codice TOTP nuovo) → **nessun accesso console necessario**, `satosa` si auto-guarisce entro ~1-2 minuti (crash iniziale su cert mancante → `restart: unless-stopped` lo rilancia → al riavvio trova cert/chiavi già scritti dal restore).
 
 Due prerequisiti, entrambi già a posto in questo repo:
+- Bundle sempre cifrato (`app/backup_crypto.py`: AES-256-GCM, scrypt, header come AAD, limiti sui parametri KDF letti dal file); import in chiaro rifiutato (scelta utente, anche se invalida i backup vecchi). Export/import = POST con step-up (`app/step_up.py`: password + TOTP non già usato; fallimenti nel ban per IP). La passphrase non è recuperabile.
 - `backup_import` deve scrivere `write_spid_cert()`/`write_jwks_files()` su `/satosa-conf/` (non solo il DB) — `generate_and_write()` da solo non lo fa.
 - `nginx` in `docker-compose.yaml` deve dipendere da `satosa` con `condition: service_started`, **non** `service_healthy` — altrimenti deadlock al primo boot da volumi vuoti (nginx aspetta satosa sano, satosa diventa sano solo dopo un restore che passa da nginx) che richiede `docker start <container>` manuale per sbloccare.
 

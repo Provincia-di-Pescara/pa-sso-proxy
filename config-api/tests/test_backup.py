@@ -3,8 +3,9 @@ Tests per il sistema di Backup & Ripristino.
 
 Copre:
 - GET /admin/backup      → pagina HTML (autenticato / non autenticato)
-- GET /admin/backup/export → bundle JSON completo e correttamente strutturato
+- POST /admin/backup/export → bundle cifrato; decifrato, completo e strutturato
 - POST /admin/backup/import → round-trip: export → restore → riesport → dati identici
+(cifratura e riautenticazione: tests/test_backup_crypto.py)
 """
 import json
 import pytest
@@ -45,6 +46,29 @@ async def _make_auth_client(db_session, app_env):
 
 async def _login(client):
     await client.post("/admin/login", data={"username": "admin", "password": "secret"})
+
+
+PASSPHRASE = "passphrase-di-test-lunga"
+
+
+async def _export(client):
+    return await client.post(
+        "/admin/backup/export",
+        data={"passphrase": PASSPHRASE, "passphrase_confirm": PASSPHRASE, "password": "secret"},
+    )
+
+
+def _bundle(resp) -> dict:
+    from app.backup_crypto import decrypt_bundle
+    return decrypt_bundle(resp.content, PASSPHRASE)
+
+
+def _encrypted(bundle: dict) -> bytes:
+    from app.backup_crypto import encrypt_bundle
+    return encrypt_bundle(bundle, PASSPHRASE)
+
+
+IMPORT_FORM = {"passphrase": PASSPHRASE, "password": "secret"}
 
 
 # ---------------------------------------------------------------------------
@@ -91,14 +115,14 @@ async def test_backup_export_returns_json(db_session, app_env):
     app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         await _login(c)
-        resp = await c.get("/admin/backup/export")
+        resp = await _export(c)
 
     app.dependency_overrides.clear()
     assert resp.status_code == 200
     assert "application/json" in resp.headers["content-type"]
     assert "attachment" in resp.headers.get("content-disposition", "")
 
-    bundle = resp.json()
+    bundle = _bundle(resp)
     assert bundle["version"] == "1"
     assert "exported_at" in bundle
     for key in ("ente_settings", "oidc_clients", "spid_idps", "cie_config", "jwk_keys", "spid_cert"):
@@ -127,10 +151,10 @@ async def test_backup_export_includes_client_data(db_session, app_env):
     app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         await _login(c)
-        resp = await c.get("/admin/backup/export")
+        resp = await _export(c)
     app.dependency_overrides.clear()
 
-    bundle = resp.json()
+    bundle = _bundle(resp)
     assert any(cl["client_id"] == "backup-test-app" for cl in bundle["oidc_clients"])
 
 
@@ -155,10 +179,10 @@ async def test_backup_export_includes_spid_metadata(db_session, app_env):
     app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         await _login(c)
-        resp = await c.get("/admin/backup/export")
+        resp = await _export(c)
     app.dependency_overrides.clear()
 
-    bundle = resp.json()
+    bundle = _bundle(resp)
     idp_exported = next((i for i in bundle["spid_idps"] if i["alias"] == "arubaid"), None)
     assert idp_exported is not None
     assert idp_exported["metadata_cache"] == "<EntityDescriptor>FAKE</EntityDescriptor>"
@@ -216,7 +240,7 @@ async def test_backup_import_round_trip(db_session, app_env):
             await _login(c)
 
             # Export
-            export_resp = await c.get("/admin/backup/export")
+            export_resp = await _export(c)
             assert export_resp.status_code == 200
             bundle_bytes = export_resp.content
 
@@ -224,18 +248,19 @@ async def test_backup_import_round_trip(db_session, app_env):
             import_resp = await c.post(
                 "/admin/backup/import",
                 files={"file": ("backup.json", bundle_bytes, "application/json")},
+                data=IMPORT_FORM,
                 follow_redirects=False,
             )
             assert import_resp.status_code == 302
 
             # Re-export
-            reexport_resp = await c.get("/admin/backup/export")
+            reexport_resp = await _export(c)
             assert reexport_resp.status_code == 200
 
     app.dependency_overrides.clear()
 
-    original = json.loads(bundle_bytes)
-    restored = reexport_resp.json()
+    original = _bundle(export_resp)
+    restored = _bundle(reexport_resp)
 
     # Client ID invariato
     orig_ids = {cl["client_id"] for cl in original["oidc_clients"]}
@@ -276,10 +301,10 @@ async def test_backup_export_prefers_active_cert_over_latest(db_session, app_env
     app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         await _login(c)
-        resp = await c.get("/admin/backup/export")
+        resp = await _export(c)
     app.dependency_overrides.clear()
 
-    bundle = resp.json()
+    bundle = _bundle(resp)
     assert bundle["spid_cert"].get("subject_dn") == "CN=old.test.it"
 
 
@@ -335,7 +360,8 @@ async def test_backup_restore_results_in_exactly_one_active_cert(db_session, app
             await _login(c)
             import_resp = await c.post(
                 "/admin/backup/import",
-                files={"file": ("backup.json", json.dumps(bundle).encode("utf-8"), "application/json")},
+                files={"file": ("backup.json", _encrypted(bundle), "application/json")},
+                data=IMPORT_FORM,
                 follow_redirects=False,
             )
     app.dependency_overrides.clear()
@@ -361,6 +387,7 @@ async def test_backup_import_invalid_json_returns_error(db_session, app_env):
         resp = await c.post(
             "/admin/backup/import",
             files={"file": ("bad.json", b"NOT JSON AT ALL", "application/json")},
+            data=IMPORT_FORM,
             follow_redirects=False,
         )
     app.dependency_overrides.clear()
@@ -410,7 +437,8 @@ async def test_backup_restore_writes_cert_and_jwk_files_to_disk(db_session, app_
             await _login(c)
             import_resp = await c.post(
                 "/admin/backup/import",
-                files={"file": ("backup.json", json.dumps(bundle).encode("utf-8"), "application/json")},
+                files={"file": ("backup.json", _encrypted(bundle), "application/json")},
+                data=IMPORT_FORM,
                 follow_redirects=False,
             )
     app.dependency_overrides.clear()
@@ -439,9 +467,10 @@ async def test_export_excludes_admin_totp(db_session, app_env):
     app = await _make_auth_client(db_session, app_env)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         await _login(c)
-        resp = await c.get("/admin/backup/export")
+        resp = await _export(c)
     app.dependency_overrides.clear()
 
     assert resp.status_code == 200
-    assert "admin_totp" not in resp.text
-    assert enc not in resp.text
+    text = json.dumps(_bundle(resp))
+    assert "admin_totp" not in text
+    assert enc not in text

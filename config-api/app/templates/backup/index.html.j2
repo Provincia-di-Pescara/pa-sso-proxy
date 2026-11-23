@@ -24,11 +24,31 @@
       Esporta backup
     </div>
     <div class="a-card-body">
-      <p style="font-size:13px;color:var(--fg-muted);margin-bottom:12px;">Scarica un file JSON con tutta la configurazione attuale: impostazioni ente, client OIDC, provider SPID (inclusi i metadata XML scaricati), configurazione CIE OIDC, chiavi JWK e certificato SPID.</p>
+      <p style="font-size:13px;color:var(--fg-muted);margin-bottom:12px;">Scarica un file con tutta la configurazione attuale: impostazioni ente, client OIDC, provider SPID (inclusi i metadata XML scaricati), configurazione CIE OIDC, chiavi JWK e certificato SPID.</p>
       <div class="a-alert a-alert-warning" style="font-size:12px;margin-bottom:12px;">
-        <strong>⚠️ Attenzione:</strong> il file contiene chiavi private. Conservalo in modo sicuro e non condividerlo.
+        <strong>⚠️ Il file è cifrato con la passphrase</strong> (AES-256-GCM, chiave derivata con scrypt). Conserva la passphrase separata dal file, ad esempio in un password manager: <strong>senza passphrase il backup non è recuperabile</strong>.
       </div>
-      <a href="/admin/backup/export" class="a-btn a-btn-primary a-btn-sm">Scarica backup</a>
+      <form method="post" action="/admin/backup/export" autocomplete="off">
+        <div class="a-form-group">
+          <label class="a-label" for="exp-passphrase">Passphrase (almeno {{ min_passphrase }} caratteri)</label>
+          <input type="password" class="a-input" id="exp-passphrase" name="passphrase" minlength="{{ min_passphrase }}" autocomplete="new-password" required>
+        </div>
+        <div class="a-form-group">
+          <label class="a-label" for="exp-passphrase2">Ripeti passphrase</label>
+          <input type="password" class="a-input" id="exp-passphrase2" name="passphrase_confirm" minlength="{{ min_passphrase }}" autocomplete="new-password" required>
+        </div>
+        <div class="a-form-group">
+          <label class="a-label" for="exp-password">Password admin</label>
+          <input type="password" class="a-input" id="exp-password" name="password" autocomplete="current-password" required>
+        </div>
+        {% if twofa %}
+        <div class="a-form-group">
+          <label class="a-label" for="exp-code">Codice 2FA (nuovo, non quello del login)</label>
+          <input type="text" class="a-input" id="exp-code" name="code" inputmode="numeric" pattern="[0-9 ]{6,7}" autocomplete="one-time-code" required>
+        </div>
+        {% endif %}
+        <button type="submit" class="a-btn a-btn-primary a-btn-sm">Scarica backup cifrato</button>
+      </form>
     </div>
   </div>
 
@@ -47,10 +67,25 @@
             enctype="multipart/form-data"
             onsubmit="return confirm('Sei sicuro? Tutti i dati correnti saranno sostituiti.');">
         <div class="a-form-group">
-          <label class="a-label" for="file">File di backup (.json)</label>
+          <label class="a-label" for="file">File di backup cifrato (.enc.json)</label>
           <input type="file" class="a-input" id="file" name="file"
                  accept="application/json,.json" required style="padding:6px 12px;">
         </div>
+        <div class="a-form-group">
+          <label class="a-label" for="imp-passphrase">Passphrase del backup</label>
+          <input type="password" class="a-input" id="imp-passphrase" name="passphrase" autocomplete="off" required>
+        </div>
+        <div class="a-form-group">
+          <label class="a-label" for="imp-password">Password admin</label>
+          <input type="password" class="a-input" id="imp-password" name="password" autocomplete="current-password" required>
+        </div>
+        {% if twofa %}
+        <div class="a-form-group">
+          <label class="a-label" for="imp-code">Codice 2FA (nuovo, non quello del login)</label>
+          <input type="text" class="a-input" id="imp-code" name="code" inputmode="numeric" pattern="[0-9 ]{6,7}" autocomplete="one-time-code" required>
+        </div>
+        {% endif %}
+        <p style="font-size:12px;color:var(--fg-muted);">I backup in chiaro delle versioni precedenti non sono più accettati.</p>
         <button type="submit" class="a-btn a-btn-danger a-btn-sm">Ripristina</button>
       </form>
     </div>

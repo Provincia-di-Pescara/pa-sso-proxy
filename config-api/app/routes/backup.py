@@ -2,20 +2,21 @@
 Backup & Ripristino — /admin/backup
 ====================================
 GET  /admin/backup          → pagina HTML
-GET  /admin/backup/export   → scarica bundle JSON con tutta la configurazione
-POST /admin/backup/import   → carica bundle JSON e ripristina la configurazione
+POST /admin/backup/export   → bundle JSON cifrato (passphrase + riautenticazione)
+POST /admin/backup/import   → bundle cifrato + passphrase + riautenticazione → ripristino
+I backup in chiaro non sono più accettati (app/backup_crypto.py).
 """
 import asyncio
 import io
-import json
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Request, UploadFile, File
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import admin_2fa, backup_crypto, step_up
 from app.cie_jwks_writer import write_jwks_files
 from app.database import get_db
 from app.jinja_templates import templates
@@ -29,6 +30,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 BACKUP_VERSION = "1"
+# Il bundle include i metadata XML degli IdP: qualche MB, margine ampio.
+MAX_BACKUP_BYTES = 64 * 1024 * 1024
 
 # ---------------------------------------------------------------------------
 # Helper auth
@@ -211,29 +214,63 @@ async def backup_page(request: Request):
     msg = request.session.pop("backup_msg", None)
     err = request.session.pop("backup_err", None)
     return templates.TemplateResponse(
-        request, "backup/index.html.j2", {"msg": msg, "err": err}
+        request,
+        "backup/index.html.j2",
+        {
+            "msg": msg,
+            "err": err,
+            "twofa": admin_2fa.is_2fa_enabled(),
+            "min_passphrase": backup_crypto.MIN_PASSPHRASE_LEN,
+        },
     )
 
 
 @router.get("/backup/export")
-async def backup_export(request: Request, db: AsyncSession = Depends(get_db)):
+async def backup_export_get(request: Request):
+    # L'export è un POST con passphrase e riautenticazione: un link (o un
+    # cookie rubato) non basta più a scaricare le chiavi private.
+    return RedirectResponse("/admin/backup", status_code=302)
+
+
+def _fail(request: Request, message: str) -> RedirectResponse:
+    request.session["backup_err"] = message
+    return RedirectResponse("/admin/backup", status_code=302)
+
+
+@router.post("/backup/export")
+async def backup_export(
+    request: Request,
+    passphrase: str = Form(""),
+    passphrase_confirm: str = Form(""),
+    password: str = Form(""),
+    code: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
     try:
+        backup_crypto.check_passphrase(passphrase, passphrase_confirm)
+    except backup_crypto.BackupCryptoError as e:
+        return _fail(request, str(e))
+    error = await step_up.verify(request, db, password, code, "backup-export")
+    if error:
+        return _fail(request, error)
+    try:
         bundle = await _export_bundle(db)
+        content = await asyncio.to_thread(backup_crypto.encrypt_bundle, bundle, passphrase)
     except Exception as e:
         logger.error("Errore durante l'export backup: %s", e, exc_info=True)
-        request.session["backup_err"] = f"Export fallito: {e}"
-        return RedirectResponse("/admin/backup", status_code=302)
+        return _fail(request, f"Export fallito: {e}")
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    filename = f"pa-sso-proxy-backup-{ts}.json"
-    content = json.dumps(bundle, ensure_ascii=False, indent=2)
-
+    filename = f"pa-sso-proxy-backup-{ts}.enc.json"
     return StreamingResponse(
-        io.BytesIO(content.encode("utf-8")),
+        io.BytesIO(content),
         media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
     )
 
 
@@ -241,18 +278,29 @@ async def backup_export(request: Request, db: AsyncSession = Depends(get_db)):
 async def backup_import(
     request: Request,
     file: UploadFile = File(...),
+    passphrase: str = Form(""),
+    password: str = Form(""),
+    code: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
 
-    try:
-        raw = await file.read()
-        bundle = json.loads(raw.decode("utf-8"))
-    except Exception as e:
-        request.session["backup_err"] = f"File non valido: {e}"
-        return RedirectResponse("/admin/backup", status_code=302)
+    error = await step_up.verify(request, db, password, code, "backup-import")
+    if error:
+        return _fail(request, error)
 
+    raw = await file.read(MAX_BACKUP_BYTES + 1)
+    if len(raw) > MAX_BACKUP_BYTES:
+        return _fail(request, "File troppo grande")
+    try:
+        bundle = await asyncio.to_thread(backup_crypto.decrypt_bundle, raw, passphrase)
+    except backup_crypto.BackupCryptoError as e:
+        return _fail(request, str(e))
+    except Exception as e:
+        return _fail(request, f"File non valido: {e}")
+
+    logger.warning("backup importato: utente=%s ip=%s", request.session.get("user"), step_up.client_ip(request))
     try:
         await _restore_bundle(bundle, db)
     except Exception as e:

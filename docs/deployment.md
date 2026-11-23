@@ -44,8 +44,21 @@ rosso su tutte le pagine). Mai in produzione.
 `SESSION_SECRET`. Se lo cambi, il login si blocca con "Secret 2FA non decifrabile": esegui il reset
 da console e riattiva il 2FA.
 
-Il TOTP **non** è incluso nel backup JSON: dopo un ripristino su DB nuovo il 2FA va riattivato
+Il TOTP **non** è incluso nel backup: dopo un ripristino su DB nuovo il 2FA va riattivato
 al primo login.
+
+## Backup
+
+Il backup (*Backup & Ripristino* nella WebUI) è un file cifrato con una passphrase scelta
+all'export (almeno 16 caratteri; AES-256-GCM, chiave derivata con scrypt): contiene la chiave
+privata SPID, le chiavi JWK CIE e i secret dei client. Export e import chiedono di nuovo la
+password admin e, con il 2FA attivo, un codice TOTP nuovo (non quello appena usato per il login).
+
+- Conservare la passphrase separata dal file (password manager): **senza passphrase il backup
+  non è recuperabile**.
+- I backup in chiaro delle versioni precedenti **non sono più importabili**. Dopo
+  l'aggiornamento: esportare subito un backup cifrato in ogni ambiente e distruggere le copie in
+  chiaro (contengono le chiavi private).
 
 ## Variabili obbligatorie e hardening
 
