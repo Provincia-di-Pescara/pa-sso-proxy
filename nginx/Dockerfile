@@ -18,5 +18,9 @@ ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY templates/proxy.conf.template /etc/nginx/templates/proxy.conf.template
 # real_ip da X-Forwarded-For per i proxy in NGINX_TRUSTED_PROXIES (vedi lo script).
 COPY --chmod=0755 entrypoint/25-real-ip.sh /docker-entrypoint.d/25-real-ip.sh
+# Allowlist opzionale di /admin (ADMIN_ALLOWED_CIDRS, vedi lo script).
+COPY --chmod=0755 entrypoint/26-admin-access.sh /docker-entrypoint.d/26-admin-access.sh
+# Header di sicurezza comuni, inclusi da ogni location del template.
+COPY snippets/security-headers.conf /etc/nginx/snippets/security-headers.conf
 
 USER 101
