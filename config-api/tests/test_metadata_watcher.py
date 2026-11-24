@@ -210,6 +210,7 @@ def _patch_aggregate_paths(mw, tmp_path, monkeypatch):
     path, hash_path = tmp_path / "agg.xml", tmp_path / ".hash"
     monkeypatch.setattr(mw, "SPID_AGGREGATE_PATH", str(path))
     monkeypatch.setattr(mw, "_AGGREGATE_HASH_PATH", str(hash_path))
+    monkeypatch.setattr(mw, "_AGGREGATE_STATUS_PATH", str(tmp_path / "status.json"))
     return path
 
 
@@ -264,3 +265,50 @@ def test_check_idp_metadata_rules():
                 _md("https://a.example").replace("urn:oasis:names:tc:SAML:2.0:metadata", "urn:altro")]:
         with pytest.raises(InvalidMetadata):
             check_idp_metadata(bad)
+
+
+async def test_aggregate_status_tracks_ok_and_rejection(tmp_path, monkeypatch, agid):
+    from app import metadata_watcher as mw
+    _patch_aggregate_paths(mw, tmp_path, monkeypatch)
+    assert mw.aggregate_status() is None
+    assert await _fetch(mw, agid(_aggregate("https://idp.example"))) is True
+    ok = mw.aggregate_status()
+    assert ok["ok"] is True and ok["last_ok_at"] and ok["error"] is None
+
+    assert await _fetch(mw, _aggregate("https://idp.example", "https://altro.example")) is False
+    bad = mw.aggregate_status()
+    assert bad["ok"] is False and "firma AgID" in bad["error"]
+    assert bad["last_ok_at"] == ok["last_ok_at"]  # resta l'ultima verifica riuscita
+
+
+async def test_aggregate_status_on_download_error(tmp_path, monkeypatch):
+    from app import metadata_watcher as mw
+    _patch_aggregate_paths(mw, tmp_path, monkeypatch)
+    client = AsyncMock()
+    client.get = AsyncMock(side_effect=OSError("rete giù"))
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=None)
+    with patch("app.metadata_watcher.httpx.AsyncClient", return_value=client):
+        with pytest.raises(OSError):
+            await mw.fetch_spid_aggregate()
+    assert "download fallito" in mw.aggregate_status()["error"]
+
+
+def test_dashboard_alert_rules(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app import metadata_watcher as mw
+    from app.routes import dashboard as dash
+    now = datetime.now(timezone.utc)
+
+    def status(**s):
+        monkeypatch.setattr(mw, "aggregate_status", lambda: s or None)
+
+    status()
+    assert dash._aggregate_alert() is None
+    status(ok=True, last_ok_at=now.isoformat(), error=None)
+    assert dash._aggregate_alert() is None
+    status(ok=True, last_ok_at=(now - timedelta(days=5)).isoformat(), error=None)
+    assert dash._aggregate_alert()["days"] == 5
+    status(ok=False, last_ok_at=now.isoformat(), error="firma AgID non valida: InvalidSignature")
+    alert = dash._aggregate_alert()
+    assert alert["days"] == 0 and "firma AgID" in alert["error"]

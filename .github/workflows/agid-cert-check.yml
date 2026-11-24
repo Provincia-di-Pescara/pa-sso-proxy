@@ -1,0 +1,120 @@
+name: AgID cert check
+
+# config-api accetta il metadata aggregato SPID solo se firmato dal certificato
+# AgID pinnato (config-api/app/certs/agid-spid-metadata.pem). Se AgID lo rinnova,
+# la produzione scarta ogni aggregato nuovo e la lista IdP resta ferma (nessun
+# outage, ma i cambi di certificato degli IdP non arrivano più). Ogni giorno:
+# confronta il certificato che firma l'aggregato pubblicato con quello pinnato e
+# la scadenza del pinnato; se cambia o scade entro 90 giorni apre (una volta)
+# una issue.
+
+on:
+  schedule:
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/agid-cert-check.yml
+      - config-api/app/certs/agid-spid-metadata.pem
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agid-cert-check-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Certificato firma aggregato SPID
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            registry.spid.gov.it:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Confronta certificato pubblicato e pinnato
+        id: cmp
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 60 -o aggregate.xml \
+            https://registry.spid.gov.it/metadata/idp/spid-entities-idps.xml
+          python3 - <<'PY'
+          import base64, datetime, hashlib, os, re, ssl, subprocess
+
+          def fp(der):
+              return hashlib.sha256(der).hexdigest()
+
+          xml = open("aggregate.xml", encoding="utf-8").read()
+          # Firma della radice: la prima <ds:Signature> dopo il tag di apertura.
+          m = re.search(r"<(?:\w+:)?EntitiesDescriptor\b[^>]*>\s*<(?:\w+:)?Signature\b.*?"
+                        r"<(?:\w+:)?X509Certificate>\s*([A-Za-z0-9+/=\s]+?)\s*</", xml, re.S)
+          published = fp(base64.b64decode("".join(m.group(1).split()))) if m else "assente"
+
+          pem = open("config-api/app/certs/agid-spid-metadata.pem", encoding="utf-8").read()
+          pem = pem[pem.index("-----BEGIN CERTIFICATE-----"):]
+          pinned = fp(ssl.PEM_cert_to_DER_cert(pem))
+          end = subprocess.run(["openssl", "x509", "-noout", "-enddate"], input=pem,
+                               capture_output=True, text=True, check=True).stdout.split("=", 1)[1].strip()
+          expires = datetime.datetime.strptime(end, "%b %d %H:%M:%S %Y %Z")
+          days = (expires - datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)).days
+
+          problems = []
+          if published != pinned:
+              problems.append(f"il certificato che firma l'aggregato pubblicato ({published}) "
+                              f"è diverso da quello pinnato ({pinned})")
+          if days < 90:
+              problems.append(f"il certificato pinnato scade tra {days} giorni ({expires:%Y-%m-%d})")
+          print(f"pubblicato={published}\npinnato={pinned}\nscadenza={expires:%Y-%m-%d} ({days} giorni)")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"published={published}\npinned={pinned}\n")
+              out.write("problem=" + "; ".join(problems) + "\n")
+          PY
+
+      - name: Esito sulla PR
+        if: steps.cmp.outputs.problem != '' && github.event_name == 'pull_request'
+        env:
+          PROBLEM: ${{ steps.cmp.outputs.problem }}
+        run: |
+          echo "::error::$PROBLEM"
+          exit 1
+
+      - name: Apri issue
+        if: steps.cmp.outputs.problem != '' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROBLEM: ${{ steps.cmp.outputs.problem }}
+          PUBLISHED: ${{ steps.cmp.outputs.published }}
+        run: |
+          set -euo pipefail
+          title="Certificato AgID dell'aggregato SPID da aggiornare (${PUBLISHED:0:16})"
+          if gh issue list --state open --search "in:title \"${PUBLISHED:0:16}\"" --json number --jq 'length' | grep -qv '^0$'; then
+            echo "Issue già aperta."
+            exit 0
+          fi
+          gh label create spid-registry --color B60205 --description "Registro / metadata SPID" 2>/dev/null || true
+          gh issue create --title "$title" --label spid-registry --body "$(cat <<EOF
+          **Problema:** ${PROBLEM}.
+
+          Finché non si aggiorna il certificato pinnato, config-api scarta ogni aggregato nuovo (log \`SPID aggregate scartato\`, banner in dashboard): la lista IdP SPID resta all'ultima versione verificata e i cambi di certificato degli IdP non arrivano.
+
+          Da fare:
+          1. verificare il nuovo certificato da fonte AgID (non solo dal file scaricato: subject AgID, catena eIDAS AgID, comunicazione/avviso AgID);
+          2. sostituire \`config-api/app/certs/agid-spid-metadata.pem\` (commenti in testa con subject, validità, SHA-256);
+          3. PR → release. Nell'urgenza, in produzione: \`SPID_AGGREGATE_SIGNING_CERT\` = percorso di un PEM montato nel container config-api.
+          EOF
+          )"
+          exit 1

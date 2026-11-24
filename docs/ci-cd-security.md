@@ -32,6 +32,7 @@ Stato dell'allineamento alla baseline ComunicaPA
 | `ghcr-cleanup.yml` | settimanale | digest orfani (report, cancellazione con `GHCR_CLEANUP_DELETE`) |
 | `tool-version-check.yml` | settimanale (lunedì) | Trivy: PR di aggiornamento (token GitHub App, permesso `workflows`, dopo 3 giorni, mai auto-merge); pip-audit: issue `toolchain` dopo 7 giorni |
 | `upstream-check.yml` | settimanale | issue per nuove release di iam-proxy-italia |
+| `agid-cert-check.yml` | giornaliero + PR che toccano il PEM | issue (label `spid-registry`) se il certificato che firma l'aggregato SPID non è più quello pinnato o scade entro 90 giorni |
 | `dependabot-automerge.yml` | PR dependabot | auto-merge patch/minor solo se la PR ha solo commit dependabot verificati e file dell'ecosistema aggiornato (altrimenti auto-merge tolto); revisione manuale per major e librerie SPID/CIE |
 | `scorecard.yml` | settimanale, main | OpenSSF Scorecard |
 
