@@ -1,6 +1,6 @@
 import asyncio
 import os
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 import httpx
 
 from fastapi import APIRouter, Depends, Form, Request

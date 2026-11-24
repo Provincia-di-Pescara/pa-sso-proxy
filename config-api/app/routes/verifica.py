@@ -164,7 +164,8 @@ async def verifica_callback(request: Request, db: AsyncSession = Depends(get_db)
     saved_state = request.session.pop("verifica_pkce_state", None)
     code_verifier = request.session.pop("verifica_pkce_verifier", None)
 
-    if state != saved_state:
+    # Senza state in sessione (cookie assente) None == None passerebbe.
+    if not saved_state or state != saved_state:
         return templates.TemplateResponse(request, "verifica/result.html.j2", {
             "success": False,
             "error": "state_mismatch",
