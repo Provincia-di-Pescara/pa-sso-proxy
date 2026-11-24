@@ -124,6 +124,19 @@ curl -fsS "$base/spidSaml2/metadata" -o "$work/metadata.xml" || fail "metadata S
 grep -q "EntityDescriptor" "$work/metadata.xml" || fail "metadata SPID senza EntityDescriptor"
 grep -q "SignatureValue" "$work/metadata.xml" || fail "metadata SPID non firmato"
 
+step "asset statici della discovery (file mancante dall'immagine = 404/500)"
+# Ogni /static/... citato da disco.html e i font di sso.css: un COPY dimenticato
+# nel Dockerfile satosa (successo con favicon.svg) rompe la pagina in silenzio.
+curl -fsS "$base/static/disco.html" -o "$work/disco.html" || fail "disco.html"
+curl -fsS "$base/static/sso/fonts/fonts.css" -o "$work/fonts.css" || fail "sso fonts.css"
+assets="$( { grep -oE '(src|href)="/static/[^"?#]+' "$work/disco.html" | sed 's/^[a-z]*="//';
+             grep -oE 'url\(\./[^)]+\)' "$work/fonts.css" | sed 's#^url(\./#/static/sso/fonts/#; s#)$##'; } | sort -u)"
+[ -n "$assets" ] || fail "nessun asset trovato in disco.html"
+for a in $assets; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' "$base$a")"
+  [ "$code" = "200" ] || fail "asset $a: HTTP $code"
+done
+
 step "nessun traceback in satosa dopo l'avvio sano"
 if dc logs --no-color satosa --since 30s 2>&1 | grep -q "Traceback"; then
   dc logs --no-color --tail 80 satosa
