@@ -142,11 +142,14 @@ fi
 mkdir -p /satosa-conf/locales
 
 # Healthcheck fuori dal log di accesso (rumore: una riga ogni 20 s dal container,
-# una ogni 30 s da nginx). Solo GET /.well-known/openid-configuration da loopback
-# (healthcheck di satosa) o con X-Real-IP loopback (healthcheck di nginx: nginx
-# imposta sempre X-Real-IP = $remote_addr, il client non lo sceglie). Le stesse
-# richieste degli applicativi restano nel log. uWSGI internal routing: `last:`
-# chiude la catena per ogni altro path, `donotlog:` salta solo il log.
+# una ogni 30 s da nginx). Solo GET /.well-known/openid-configuration:
+# - healthcheck di satosa (da 127.0.0.1): --log-drain scarta la riga di log solo
+#   con status 200, un healthcheck fallito resta nel log;
+# - healthcheck di nginx (X-Real-IP loopback: nginx imposta sempre
+#   X-Real-IP = $remote_addr, il client non lo sceglie): routing `donotlog:`,
+#   deciso prima della risposta; se fallisce lo logga nginx (status != 200).
+# Le stesse richieste degli applicativi restano nel log. `last:` chiude la catena
+# di routing per ogni altro path.
 exec uwsgi \
     --chdir /satosa_proxy \
     --wsgi-file "/satosa_proxy/wsgi_sentry.py" \
@@ -159,7 +162,7 @@ exec uwsgi \
     --static-map /static/js/spid-idps-default.json=/satosa-conf/spid-idps-default.json \
     --static-map /static/locales=/satosa-conf/locales \
     --static-map /static=/satosa_proxy/static \
+    --log-drain '^\[pid: [0-9]+\|app: -?[0-9]+\|req: -?[0-9]+/[0-9]+\] 127\.0\.0\.1 \(\) \{[^}]*\} \[[^]]*\] GET /\.well-known/openid-configuration => generated [0-9]+ bytes in [0-9]+ msecs \(HTTP/1\.[01] 200\)' \
     --route-if-not 'equal:${PATH_INFO};/.well-known/openid-configuration last:' \
-    --route-if 'equal:${REMOTE_ADDR};127.0.0.1 donotlog:' \
     --route-if 'equal:${HTTP_X_REAL_IP};127.0.0.1 donotlog:'
 
