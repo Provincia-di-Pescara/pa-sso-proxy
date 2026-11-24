@@ -123,7 +123,6 @@ async def verifica_start(request: Request, db: AsyncSession = Depends(get_db)):
         "given_name": None,
         "family_name": None,
         "email": None,
-        "https://attributes.eid.gov.it/fiscal_number": {"essential": True},
     }
     if legal_entity:
         userinfo_claims.update({

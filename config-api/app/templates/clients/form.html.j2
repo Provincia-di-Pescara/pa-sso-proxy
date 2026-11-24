@@ -31,6 +31,7 @@
         </label>
         {% endfor %}
       </div>
+      <div class="a-muted" style="font-size:12px;margin-top:6px;">Vincolanti: scope e claim (anche dal parametro <code>claims</code>) non selezionati qui non vengono rilasciati all'applicativo.</div>
     </div>
 
     <div class="a-form-group">
@@ -75,7 +76,7 @@
         <code class="a-mono">https://{{ proxy_hostname }}/OIDC/token</code></div>
       <div><strong>Logout (end_session):</strong><br>
         <code class="a-mono">https://{{ proxy_hostname }}/OIDC/end_session</code><br>
-        <span class="a-muted" style="font-size:12px;">Parametri: <code>post_logout_redirect_uri</code> (obbligatorio), <code>id_token_hint</code> (consigliato)</span></div>
+        <span class="a-muted" style="font-size:12px;">Parametri: <code>post_logout_redirect_uri</code> (obbligatorio, stessa origine di una redirect URI), <code>id_token_hint</code> (consigliato)</span></div>
     </div>
   </div>
   {% endif %}

@@ -60,12 +60,102 @@ _OIDC_FRONTEND_CLASS = "satosa.frontends.openid_connect.OpenIDConnectFrontend"
 _OIDC_FRONTEND_EXT_CLASS = "oidc_frontend_ext.OIDCFrontendWithEndSession"
 
 # Custom OIDC frontend extension deployed to satosa-conf:
-# - adds end_session_endpoint to OIDC discovery document
-# - handles RP-initiated logout (redirects to post_logout_redirect_uri)
-# - uses extra_scopes to release fiscal_number when profile scope is requested
+# - scope e parametro `claims` limitati agli `allowed_scopes` del client
+#   (SATOSA/pyop non li applicano: senza questo filtro ogni client otteneva
+#   tutti i dati del cittadino chiedendoli)
+# - end_session_endpoint nel discovery + RP-initiated logout, con redirect
+#   solo verso l'origine di una redirect_uri registrata (prima: open redirect)
 _OIDC_FRONTEND_EXT_PY = '''\
+import json
+import logging
+from urllib.parse import urlsplit
+
+from oic.oic import scope2claims
 from satosa.frontends.openid_connect import OpenIDConnectFrontend
 from satosa.response import SeeOther, Response
+
+logger = logging.getLogger(__name__)
+
+CLAIMS_TARGETS = ("userinfo", "id_token")
+
+
+def _single(value):
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
+def filter_authn_request(request, client, extra_scopes, to_claims=scope2claims):
+    """Toglie da `request` (dict, modificato sul posto) scope e claim non
+    consentiti al client. Restituisce (scope_tolti, claim_tolti).
+
+    Client senza `allowed_scopes` (config precedente): nessun filtro.
+    `openid` resta sempre consentito (senza, pyop rifiuta la richiesta)."""
+    if not client or client.get("allowed_scopes") is None:
+        return [], []
+    allowed = set(client["allowed_scopes"]) | {"openid"}
+    dropped_scopes, dropped_claims = [], []
+
+    scope = _single(request.get("scope"))
+    if scope is not None:
+        requested = scope.split()
+        kept = [s for s in requested if s in allowed]
+        dropped_scopes = [s for s in requested if s not in allowed]
+        request["scope"] = " ".join(kept)
+
+    claims_raw = _single(request.get("claims"))
+    if claims_raw is not None:
+        allowed_claims = set(to_claims(sorted(allowed), extra_scope_dict=extra_scopes))
+        try:
+            claims = json.loads(claims_raw)
+        except ValueError:
+            claims = None
+        if not isinstance(claims, dict):
+            request.pop("claims", None)
+            dropped_claims = ["<claims non valido>"]
+        else:
+            filtered = {}
+            for target in CLAIMS_TARGETS:
+                wanted = claims.get(target)
+                if not isinstance(wanted, dict):
+                    continue
+                keep = {k: v for k, v in wanted.items() if k in allowed_claims}
+                dropped_claims += [k for k in wanted if k not in allowed_claims]
+                if keep:
+                    filtered[target] = keep
+            if filtered:
+                request["claims"] = json.dumps(filtered)
+            else:
+                request.pop("claims", None)
+    return dropped_scopes, dropped_claims
+
+
+def _origin(uri):
+    try:
+        parts = urlsplit(uri)
+    except ValueError:
+        return None
+    if parts.scheme not in ("https", "http") or not parts.hostname:
+        return None
+    try:
+        port = parts.port
+    except ValueError:
+        return None
+    if port is None:
+        port = 443 if parts.scheme == "https" else 80
+    return (parts.scheme, parts.hostname.lower(), port)
+
+
+def logout_redirect_allowed(uri, clients):
+    """True se `uri` ha la stessa origine di una redirect_uri registrata."""
+    target = _origin(uri)
+    if target is None:
+        return False
+    for client in clients.values():
+        for registered in client.get("redirect_uris") or []:
+            if _origin(registered) == target:
+                return True
+    return False
 
 
 class OIDCFrontendWithEndSession(OpenIDConnectFrontend):
@@ -76,13 +166,28 @@ class OIDCFrontendWithEndSession(OpenIDConnectFrontend):
         url_map.append(("^{}/end_session$".format(self.name), self.end_session))
         return url_map
 
+    def handle_authn_request(self, context):
+        request = context.request
+        if isinstance(request, dict):
+            client_id = _single(request.get("client_id"))
+            client = self.provider.clients.get(client_id) if client_id else None
+            dropped_scopes, dropped_claims = filter_authn_request(
+                request, client, self.config["provider"].get("extra_scopes")
+            )
+            if dropped_scopes or dropped_claims:
+                logger.warning(
+                    "Client %s: scope/claim non consentiti rimossi (scope=%s, claims=%s)",
+                    client_id, dropped_scopes, dropped_claims,
+                )
+        return super().handle_authn_request(context)
+
     def end_session(self, context):
         params = context.request or {}
-        redirect_uri = params.get("post_logout_redirect_uri")
-        if isinstance(redirect_uri, list):
-            redirect_uri = redirect_uri[0] if redirect_uri else None
+        redirect_uri = _single(params.get("post_logout_redirect_uri"))
         if redirect_uri:
-            return SeeOther(redirect_uri)
+            if logout_redirect_allowed(redirect_uri, self.provider.clients):
+                return SeeOther(redirect_uri)
+            logger.warning("end_session: post_logout_redirect_uri non registrata: %r", redirect_uri[:200])
         return Response("Logout completato", status="200 OK")
 '''
 
