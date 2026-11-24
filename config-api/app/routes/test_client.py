@@ -208,7 +208,8 @@ async def test_client_callback(request: Request, db: AsyncSession = Depends(get_
     client = await _get_test_client(db)
     client_secret = client.client_secret_plain if client else None
 
-    if state != saved_state:
+    # Senza state in sessione (cookie assente) None == None passerebbe.
+    if not saved_state or state != saved_state:
         _store_put(request, "test_result", {
             "success": False,
             "error": "state_mismatch",

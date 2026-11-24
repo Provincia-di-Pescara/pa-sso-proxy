@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidIdP
 from app.spid_seeder import EIDAS_ENTITY_IDS, FICEP_ENTITY_IDS
+from app.url_validation import valid_public_url
 from app.version import get_display_version
 
 SATOSA_CONF_DIR = os.environ.get("SATOSA_CONF_DIR", "/satosa-conf")
@@ -632,18 +633,25 @@ def _eid_locale_strings(
             "login_url": f"/spidSaml2/disco?entityID={eidas_entity_id}&return=/spidSaml2/disco"
         }
     _s = settings
+
+    def _url(value):
+        # Difesa anche in uscita: un valore salvato prima della validazione
+        # del form (es. javascript:) non arriva alla discovery.
+        value = value or ""
+        return value if valid_public_url(value) else ""
+
     data = {
         "header": {
             "region_name": (_s.org_display_name or "") if _s else "",
-            "logo_url": (_s.logo_url or "") if _s else "",
-            "favicon_url": (_s.favicon_url or "") if _s else "",
+            "logo_url": _url(_s.logo_url) if _s else "",
+            "favicon_url": _url(_s.favicon_url) if _s else "",
         },
         "digital_id": digital_id,
         "footer": {
-            "privacy_policy_url": (_s.privacy_url or "") if _s else "",
-            "legal_notice_url": (_s.legal_notes_url or "") if _s else "",
-            "accessibility_url": (_s.accessibility_url or "") if _s else "",
-            "support_url": (_s.support_url or "") if _s else "",
+            "privacy_policy_url": _url(_s.privacy_url) if _s else "",
+            "legal_notice_url": _url(_s.legal_notes_url) if _s else "",
+            "accessibility_url": _url(_s.accessibility_url) if _s else "",
+            "support_url": _url(_s.support_url) if _s else "",
         },
         "version": get_display_version(),
     }
@@ -929,15 +937,20 @@ async def generate_satosa_config(db: AsyncSession) -> None:
 
     result = await db.execute(select(OIDCClient).where(OIDCClient.enabled == True))
     clients = result.scalars().all()
-    client_db = {
-        c.client_id: {
-            "client_secret": c.client_secret_plain or c.client_secret_hash,
+    client_db = {}
+    for c in clients:
+        if not c.client_secret_plain:
+            # Mai l'hash bcrypt come secret: chi lo leggesse (DB, backup, log)
+            # potrebbe autenticarsi come il client. Senza secret il client è
+            # escluso: va rigenerato dalla WebUI.
+            logger.warning("Client OIDC %s senza secret: escluso dalla config SATOSA", c.client_id)
+            continue
+        client_db[c.client_id] = {
+            "client_secret": c.client_secret_plain,
             "redirect_uris": list(c.redirect_uris),
             "allowed_scopes": list(c.allowed_scopes),
             "response_types": ["code"],
         }
-        for c in clients
-    }
     # Inject public verifica client (always active)
     import hmac as _hmac
     import hashlib as _hashlib
@@ -986,16 +999,16 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         # Fallback list of production IdPs (also when only test IdPs are enabled:
         # those are hidden outside /verifica, the apps would see an empty list).
         spid_idps_json += [
-            { "organization_name": "Aruba PEC", "entity_id": "https://loginspid.aruba.it", "logo_uri": "/static/img/spid-idp-arubaid.svg" },
-            { "organization_name": "InfoCert ID", "entity_id": "https://identity.infocert.it", "logo_uri": "/static/img/spid-idp-infocertid.svg" },
-            { "organization_name": "Poste ID", "entity_id": "https://posteid.poste.it", "logo_uri": "/static/img/spid-idp-posteid.svg" },
-            { "organization_name": "Sielte", "entity_id": "https://identity.sielte.it", "logo_uri": "/static/img/spid-idp-sielteid.svg" },
-            { "organization_name": "TIM Personal ID", "entity_id": "https://login.id.tim.it/affwebservices/public/saml2sso", "logo_uri": "/static/img/spid-idp-timid.svg" },
-            { "organization_name": "Lepida ID", "entity_id": "https://id.lepida.it/idp/shibboleth", "logo_uri": "/static/img/spid-idp-lepidaid.svg" },
-            { "organization_name": "Register.it", "entity_id": "https://spid.register.it", "logo_uri": "/static/img/spid-idp-spiditalia.svg" },
-            { "organization_name": "Namirial ID", "entity_id": "https://idp.namirialtsp.com/idp", "logo_uri": "/static/img/spid-idp-namirialid.svg" },
-            { "organization_name": "TeamSystem ID", "entity_id": "https://spid.teamsystem.com/idp", "logo_uri": "/static/img/spid-idp-teamsystemid.svg" },
-            { "organization_name": "Intesa Sanpaolo", "entity_id": "https://spid.intesaid.com/saml2/idp/metadata", "logo_uri": "/static/img/spid-idp-intesaid.svg" }
+            { "organization_name": "Aruba PEC", "entity_id": "https://loginspid.aruba.it", "logo_uri": "" },
+            { "organization_name": "InfoCert ID", "entity_id": "https://identity.infocert.it", "logo_uri": "" },
+            { "organization_name": "Poste ID", "entity_id": "https://posteid.poste.it", "logo_uri": "" },
+            { "organization_name": "Sielte", "entity_id": "https://identity.sielte.it", "logo_uri": "" },
+            { "organization_name": "TIM Personal ID", "entity_id": "https://login.id.tim.it/affwebservices/public/saml2sso", "logo_uri": "" },
+            { "organization_name": "Lepida ID", "entity_id": "https://id.lepida.it/idp/shibboleth", "logo_uri": "" },
+            { "organization_name": "Register.it", "entity_id": "https://spid.register.it", "logo_uri": "" },
+            { "organization_name": "Namirial ID", "entity_id": "https://idp.namirialtsp.com/idp", "logo_uri": "" },
+            { "organization_name": "TeamSystem ID", "entity_id": "https://spid.teamsystem.com/idp", "logo_uri": "" },
+            { "organization_name": "Intesa Sanpaolo", "entity_id": "https://spid.intesaid.com/saml2/idp/metadata", "logo_uri": "" }
         ]
     spid_idps_json.sort(key=lambda x: x["organization_name"])
 
