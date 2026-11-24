@@ -3,7 +3,7 @@
    Design system: Montesilvano / .italia  (Titillium Web, #003366 navy, #06c blue)
    ============================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap');
+@import url('fonts/fonts.css');
 
 /* ---------- TOKENS ---------- */
 :root {
