@@ -133,7 +133,7 @@
           <div style="flex:1;">
             <strong>Logout URL (End Session Endpoint):</strong><br>
             <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/end_session</code><br>
-            <span class="a-muted" style="font-size:11px;">Parametri supportati: <code>post_logout_redirect_uri</code> (obbligatorio), <code>id_token_hint</code> (consigliato).</span>
+            <span class="a-muted" style="font-size:11px;">Parametri supportati: <code>post_logout_redirect_uri</code> (obbligatorio, stessa origine di una redirect URI registrata), <code>id_token_hint</code> (consigliato).</span>
           </div>
           <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="https://{{ proxy_hostname }}/OIDC/end_session">Copia</button>
         </div>
