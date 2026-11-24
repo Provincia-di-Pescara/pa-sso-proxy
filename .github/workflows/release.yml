@@ -14,6 +14,7 @@ name: Release
 #                attestazioni provenance + SBOM → firma cosign keyless
 #   smoke-stack  docker-compose.yaml di produzione con i digest nuovi (e :latest
 #                per le immagini non ricostruite) → scripts/smoke-stack.sh
+#   (tag pre-release vX.Y.Z-rc.N: solo :X.Y.Z-rc.N e :sha-…, mai latest)
 #   publish ×N   solo se tutto verde: latest, latest-YYYYMMDD (rollback),
 #                sha-<commit>; sui tag anche X.Y.Z e X.Y
 #
@@ -459,10 +460,16 @@ jobs:
         run: |
           set -euo pipefail
           digest="$(cat "digests/$NAME")"
-          tags=(-t "$IMG:latest" -t "$IMG:latest-$DATE" -t "$IMG:sha-${SHA:0:7}")
-          if [ "$EVENT" = "push" ]; then
-            v="${REF_NAME#v}"
-            tags+=(-t "$IMG:$v" -t "$IMG:${v%.*}")
+          v="${REF_NAME#v}"
+          if [ "$EVENT" = "push" ] && [ "$v" != "${v%%-*}" ]; then
+            # Pre-release (vX.Y.Z-rc.N): solo tag esplicito, MAI latest. Portainer
+            # di produzione riscarica :latest, il collaudo punta a :X.Y.Z-rc.N.
+            tags=(-t "$IMG:$v" -t "$IMG:sha-${SHA:0:7}")
+          else
+            tags=(-t "$IMG:latest" -t "$IMG:latest-$DATE" -t "$IMG:sha-${SHA:0:7}")
+            if [ "$EVENT" = "push" ]; then
+              tags+=(-t "$IMG:$v" -t "$IMG:${v%.*}")
+            fi
           fi
           # --prefer-index=false: copia identica del manifest. Di default, con
           # una sola sorgente, imagetools crea un index NUOVO (digest diverso):

@@ -244,6 +244,7 @@ Dettagli (workflow, merge queue, `release.yml`, dependabot, autofix pip, Trivy, 
 - **Mai push diretto su `main`**, nemmeno per fix minimi/urgenti — sempre branch + PR (il ruleset lo rifiuta).
 - **Merge di una PR**: `gh pr merge <n> --auto` (merge queue, squash imposto). Niente `--squash`/`--admin`.
 - **Tag `v*` protetti**: un tag pubblicato non si sposta. Prima di creare un tag: `release.yml` con `dry_run=true` su main.
+- **Collaudo prima della produzione = tag pre-release `vX.Y.Z-rc.N`**: pubblica solo `:X.Y.Z-rc.N` e `:sha-…`, mai `:latest` (la produzione non lo vede). Si può mettere su un branch di integrazione non ancora mergiato: il workflow gira con il `release.yml` del commit taggato. Un tag `vX.Y.Z` normale va SEMPRE anche su `:latest` = produzione.
 - **Pubblicare = andare in produzione** (Portainer riscarica `:latest` da solo): solo `release.yml` pubblica, niente rebuild senza causa.
 - **Aggiornamento immagine base iam-proxy-italia = sempre manuale, mai automatizzarlo** (checklist nella skill).
 - `config-api/.coverage` è un binario tracciato: `git checkout -- config-api/.coverage` prima di committare dopo un run con `--cov`.
