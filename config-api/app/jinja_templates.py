@@ -29,6 +29,11 @@ templates = Jinja2Templates(
     directory="app/templates",
     context_processors=[_settings_context],
 )
+# Starlette crea l'ambiente con select_autoescape(): escape solo per .html/.htm/
+# .xml. I nostri template sono .html.j2 → senza questa riga NESSUN valore viene
+# escapato (nome client, nomi IdP dal registro AgID, claim su /verifica, ...).
+# Impostato prima che qualsiasi template venga compilato (cache vuota all'import).
+templates.env.autoescape = True
 templates.env.globals["app_version"] = get_display_version()
 templates.env.filters["to_italian_time"] = to_italian_time
 

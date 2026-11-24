@@ -65,7 +65,7 @@
       </div>
       <form method="post" action="/admin/backup/import"
             enctype="multipart/form-data"
-            onsubmit="return confirm('Sei sicuro? Tutti i dati correnti saranno sostituiti.');">
+            data-confirm="Sei sicuro? Tutti i dati correnti saranno sostituiti.">
         <div class="a-form-group">
           <label class="a-label" for="file">File di backup cifrato (.enc.json)</label>
           <input type="file" class="a-input" id="file" name="file"

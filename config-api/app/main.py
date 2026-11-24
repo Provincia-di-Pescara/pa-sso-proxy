@@ -224,6 +224,9 @@ app.add_middleware(
 )
 
 app.mount("/admin/static", StaticFiles(directory="app/static"), name="static")
+# Font della pagina pubblica /verifica: /admin/static può essere dietro
+# ADMIN_ALLOWED_CIDRS, quindi i font sono esposti anche sotto /verifica.
+app.mount("/verifica/static/fonts", StaticFiles(directory="app/static/fonts"), name="verifica_fonts")
 
 app.include_router(dashboard.router, prefix="/admin")
 app.include_router(clients.router, prefix="/admin")

@@ -1,4 +1,4 @@
-@import url('https://fonts.bunny.net/css?family=titillium-web:400,600,700|jetbrains-mono:400,600&display=swap');
+@import url('../fonts/fonts.css');
 
 /* ============================================================
    CSS Custom Properties
@@ -189,6 +189,7 @@ a:hover { text-decoration: underline; }
    ============================================================ */
 .a-tabs { display: flex; border-bottom: 1px solid var(--border-1); margin-bottom: 0; }
 .a-tab { padding: 10px 24px; border: none; background: none; cursor: pointer; font-size: 14px; font-weight: 400; font-family: var(--font-sans); color: var(--fg-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.12s; }
+.a-tab-panel[hidden] { display: none; }
 .a-tab:hover { color: var(--fg-2); }
 .a-tab.active { font-weight: 600; color: var(--brand); border-bottom-color: var(--brand); }
 .a-tab:focus-visible {

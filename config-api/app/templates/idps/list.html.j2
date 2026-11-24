@@ -22,7 +22,7 @@
 {% endif %}
 
 {# Tab bar: click cambia pannello visibile, pallino = stato sezione #}
-<div class="a-tabs" role="tablist">
+<div class="a-tabs" role="tablist" data-tabs="hash">
   <button type="button" class="a-tab" data-tab="spid" role="tab">
     <span class="a-tab-dot" style="background:{% if cert %}{% if (cert.not_valid_after - now).days < 30 %}var(--danger){% else %}var(--success){% endif %}{% else %}var(--danger){% endif %};"></span>
     SPID
@@ -106,7 +106,7 @@
           <input class="a-input a-input-ro" type="text" value="{{ cert.subject_dn }}" readonly>
         </div>
         <div class="a-muted" style="font-size:12px;margin-bottom:16px;">Generato il: <span class="a-mono">{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
-        <form method="post" action="/admin/certs/generate" onsubmit="return confirmRegenCert()">
+        <form method="post" action="/admin/certs/generate" data-confirm="ATTENZIONE: La rigenerazione delle chiavi genera un nuovo certificato e una nuova chiave privata.&#10;&#10;Questo invaliderà immediatamente il metadata SAML precedentemente registrato su AgID/FICEP e renderà impossibile l'autenticazione fino all'aggiornamento dei portali governativi.&#10;&#10;Vuoi procedere?">
           <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Rigenera chiavi</button>
         </form>
       {% else %}
@@ -367,7 +367,7 @@
       Permette l'autenticazione di cittadini europei tramite il Nodo eIDAS Italiano (FICEP / AgID).
     </p>
 
-    <form method="post" action="/admin/eidas/toggle" id="eidas-form" onsubmit="return handleEidasSubmit(event)">
+    <form method="post" action="/admin/eidas/toggle" id="eidas-form" data-submit="eidas" data-initial-enabled="{{ 'true' if s and s.eidas_enabled else 'false' }}">
       <input type="hidden" name="confirmed" id="eidas-confirmed" value="no">
 
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -427,7 +427,7 @@
       al metadata SP pubblicato.
     </p>
 
-    <form method="post" action="/admin/legal-entity/toggle" id="legal-entity-form" onsubmit="return handleLegalEntitySubmit(event)">
+    <form method="post" action="/admin/legal-entity/toggle" id="legal-entity-form" data-submit="legal-entity" data-initial-enabled="{{ 'true' if s and s.legal_entity_enabled else 'false' }}">
       <input type="hidden" name="confirmed" id="legal-entity-confirmed" value="no">
 
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -474,7 +474,7 @@
 {% if uploaded_exposed %}
 <div class="a-alert a-alert-danger" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
   <div>Il metadata pubblicato è un <strong>file caricato a mano</strong> (riga #{{ uploaded_exposed.id }}): le modifiche di configurazione <strong>non</strong> vengono pubblicate.</div>
-  <form method="post" action="/admin/metadata/override/clear" onsubmit="return confirm('Tornare al metadata generato da SATOSA?');">
+  <form method="post" action="/admin/metadata/override/clear" data-confirm="Tornare al metadata generato da SATOSA?">
     <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Torna al metadata generato</button>
   </form>
 </div>
@@ -522,14 +522,14 @@
       {% endif %}
       {% if not profile.matches %}
       <form method="post" action="/admin/metadata/profile/{{ p.id }}/restore" style="display:inline;"
-            onsubmit="return confirmRestore(this, {{ 'true' if profile.differences | selectattr('label', 'equalto', 'Certificato') | list else 'false' }}, '{{ p.cert_id or '' }}');">
+            data-submit="restore-profile" data-cert-change="{{ 'true' if profile.differences | selectattr('label', 'equalto', 'Certificato') | list else 'false' }}" data-cert-id="{{ p.cert_id or '' }}">
         <input type="hidden" name="confirm_cert" value="">
         <button type="submit" class="a-btn a-btn-primary a-btn-sm">Ripristina validato</button>
       </form>
       {% endif %}
     {% endif %}
     <form method="post" action="/admin/metadata/profile/validate" style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;"
-          onsubmit="return confirm('Segnare la configurazione ATTUALE come validata da AgID?{% if profile.profile %} Il profilo validato di oggi va in archivio.{% endif %}');">
+          data-confirm="Segnare la configurazione ATTUALE come validata da AgID?{% if profile.profile %} Il profilo validato di oggi va in archivio.{% endif %}">
       <input type="text" name="label" class="a-input" placeholder="Nota (es. validazione AgID 2026-11)" style="max-width:320px;">
       <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Segna validato (configurazione attuale)</button>
     </form>
@@ -554,7 +554,7 @@
           </td>
           <td>
             <form method="post" action="/admin/metadata/profile/{{ a.id }}/restore" style="display:inline;"
-                  onsubmit="return confirmRestore(this, {{ 'true' if a.cert_id and (not cert or a.cert_id != cert.id) else 'false' }}, '{{ a.cert_id or '' }}');">
+                  data-submit="restore-profile" data-cert-change="{{ 'true' if a.cert_id and (not cert or a.cert_id != cert.id) else 'false' }}" data-cert-id="{{ a.cert_id or '' }}">
               <input type="hidden" name="confirm_cert" value="">
               <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Ripristina</button>
             </form>
@@ -622,13 +622,13 @@
           </td>
           <td>
             {% if v.source == "uploaded" and not v.is_exposed %}
-            <form method="post" action="/admin/metadata/{{ v.id }}/expose" style="display:inline;" onsubmit="return confirm('Pubblicare questo file al posto del metadata generato? Finché resta pubblicato, le modifiche di configurazione non vengono pubblicate.');">
+            <form method="post" action="/admin/metadata/{{ v.id }}/expose" style="display:inline;" data-confirm="Pubblicare questo file al posto del metadata generato? Finché resta pubblicato, le modifiche di configurazione non vengono pubblicate.">
               <button type="submit" class="a-btn a-btn-secondary a-btn-sm">Esponi</button>
             </form>
             {% endif %}
             <a href="/admin/metadata/{{ v.id }}/download" class="a-btn a-btn-secondary a-btn-sm">Scarica XML</a>
             {% if not v.is_exposed and v.id != latest_generated_id %}
-            <form method="post" action="/admin/metadata/{{ v.id }}/delete" style="display:inline;" onsubmit="return confirm('Eliminare questa versione?');">
+            <form method="post" action="/admin/metadata/{{ v.id }}/delete" style="display:inline;" data-confirm="Eliminare questa versione?">
               <button type="submit" class="a-btn a-btn-danger a-btn-sm">Elimina</button>
             </form>
             {% endif %}
@@ -643,101 +643,4 @@
 </div>
 </section>
 
-<script>
-(function () {
-  var tabs = document.querySelectorAll(".a-tab");
-  var panels = document.querySelectorAll(".a-tab-panel");
-  var validTabs = Array.prototype.map.call(tabs, function (t) { return t.dataset.tab; });
-
-  function activate(name) {
-    if (validTabs.indexOf(name) === -1) name = "spid";
-    tabs.forEach(function (t) { t.classList.toggle("active", t.dataset.tab === name); });
-    panels.forEach(function (p) { p.hidden = p.id !== name; });
-  }
-
-  tabs.forEach(function (t) {
-    t.addEventListener("click", function () {
-      history.replaceState(null, "", "#" + t.dataset.tab);
-      activate(t.dataset.tab);
-    });
-  });
-
-  activate((window.location.hash || "#spid").slice(1));
-})();
-
-const eidasInitialEnabled = {% if s and s.eidas_enabled %}true{% else %}false{% endif %};
-const legalEntityInitialEnabled = {% if s and s.legal_entity_enabled %}true{% else %}false{% endif %};
-
-function handleEidasSubmit(event) {
-  var isEnabled = document.getElementById("eidas-enabled").checked;
-  var envSelect = document.getElementById("eidas-env");
-  var envLabel = envSelect.options[envSelect.selectedIndex].text;
-  var confirmedInput = document.getElementById("eidas-confirmed");
-
-  if (isEnabled && !eidasInitialEnabled) {
-    var ok = window.confirm(
-      "Abilitare l'integrazione eIDAS in ambiente " + envLabel + "?\n\n" +
-      "Questo renderà visibile il pulsante di login eIDAS sulla pagina di scelta provider " +
-      "e modifica il metadata SP pubblicato (richiede ri-validazione AgID).\n\n" +
-      "L'accesso SPID già validato continua a funzionare; eIDAS funziona solo " +
-      "dopo l'aggiornamento del metadata sul registro AgID."
-    );
-    if (!ok) { event.preventDefault(); return false; }
-    confirmedInput.value = "yes";
-  } else if (!isEnabled && eidasInitialEnabled) {
-    var ok = window.confirm(
-      "Disabilitare l'integrazione eIDAS?\n\n" +
-      "Questo nasconderà il pulsante di login eIDAS dalla pagina di scelta provider."
-    );
-    if (!ok) { event.preventDefault(); return false; }
-    confirmedInput.value = "yes";
-  } else {
-    confirmedInput.value = "yes";
-  }
-  return true;
-}
-
-function handleLegalEntitySubmit(event) {
-  var isEnabled = document.getElementById("legal-entity-enabled").checked;
-  var confirmedInput = document.getElementById("legal-entity-confirmed");
-
-  if (isEnabled && !legalEntityInitialEnabled) {
-    var ok = window.confirm(
-      "Abilitare l'accesso SPID persona giuridica?\n\n" +
-      "Questo modifica il metadata SP pubblicato (nuovi attributi opzionali azienda) " +
-      "e richiede ri-validazione presso AgID.\n\n" +
-      "Persona fisica continua a funzionare; persona giuridica funziona solo " +
-      "dopo l'aggiornamento del metadata sul registro AgID."
-    );
-    if (!ok) { event.preventDefault(); return false; }
-    confirmedInput.value = "yes";
-  } else if (!isEnabled && legalEntityInitialEnabled) {
-    var ok = window.confirm("Disabilitare l'accesso SPID persona giuridica?");
-    if (!ok) { event.preventDefault(); return false; }
-    confirmedInput.value = "yes";
-  } else {
-    confirmedInput.value = "yes";
-  }
-  return true;
-}
-
-function confirmRestore(form, certChange, certId) {
-  var msg = "Ripristinare la configurazione del profilo? SATOSA rigenera il metadata.";
-  if (certChange) {
-    msg += "\n\nATTENZIONE: il profilo usa il certificato #" + certId + ", diverso da quello attivo. " +
-      "Verrà riattivato: la firma delle richieste SPID tornerà a quella chiave.";
-  }
-  if (!window.confirm(msg)) return false;
-  if (certChange) form.querySelector("input[name=confirm_cert]").value = "yes";
-  return true;
-}
-
-function confirmRegenCert() {
-  return window.confirm(
-    "ATTENZIONE: La rigenerazione delle chiavi genera un nuovo certificato e una nuova chiave privata.\n\n" +
-    "Questo invaliderà immediatamente il metadata SAML precedentemente registrato su AgID/FICEP e renderà impossibile l'autenticazione fino all'aggiornamento dei portali governativi.\n\n" +
-    "Vuoi procedere?"
-  );
-}
-</script>
 {% endblock %}
