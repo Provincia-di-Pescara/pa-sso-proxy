@@ -28,6 +28,49 @@ from ... import i18n
 
 logger = logging.getLogger(__name__)
 
+# Tolleranza sugli orari dell'id_token (orologi OP/proxy non allineati).
+ID_TOKEN_LEEWAY_SECONDS = 120
+
+
+def _norm(url):
+    return url.rstrip("/") if isinstance(url, str) else url
+
+
+def validate_id_token_claims(claims, authorization, authorization_data, now=None,
+                             leeway=ID_TOKEN_LEEWAY_SECONDS):
+    """OIDC Core 3.1.3.7: iss, aud (+azp), exp, iat, nonce dell'id_token.
+
+    verify_jws controlla solo la firma: senza questi controlli un id_token
+    valido ma emesso per un altro client o un'altra sessione passerebbe.
+    Solleva ValueError col motivo."""
+    if not isinstance(claims, dict):
+        raise ValueError("id_token payload non valido")
+    now = time.time() if now is None else now
+
+    provider_conf = (authorization.get("provider_configuration") or {}).get("openid_provider") or {}
+    expected_iss = {_norm(v) for v in (provider_conf.get("issuer"), authorization.get("provider_id")) if v}
+    if _norm(claims.get("iss")) not in expected_iss:
+        raise ValueError(f"iss inatteso: {claims.get('iss')!r}")
+
+    client_id = authorization.get("client_id")
+    aud = claims.get("aud")
+    audiences = aud if isinstance(aud, list) else [aud]
+    if client_id not in audiences:
+        raise ValueError(f"aud non contiene il client: {aud!r}")
+    if len(audiences) > 1 and claims.get("azp") != client_id:
+        raise ValueError("azp mancante o diverso con più audience")
+
+    exp = claims.get("exp")
+    if not isinstance(exp, (int, float)) or isinstance(exp, bool) or now > exp + leeway:
+        raise ValueError("id_token scaduto o senza exp")
+    iat = claims.get("iat")
+    if iat is not None and (not isinstance(iat, (int, float)) or iat > now + leeway):
+        raise ValueError("iat nel futuro")
+
+    expected_nonce = authorization_data.get("nonce")
+    if not expected_nonce or claims.get("nonce") != expected_nonce:
+        raise ValueError("nonce mancante o diverso")
+
 
 def _post_access_log(provider_type, client_id, result, error_code=None):
     try:
@@ -222,6 +265,12 @@ class AuthorizationCallBackHandler(BaseEndpoint):
         except Exception as exception:
             logger.error(f"Exception from verify_at_hash, detail: {exception}")
             raise SATOSAAuthenticationError(context.state, "tokens verification failed")
+
+        try:
+            validate_id_token_claims(decoded_id_token, authorization, authorization_data)
+        except ValueError as exception:
+            logger.error(f"id_token rifiutato: {exception}")
+            raise SATOSAAuthenticationError(context.state, "id_token claims verification failed")
 
         # decoded_access_token = unpad_jwt_payload(access_token)
         # logger.debug(f"unpad_jwt_payload: {decoded_access_token}")

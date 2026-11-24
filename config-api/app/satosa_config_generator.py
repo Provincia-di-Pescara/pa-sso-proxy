@@ -142,11 +142,17 @@ def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
     }
 
 
+def _redis_db_url(db: int) -> str:
+    """REDIS_URL con il numero di database sostituito (stesso host/credenziali)."""
+    redis_url = os.environ.get("REDIS_URL", REDIS_URL)
+    scheme, hostpath = redis_url.split("://", 1)
+    return f"{scheme}://{hostpath.split('/')[0]}/{db}"
+
+
 def _oidc_frontend_yaml(hostname: str) -> dict:
     base = _base_url(hostname)
     # Use Redis DB 1 for OIDC authz_state — CIE backend occupies DB 0
-    _redis_scheme, _redis_hostpath = REDIS_URL.split("://", 1)
-    redis_db1 = f"{_redis_scheme}://{_redis_hostpath.split('/')[0]}/1"
+    redis_db1 = _redis_db_url(1)
     return {
         "name": "OIDC",
         "module": _OIDC_FRONTEND_EXT_CLASS,
@@ -372,6 +378,9 @@ def _spid_backend_yaml(
         "module": _SPID_BACKEND_CLASS,
         "metadata": metadata_config,
         "config": {
+            # Registro anti-replay delle assertion (spidsaml2.mark_assertions_used),
+            # Redis DB 2: 0 = backend CIE, 1 = authz state del frontend OIDC.
+            "replay_cache_url": _redis_db_url(2),
             "template_folder": "/satosa_proxy/templates",
             "static_storage_url": f"{_base_url(hostname)}/static",
             "error_template": "spid_login_error.html",
