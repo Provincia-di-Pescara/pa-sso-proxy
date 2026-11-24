@@ -5,6 +5,7 @@ import logging
 import os
 import random
 import ssl
+import urllib.parse
 import urllib.request
 from typing import Optional
 
@@ -301,6 +302,9 @@ _EMPTY_META = '<?xml version="1.0"?><EntitiesDescriptor xmlns="urn:oasis:names:t
 
 
 def _download_metadata(url: str) -> bytes:
+    # urllib apre anche file:// e ftp://: solo http(s).
+    if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
+        raise ValueError(f"schema URL non ammesso: {url[:80]}")
     ctx = ssl.create_default_context()
     req = urllib.request.Request(url, headers={"User-Agent": "config-api/1.0"})
     with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:

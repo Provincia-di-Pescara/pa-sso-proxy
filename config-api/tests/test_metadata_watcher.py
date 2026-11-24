@@ -147,7 +147,7 @@ async def test_fetch_rejects_invalid_metadata_keeps_cache(db_session):
     b'<md:EntitiesDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"/>',
     b"",
 ])
-async def test_aggregate_invalid_keeps_previous_file(tmp_path, monkeypatch, body):
+async def test_aggregate_invalid_keeps_previous_file(tmp_path, monkeypatch, body, agid):
     from app import metadata_watcher as mw
     path, hash_path = tmp_path / "agg.xml", tmp_path / ".hash"
     previous = ('<md:EntitiesDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">'
@@ -162,18 +162,99 @@ async def test_aggregate_invalid_keeps_previous_file(tmp_path, monkeypatch, body
     assert path.read_bytes() == previous
 
 
-async def test_aggregate_valid_written_atomically(tmp_path, monkeypatch):
-    from app import metadata_watcher as mw
+def _aggregate(*entity_ids):
+    return ('<md:EntitiesDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" ID="_agg">'
+            + "".join(_md(e) for e in entity_ids) + "</md:EntitiesDescriptor>").encode()
+
+
+@pytest.fixture
+def agid(tmp_path, monkeypatch):
+    """Coppia chiave/cert di test al posto del certificato AgID pinnato."""
+    import datetime
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    def make():
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "AgID test")])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name)
+                .public_key(key.public_key()).serial_number(x509.random_serial_number())
+                .not_valid_before(now - datetime.timedelta(days=1))
+                .not_valid_after(now + datetime.timedelta(days=30))
+                .sign(key, hashes.SHA256()))
+        return (key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                  serialization.NoEncryption()),
+                cert.public_bytes(serialization.Encoding.PEM))
+
+    key, cert = make()
+    pem = tmp_path / "agid.pem"
+    pem.write_bytes(b"# commento\n" + cert)
+    monkeypatch.setenv("SPID_AGGREGATE_SIGNING_CERT", str(pem))
+
+    def sign(xml: bytes, signer=None) -> bytes:
+        from lxml import etree
+        from signxml import XMLSigner
+        k, c = signer or (key, cert)
+        signed = XMLSigner(c14n_algorithm="http://www.w3.org/2001/10/xml-exc-c14n#").sign(
+            etree.fromstring(xml), key=k, cert=c.decode())
+        return etree.tostring(signed)
+
+    sign.other = make
+    return sign
+
+
+def _patch_aggregate_paths(mw, tmp_path, monkeypatch):
     path, hash_path = tmp_path / "agg.xml", tmp_path / ".hash"
     monkeypatch.setattr(mw, "SPID_AGGREGATE_PATH", str(path))
     monkeypatch.setattr(mw, "_AGGREGATE_HASH_PATH", str(hash_path))
-    body = ('<md:EntitiesDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">'
-            + _md("https://a.example") + _md("https://b.example") + "</md:EntitiesDescriptor>").encode()
+    monkeypatch.setattr(mw, "_AGGREGATE_STATUS_PATH", str(tmp_path / "status.json"))
+    return path
+
+
+async def _fetch(mw, body):
     resp = MagicMock(content=body, raise_for_status=MagicMock())
     with patch("app.metadata_watcher.httpx.AsyncClient", return_value=_mock_client(resp)):
-        assert await mw.fetch_spid_aggregate() is True
-    assert path.read_bytes() == body
+        return await mw.fetch_spid_aggregate()
+
+
+async def test_aggregate_signed_written_atomically(tmp_path, monkeypatch, agid):
+    from app import metadata_watcher as mw
+    from app.saml_metadata import check_idp_metadata
+    path = _patch_aggregate_paths(mw, tmp_path, monkeypatch)
+    assert await _fetch(mw, agid(_aggregate("https://a.example", "https://b.example"))) is True
+    assert check_idp_metadata(path.read_bytes()) == 2
+    assert b"Signature" not in path.read_bytes()  # scritto solo il contenuto firmato
     assert not (tmp_path / "agg.xml.tmp").exists()
+
+
+@pytest.mark.parametrize("case", ["unsigned", "other_key", "tampered", "wrapped"])
+async def test_aggregate_bad_signature_keeps_previous(tmp_path, monkeypatch, agid, case):
+    from app import metadata_watcher as mw
+    path = _patch_aggregate_paths(mw, tmp_path, monkeypatch)
+    path.write_bytes(b"previous")
+    good = agid(_aggregate("https://idp.example"))
+    body = {
+        "unsigned": _aggregate("https://idp.example"),
+        "other_key": agid(_aggregate("https://idp.example"), signer=agid.other()),
+        "tampered": good.replace(b"https://idp.example", b"https://evil.example"),
+        # IdP non firmato aggiunto accanto al contenuto firmato
+        "wrapped": good.replace(b"</md:EntitiesDescriptor>", _md("https://evil.example").encode()
+                                + b"</md:EntitiesDescriptor>"),
+    }[case]
+    assert await _fetch(mw, body) is False
+    assert path.read_bytes() == b"previous"
+
+
+def test_pinned_agid_cert_loads():
+    from cryptography import x509
+    from app.saml_metadata import aggregate_signing_cert
+    import os
+    os.environ.pop("SPID_AGGREGATE_SIGNING_CERT", None)
+    cert = x509.load_pem_x509_certificate(aggregate_signing_cert().encode())
+    assert "AgID" in cert.subject.rfc4514_string()
 
 
 def test_check_idp_metadata_rules():
@@ -184,3 +265,50 @@ def test_check_idp_metadata_rules():
                 _md("https://a.example").replace("urn:oasis:names:tc:SAML:2.0:metadata", "urn:altro")]:
         with pytest.raises(InvalidMetadata):
             check_idp_metadata(bad)
+
+
+async def test_aggregate_status_tracks_ok_and_rejection(tmp_path, monkeypatch, agid):
+    from app import metadata_watcher as mw
+    _patch_aggregate_paths(mw, tmp_path, monkeypatch)
+    assert mw.aggregate_status() is None
+    assert await _fetch(mw, agid(_aggregate("https://idp.example"))) is True
+    ok = mw.aggregate_status()
+    assert ok["ok"] is True and ok["last_ok_at"] and ok["error"] is None
+
+    assert await _fetch(mw, _aggregate("https://idp.example", "https://altro.example")) is False
+    bad = mw.aggregate_status()
+    assert bad["ok"] is False and "firma AgID" in bad["error"]
+    assert bad["last_ok_at"] == ok["last_ok_at"]  # resta l'ultima verifica riuscita
+
+
+async def test_aggregate_status_on_download_error(tmp_path, monkeypatch):
+    from app import metadata_watcher as mw
+    _patch_aggregate_paths(mw, tmp_path, monkeypatch)
+    client = AsyncMock()
+    client.get = AsyncMock(side_effect=OSError("rete giù"))
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=None)
+    with patch("app.metadata_watcher.httpx.AsyncClient", return_value=client):
+        with pytest.raises(OSError):
+            await mw.fetch_spid_aggregate()
+    assert "download fallito" in mw.aggregate_status()["error"]
+
+
+def test_dashboard_alert_rules(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app import metadata_watcher as mw
+    from app.routes import dashboard as dash
+    now = datetime.now(timezone.utc)
+
+    def status(**s):
+        monkeypatch.setattr(mw, "aggregate_status", lambda: s or None)
+
+    status()
+    assert dash._aggregate_alert() is None
+    status(ok=True, last_ok_at=now.isoformat(), error=None)
+    assert dash._aggregate_alert() is None
+    status(ok=True, last_ok_at=(now - timedelta(days=5)).isoformat(), error=None)
+    assert dash._aggregate_alert()["days"] == 5
+    status(ok=False, last_ok_at=now.isoformat(), error="firma AgID non valida: InvalidSignature")
+    alert = dash._aggregate_alert()
+    assert alert["days"] == 0 and "firma AgID" in alert["error"]

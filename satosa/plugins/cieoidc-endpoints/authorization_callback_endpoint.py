@@ -2,6 +2,7 @@ import logging
 import json
 import inspect
 import os
+import re
 import time
 import urllib.parse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -369,7 +370,7 @@ class AuthorizationCallBackHandler(BaseEndpoint):
         except Exception as exc:
             logger.warning(f"Could not extract redirect_uri from context.state: {exc}")
 
-        _post_access_log("cie", _log_client_id, "failure", error[:64] if error else None)
+        _post_access_log("cie", _log_client_id, "failure", re.sub(r"[^A-Za-z0-9_.-]", "", error)[:64] or None)
 
         # ── 2. Redirect OIDC-conforme verso il client originante ─────────────────
         if client_redirect_uri:

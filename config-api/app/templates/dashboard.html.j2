@@ -23,6 +23,16 @@
 
 {% block content %}
 
+{% if aggregate_alert %}
+<div class="a-alert a-alert-danger" style="margin-bottom: 24px;">
+  <strong>Lista IdP SPID non aggiornata</strong>
+  {% if aggregate_alert.last_ok_at %}dal {{ aggregate_alert.last_ok_at }}{% if aggregate_alert.days is not none %} ({{ aggregate_alert.days }} giorni){% endif %}{% endif %}.
+  {% if aggregate_alert.error %}Ultimo aggregato del registro scartato: <code class="a-mono">{{ aggregate_alert.error }}</code>.{% endif %}
+  Il login SPID funziona con la lista precedente, ma i cambi di certificato degli IdP non arrivano.
+  Firma AgID non valida = probabile rinnovo del certificato AgID: aggiornare <code class="a-mono">config-api/app/certs/agid-spid-metadata.pem</code> (vedi CLAUDE.md).
+</div>
+{% endif %}
+
 {# ── Sezione 1: Stato sistema ────────────────────────────────────────────── #}
 <div class="a-stat-grid" style="margin-bottom: 24px;">
 

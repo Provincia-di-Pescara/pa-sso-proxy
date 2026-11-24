@@ -134,6 +134,15 @@ def _read_metadata_override():
         return None
 
 
+def access_log_error_code(message_key, err=None):
+    """Codice d'errore per access_log: chiave del messaggio + classe
+    dell'eccezione. Mai il testo dell'eccezione: i messaggi dei validatori
+    SAML possono contenere pezzi della risposta (NameID, attributi)."""
+    key = (message_key or "").removeprefix("error.")
+    cls = type(err).__name__ if err not in (None, "") and not isinstance(err, str) else ""
+    return (f"{key}:{cls}" if cls else key)[:64] or None
+
+
 def _post_access_log(provider_type, client_id, result, error_code=None):
     try:
         import json as _json
@@ -767,7 +776,7 @@ class SpidSAMLBackend(SAMLBackend):
             except Exception as exc:
                 logger.warning(f"Could not extract redirect_uri from context.state: {exc}")
 
-            _post_access_log("spid", _log_client_id, "failure", str(err)[:64] if err else None)
+            _post_access_log("spid", _log_client_id, "failure", access_log_error_code(message_key, err))
 
             if client_redirect_uri:
                 import json as _json

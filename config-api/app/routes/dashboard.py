@@ -110,6 +110,28 @@ async def _access_stats(db: AsyncSession) -> dict:
         return {"has_data": False, "recent": []}
 
 
+# Lista IdP SPID non aggiornata da più di così: avviso anche senza errore esplicito.
+AGGREGATE_STALE_DAYS = 3
+
+
+def _aggregate_alert() -> dict | None:
+    """Avviso se l'ultimo aggregato SPID è stato scartato o la lista IdP è vecchia."""
+    from app.metadata_watcher import aggregate_status
+    status = aggregate_status()
+    if not status:
+        return None
+    last_ok = status.get("last_ok_at")
+    days = None
+    if last_ok:
+        try:
+            days = (datetime.now(timezone.utc) - datetime.fromisoformat(last_ok)).days
+        except ValueError:
+            pass
+    if status.get("ok") and (days is None or days < AGGREGATE_STALE_DAYS):
+        return None
+    return {"error": status.get("error"), "last_ok_at": (last_ok or "")[:10] or None, "days": days}
+
+
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     user = request.session.get("user")
@@ -153,4 +175,5 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "cie_oidc_client_id": cie_oidc_client_id,
         "access": access,
         "client_name_map": client_name_map,
+        "aggregate_alert": _aggregate_alert(),
     })

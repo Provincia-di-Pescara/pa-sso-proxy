@@ -621,3 +621,13 @@ def test_assertion_ids_from_pysaml2_shapes():
     assert _assertion_ids(SimpleNamespace(assertions=[a1, a2])) == ["_a1", "_a2"]
     assert _assertion_ids(SimpleNamespace(assertions=[], assertion=a1)) == ["_a1"]
     assert _assertion_ids(SimpleNamespace()) == []
+
+
+def test_access_log_error_code_never_contains_exception_text():
+    from backends.spidsaml2 import access_log_error_code
+    err = ValueError("NameID RSSMRA80A01H501U non valido")
+    code = access_log_error_code("error.spid.process_anomaly", err)
+    assert code == "spid.process_anomaly:ValueError"
+    assert "RSSMRA" not in code
+    assert access_log_error_code("error.spid.x", "testo libero RSSMRA") == "spid.x"
+    assert access_log_error_code("error." + "k" * 100, None) == ("k" * 64)

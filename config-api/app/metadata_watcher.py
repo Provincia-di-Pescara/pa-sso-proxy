@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -11,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AccessLog, AccessStatsMonthly, SpidIdP
-from app.saml_metadata import InvalidMetadata, check_idp_metadata
+from app.saml_metadata import InvalidMetadata, check_idp_metadata, verify_aggregate_signature
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_seeder import sync_spid_idps_from_registry
@@ -24,26 +25,68 @@ SPID_AGGREGATE_PATH = os.path.join(_SATOSA_CONF_DIR, "spid-entities-idps.xml")
 _AGGREGATE_HASH_PATH = os.path.join(_SATOSA_CONF_DIR, ".spid-aggregate-hash")
 
 
+_AGGREGATE_STATUS_PATH = os.path.join(_SATOSA_CONF_DIR, ".spid-aggregate-status.json")
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def aggregate_status() -> dict | None:
+    """Esito dell'ultimo controllo dell'aggregato (per la dashboard)."""
+    try:
+        return json.loads(Path(_AGGREGATE_STATUS_PATH).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _save_aggregate_status(ok: bool, error: str | None = None) -> None:
+    previous = aggregate_status() or {}
+    status = {
+        "ok": ok,
+        "checked_at": _now_iso(),
+        # Ultima volta in cui la lista IdP è risultata aggiornata e verificata.
+        "last_ok_at": _now_iso() if ok else previous.get("last_ok_at"),
+        "error": None if ok else (error or "")[:300],
+    }
+    try:
+        tmp = _AGGREGATE_STATUS_PATH + ".tmp"
+        Path(tmp).write_text(json.dumps(status), encoding="utf-8")
+        os.replace(tmp, _AGGREGATE_STATUS_PATH)
+    except OSError:
+        logger.warning("Stato aggregato SPID non salvato", exc_info=True)
+
+
 async def fetch_spid_aggregate() -> bool:
     """Download SPID aggregate metadata XML. Returns True if content changed and file was written."""
-    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-        resp = await client.get(SPID_AGGREGATE_URL)
-        resp.raise_for_status()
+    try:
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            resp = await client.get(SPID_AGGREGATE_URL)
+            resp.raise_for_status()
+    except Exception as exc:
+        _save_aggregate_status(False, f"download fallito: {type(exc).__name__}: {exc}")
+        raise
     content = resp.content
     new_hash = hashlib.sha256(content).hexdigest()
     old_hash = Path(_AGGREGATE_HASH_PATH).read_text().strip() if Path(_AGGREGATE_HASH_PATH).exists() else ""
     if new_hash == old_hash:
+        _save_aggregate_status(True)
         return False
     try:
-        count = check_idp_metadata(content)
+        signed = verify_aggregate_signature(content)
+        count = check_idp_metadata(signed)
     except InvalidMetadata as exc:
-        # Resta il file precedente: meglio IdP di ieri che SPID (o SATOSA) giù.
+        # Resta il file precedente: meglio IdP di ieri che SPID (o SATOSA) giù,
+        # o IdP non firmati da AgID. Banner in dashboard da aggregate_status().
         logger.error("SPID aggregate scartato, file precedente mantenuto: %s", exc)
+        _save_aggregate_status(False, str(exc))
         return False
     tmp = SPID_AGGREGATE_PATH + ".tmp"
-    Path(tmp).write_bytes(content)
+    # Si scrive solo ciò che la firma copre (non il documento scaricato).
+    Path(tmp).write_bytes(signed)
     os.replace(tmp, SPID_AGGREGATE_PATH)
     Path(_AGGREGATE_HASH_PATH).write_text(new_hash)
+    _save_aggregate_status(True)
     logger.info("SPID aggregate: %d IdP", count)
     logger.info("SPID aggregate metadata updated (hash %s)", new_hash[:12])
     return True
@@ -51,6 +94,8 @@ async def fetch_spid_aggregate() -> bool:
 
 async def fetch_idp_metadata(db: AsyncSession, idp: SpidIdP) -> bool:
     """Fetch metadata XML for one IdP. Returns True if content changed and DB was updated."""
+    if not (idp.metadata_url or "").lower().startswith(("https://", "http://")):
+        raise ValueError(f"schema URL non ammesso per {idp.alias}")
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         resp = await client.get(idp.metadata_url)
         resp.raise_for_status()
