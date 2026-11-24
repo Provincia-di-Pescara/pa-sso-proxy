@@ -127,6 +127,8 @@ Il backend CIE OIDC usa 3 JWK separati: `jwk-federation` (firma entity configura
 
 **Callback CIE monouso** (port di iam-proxy-italia v3.4.0, che da noi non arriva perché `authorization_callback_endpoint.py` è un override): la sessione legata a `state` è consumata PRIMA di riscattare il `code` (`consume_session`, in `redis_storage.py` atomico con marker `cie:used:<state>` SET NX); un secondo callback con lo stesso `state` → `Authorization already used`, nessuna richiesta al token endpoint. Upstream cambia questi file? Riportare le modifiche a mano negli override.
 
+**id_token CIE validato oltre la firma** (`validate_id_token_claims` nel callback): `iss` (= `issuer` dell'OP o entity ID della trust chain, slash finale tollerato), `aud` contiene il client (+ `azp` se più audience), `exp`/`iat` con 120 s di tolleranza, `nonce` = quello salvato in sessione all'authorization. Prima solo firma + `at_hash`. Login CIE rotto dopo un aggiornamento dell'OP con log "id_token rifiutato: ..." = guardare il motivo, non togliere il controllo.
+
 **Istanza di riferimento funzionante:** `https://pagopa-prx.comune.montesilvano.pe.it/` (govpay-interaction-layer Comune di Montesilvano). Per debug confrontare `/.well-known/openid-federation` con quella istanza.
 
 ### eIDAS
@@ -152,6 +154,9 @@ Discovery, pagina di errore e messaggi dei backend in `it/en/fr/de/es`. Fonte un
 **Nuova stringa = chiave in tutti e 5 i JSON**: `satosa/tests/test_i18n_catalog.py` (job host di satosa-tests.yml, skip nel container) fallisce su chiavi mancanti, placeholder diversi, markup fuori da chiavi `_html`, chiavi usate in disco/plugin/template ma assenti. `handle_error` prende `message_key`/`troubleshoot_key`, non testo; dettagli tecnici in `detail` (non tradotti, mostrati come codice errore). `lang_context=` risolve la lingua senza fare redirect al client (usato dal blocco persona giuridica).
 
 `eid-<lang>.json` (config-api) = solo dati ente/URL, identici nelle 5 lingue; servito da `--static-map /static/locales=/satosa-conf/locales`. `/verifica` e WebUI admin restano solo in italiano.
+
+### Anti-replay assertion SPID
+`allow_unsolicited: True` (i worker uWSGI non condividono `outstanding_queries`), quindi InResponseTo + state non bastano contro il riuso di Response + cookie catturati. Dopo `Saml2ResponseValidator.run()` `spidsaml2.mark_assertions_used` registra gli ID delle assertion (`spid:used:<sha256(issuer|id)>`, SET NX, TTL 24 h) su Redis **DB 2** (`replay_cache_url` nel backend; DB 0 = CIE, 1 = frontend OIDC). Riuso → pagina d'errore. Redis giù → login rifiutato (fail closed: Redis serve comunque al frontend OIDC).
 
 ### Storico certificati e metadata SPID/eIDAS
 `SpidCert.is_active` (un solo `True` alla volta, applicativo non DB) sostituisce la selezione "ultimo per data" in tutti i punti che leggono il cert attivo (`idps.py`, `dashboard.py`, `eidas.py`, `backup.py`). Storico consultabile in `/admin/certs`: export cert/chiave, riattivazione, eliminazione dei non-attivi.

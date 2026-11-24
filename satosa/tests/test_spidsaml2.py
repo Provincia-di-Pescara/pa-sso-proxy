@@ -571,3 +571,53 @@ def test_metadata_prefixes_restore_md_and_ds():
     assert "<md:EntityDescriptor" in text
     assert "<ds:Signature" in text
     assert "ns0:" not in text
+
+
+# --- anti-replay assertion SPID -----------------------------------------------
+
+class _FakeRedis:
+    def __init__(self):
+        self.store = {}
+
+    def set(self, key, value, nx=False, ex=None):
+        if nx and key in self.store:
+            return None
+        self.store[key] = (value, ex)
+        return True
+
+
+def test_mark_assertions_used_first_ok_then_replay_rejected():
+    from backends.spidsaml2 import AssertionReplayError, mark_assertions_used
+    r = _FakeRedis()
+    mark_assertions_used(r, "https://idp.example", ["_a1"])
+    with pytest.raises(AssertionReplayError):
+        mark_assertions_used(r, "https://idp.example", ["_a1"])
+    # stesso ID da un altro IdP: chiave diversa
+    mark_assertions_used(r, "https://altro-idp.example", ["_a1"])
+    assert all(ex == 24 * 3600 for _, ex in r.store.values())
+
+
+def test_mark_assertions_used_without_ids_rejected():
+    from backends.spidsaml2 import AssertionReplayError, mark_assertions_used
+    with pytest.raises(AssertionReplayError):
+        mark_assertions_used(_FakeRedis(), "https://idp.example", [])
+
+
+def test_mark_assertions_used_propagates_redis_errors():
+    from backends.spidsaml2 import mark_assertions_used
+
+    class _Down:
+        def set(self, *a, **k):
+            raise ConnectionError("redis down")
+
+    with pytest.raises(ConnectionError):
+        mark_assertions_used(_Down(), "https://idp.example", ["_a1"])
+
+
+def test_assertion_ids_from_pysaml2_shapes():
+    from types import SimpleNamespace
+    from backends.spidsaml2 import _assertion_ids
+    a1, a2 = SimpleNamespace(id="_a1"), SimpleNamespace(id="_a2")
+    assert _assertion_ids(SimpleNamespace(assertions=[a1, a2])) == ["_a1", "_a2"]
+    assert _assertion_ids(SimpleNamespace(assertions=[], assertion=a1)) == ["_a1"]
+    assert _assertion_ids(SimpleNamespace()) == []

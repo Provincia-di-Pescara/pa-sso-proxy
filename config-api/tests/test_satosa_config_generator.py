@@ -597,3 +597,23 @@ async def test_generator_ficep_and_test_idp_clients(db_session, tmp_path, monkey
         "https://sp-proxy.pre.eid.gov.it/spproxy/idpit",
     ]
     assert sp_config["ficep_enable"] is False
+
+
+def test_redis_db_url_keeps_host_and_credentials(monkeypatch):
+    from app.satosa_config_generator import _redis_db_url
+    monkeypatch.setenv("REDIS_URL", "redis://:pw@redis:6379/0")
+    assert _redis_db_url(2) == "redis://:pw@redis:6379/2"
+    monkeypatch.setenv("REDIS_URL", "rediss://cache.example:6380")
+    assert _redis_db_url(1) == "rediss://cache.example:6380/1"
+
+
+async def test_spid_backend_has_replay_cache_on_own_db(full_db, tmp_path, monkeypatch):
+    """Anti-replay SPID su Redis DB 2: 0 = CIE, 1 = frontend OIDC."""
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+    monkeypatch.setenv("REDIS_URL", "redis://redis:6379/0")
+    from app.satosa_config_generator import generate_satosa_config
+    await generate_satosa_config(full_db)
+    spid = yaml.safe_load((tmp_path / "spid_backend.yaml").read_text())
+    oidc = yaml.safe_load((tmp_path / "oidc_frontend.yaml").read_text())
+    assert spid["config"]["replay_cache_url"] == "redis://redis:6379/2"
+    assert oidc["config"]["db_uri"] == "redis://redis:6379/1"

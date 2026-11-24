@@ -6,7 +6,17 @@ from satosa.exception import SATOSAAuthenticationError, SATOSABadRequestError
 
 from backends.cieoidc.endpoints.authorization_callback_endpoint import (
     AuthorizationCallBackHandler,
+    validate_id_token_claims,
 )
+
+# Claim id_token coerenti con la sessione della fixture mock_db_engine.
+VALID_ID_TOKEN = {
+    "iss": "http://cie-provider.example.org:8002/oidc/op",
+    "aud": "client123",
+    "exp": 4102444800,  # 2100-01-01
+    "iat": 1700000000,
+    "nonce": "n0",
+}
 from backends.cieoidc.utils.exceptions import StorageUnreachable
 
 
@@ -23,7 +33,7 @@ def mock_db_engine():
                     "state": "dummy_state",
                     "provider_id": "http://cie-provider.example.org:8002/oidc/op",
                     "client_id": "client123",
-                    "data": '{"redirect_uri":"http://iam-proxy-italia.example.org/cb"}',
+                    "data": '{"redirect_uri":"http://iam-proxy-italia.example.org/cb","nonce":"n0"}',
                     "provider_configuration": {
                         "openid_provider": {
                             "token_endpoint": "http://cie-provider.example.org/op/token"
@@ -301,7 +311,7 @@ def test_endpoint_raises_when_userinfo_empty(handler):
         "backends.cieoidc.endpoints.authorization_callback_endpoint.verify_jws", return_value=True
     ), patch(
         "backends.cieoidc.endpoints.authorization_callback_endpoint.unpad_jwt_payload",
-        return_value={"sub": "user123", "at_hash": "x"},
+        return_value={"sub": "user123", "at_hash": "x", **VALID_ID_TOKEN},
     ), patch(
         "backends.cieoidc.endpoints.authorization_callback_endpoint.verify_at_hash", return_value=True
     ), patch(
@@ -329,7 +339,7 @@ def test_endpoint_raises_when_no_user_attrs_processed(handler):
         "backends.cieoidc.endpoints.authorization_callback_endpoint.verify_jws", return_value=True
     ), patch(
         "backends.cieoidc.endpoints.authorization_callback_endpoint.unpad_jwt_payload",
-        return_value={"sub": "user123", "at_hash": "x"},
+        return_value={"sub": "user123", "at_hash": "x", **VALID_ID_TOKEN},
     ), patch(
         "backends.cieoidc.endpoints.authorization_callback_endpoint.verify_at_hash", return_value=True
     ), patch(
@@ -376,7 +386,7 @@ def test_endpoint_happy_path_calls_auth_callback(handler):
         "backends.cieoidc.endpoints.authorization_callback_endpoint.verify_jws", return_value=True
     ), patch(
         "backends.cieoidc.endpoints.authorization_callback_endpoint.unpad_jwt_payload",
-        return_value={"sub": "user123", "at_hash": "dummy"},
+        return_value={"sub": "user123", "at_hash": "dummy", **VALID_ID_TOKEN},
     ), patch(
         "backends.cieoidc.endpoints.authorization_callback_endpoint.verify_at_hash"
     ), patch(
@@ -527,3 +537,87 @@ def test_endpoint_without_satosa_state_renders_proxy_error_page(handler):
     mock_token.assert_not_called()
     mock_log.assert_called_once_with("cie", None, "failure", "state_lost")
     handler._auth_callback.assert_not_called()
+
+
+# --- validate_id_token_claims (OIDC Core 3.1.3.7) ------------------------------
+
+_AUTHZ = {
+    "provider_id": "https://op.example.it",
+    "client_id": "https://rp.example.it/CieOidcRp",
+    "provider_configuration": {"openid_provider": {"issuer": "https://op.example.it/"}},
+}
+_DATA = {"nonce": "n-123"}
+_NOW = 1_800_000_000
+
+
+def _claims(**over):
+    c = {"iss": "https://op.example.it", "aud": "https://rp.example.it/CieOidcRp",
+         "exp": _NOW + 300, "iat": _NOW - 5, "nonce": "n-123", "sub": "x"}
+    c.update(over)
+    return {k: v for k, v in c.items() if v is not None}
+
+
+def test_id_token_claims_valid():
+    validate_id_token_claims(_claims(), _AUTHZ, _DATA, now=_NOW)
+    validate_id_token_claims(_claims(iss="https://op.example.it/"), _AUTHZ, _DATA, now=_NOW)
+    validate_id_token_claims(_claims(aud=["https://rp.example.it/CieOidcRp"]), _AUTHZ, _DATA, now=_NOW)
+    validate_id_token_claims(_claims(exp=_NOW - 60), _AUTHZ, _DATA, now=_NOW)  # entro leeway
+
+
+@pytest.mark.parametrize("over,reason", [
+    ({"iss": "https://evil.example"}, "iss"),
+    ({"iss": None}, "iss"),
+    ({"aud": "https://altro-rp.example"}, "aud"),
+    ({"aud": None}, "aud"),
+    ({"aud": ["https://rp.example.it/CieOidcRp", "https://altro"]}, "azp"),
+    ({"exp": _NOW - 3600}, "scaduto"),
+    ({"exp": None}, "exp"),
+    ({"exp": "9999999999"}, "exp"),
+    ({"iat": _NOW + 3600}, "iat"),
+    ({"nonce": "altro"}, "nonce"),
+    ({"nonce": None}, "nonce"),
+])
+def test_id_token_claims_rejected(over, reason):
+    with pytest.raises(ValueError, match=reason):
+        validate_id_token_claims(_claims(**over), _AUTHZ, _DATA, now=_NOW)
+
+
+def test_id_token_claims_multi_aud_with_azp_ok():
+    validate_id_token_claims(
+        _claims(aud=["https://rp.example.it/CieOidcRp", "https://altro"], azp="https://rp.example.it/CieOidcRp"),
+        _AUTHZ, _DATA, now=_NOW,
+    )
+
+
+def test_id_token_claims_missing_stored_nonce_rejected():
+    with pytest.raises(ValueError, match="nonce"):
+        validate_id_token_claims(_claims(), _AUTHZ, {}, now=_NOW)
+
+
+def test_endpoint_rejects_id_token_with_wrong_nonce(handler):
+    context = Context()
+    context.state = MagicMock()
+    context.qs_params = {
+        "state": "dummy_state", "code": "code", "iss": "http://cie-provider.example.org:8002/oidc/op"
+    }
+    with patch(
+        "backends.cieoidc.utils.clients.oauth2.OAuth2AuthorizationCodeGrant.access_token_request",
+        return_value={"access_token": "a", "id_token": "b", "token_type": "Bearer", "expires_in": 1},
+    ), patch(
+        "backends.cieoidc.endpoints.authorization_callback_endpoint.get_jwks", return_value={"keys": []}
+    ), patch(
+        "backends.cieoidc.endpoints.authorization_callback_endpoint.get_jwk_from_jwt",
+        return_value={"kid": "k"},
+    ), patch(
+        "backends.cieoidc.endpoints.authorization_callback_endpoint.verify_jws", return_value=True
+    ), patch(
+        "backends.cieoidc.endpoints.authorization_callback_endpoint.unpad_jwt_payload",
+        return_value={"sub": "user123", "at_hash": "x", **{**VALID_ID_TOKEN, "nonce": "altro"}},
+    ), patch(
+        "backends.cieoidc.endpoints.authorization_callback_endpoint.verify_at_hash", return_value=True
+    ), patch(
+        "backends.cieoidc.utils.clients.oidc.OidcUserInfo.get_userinfo"
+    ) as userinfo:
+        with pytest.raises(SATOSAAuthenticationError):
+            handler.endpoint(context)
+        userinfo.assert_not_called()

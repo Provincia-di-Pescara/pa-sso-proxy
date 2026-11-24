@@ -28,6 +28,36 @@ from .spidsaml2_validator import Saml2ResponseValidator
 
 logger = logging.getLogger(__name__)
 
+# Anti-replay delle assertion SPID (Regole tecniche SPID: una Response/
+# Assertion già usata va rifiutata). allow_unsolicited è True (più worker
+# uWSGI non condividono outstanding_queries), quindi InResponseTo + state
+# da soli non fermano il riuso di una coppia Response + cookie catturata.
+# Stesso schema del callback CIE monouso: SET NX su Redis.
+REPLAY_TTL_SECONDS = 24 * 3600
+
+
+class AssertionReplayError(Exception):
+    pass
+
+
+def _assertion_ids(authn_response):
+    """ID delle assertion della risposta (pysaml2: .assertions o .assertion)."""
+    assertions = getattr(authn_response, "assertions", None) or []
+    if not assertions and getattr(authn_response, "assertion", None) is not None:
+        assertions = [authn_response.assertion]
+    return [a.id for a in assertions if getattr(a, "id", None)]
+
+
+def mark_assertions_used(client, issuer, assertion_ids, ttl=REPLAY_TTL_SECONDS):
+    """Registra gli ID (SET NX). AssertionReplayError se uno era già usato o
+    se non c'è nessun ID; errori Redis propagati (fail closed)."""
+    if not assertion_ids:
+        raise AssertionReplayError("Response senza Assertion ID")
+    for assertion_id in assertion_ids:
+        digest = hashlib.sha256(f"{issuer}|{assertion_id}".encode("utf-8")).hexdigest()
+        if not client.set(f"spid:used:{digest}", b"1", nx=True, ex=ttl):
+            raise AssertionReplayError(f"Assertion già usata: {assertion_id}")
+
 
 def _redact_pii_xml(raw_b64):
     """
@@ -783,6 +813,14 @@ class SpidSAMLBackend(SAMLBackend):
         return self.handle_error(**SPID_ANOMALIES[int(err_number)], err=err, context=context)
 
 
+    def _replay_client(self, url):
+        client = getattr(self, "_replay_redis", None)
+        if client is None:
+            import redis
+            client = redis.from_url(url, socket_timeout=3, socket_connect_timeout=3)
+            self._replay_redis = client
+        return client
+
     def authn_response(self, context, binding):
         logger.debug(
             f"Entering method: {inspect.getframeinfo(inspect.currentframe()).function}. "
@@ -925,6 +963,25 @@ class SpidSAMLBackend(SAMLBackend):
             return self.handle_error(
                 err=e, detail=str(e), troubleshoot_key="error.spid.troubleshoot.validation", context=context
             )
+
+        replay_url = self.config.get("replay_cache_url")
+        if replay_url:
+            try:
+                mark_assertions_used(
+                    self._replay_client(replay_url), issuer, _assertion_ids(authn_response)
+                )
+            except AssertionReplayError as e:
+                logger.warning("SPID replay rifiutato (issuer %s): %s", issuer, e)
+                return self.handle_error(
+                    err=e, detail=str(e), troubleshoot_key="error.spid.troubleshoot.validation", context=context
+                )
+            except Exception as e:
+                # Fail closed: senza registro anti-replay la risposta non si accetta.
+                logger.error("Registro anti-replay SPID non disponibile: %s", e)
+                return self.handle_error(
+                    err=e, detail="replay cache unavailable",
+                    troubleshoot_key="error.spid.troubleshoot.validation", context=context,
+                )
 
         context.decorate(Context.KEY_BACKEND_METADATA_STORE, self.sp.metadata)
         if self.config.get(SAMLBackend.KEY_MEMORIZE_IDP):
