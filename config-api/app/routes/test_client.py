@@ -179,7 +179,6 @@ async def test_client_start(request: Request, db: AsyncSession = Depends(get_db)
                 "given_name": None,
                 "family_name": None,
                 "email": None,
-                "https://attributes.eid.gov.it/fiscal_number": {"essential": True},
             }
         }),
     })
