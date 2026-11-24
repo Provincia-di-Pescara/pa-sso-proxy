@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AccessLog, AccessStatsMonthly, SpidIdP
+from app.saml_metadata import InvalidMetadata, check_idp_metadata
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_seeder import sync_spid_idps_from_registry
@@ -33,8 +34,17 @@ async def fetch_spid_aggregate() -> bool:
     old_hash = Path(_AGGREGATE_HASH_PATH).read_text().strip() if Path(_AGGREGATE_HASH_PATH).exists() else ""
     if new_hash == old_hash:
         return False
-    Path(SPID_AGGREGATE_PATH).write_bytes(content)
+    try:
+        count = check_idp_metadata(content)
+    except InvalidMetadata as exc:
+        # Resta il file precedente: meglio IdP di ieri che SPID (o SATOSA) giù.
+        logger.error("SPID aggregate scartato, file precedente mantenuto: %s", exc)
+        return False
+    tmp = SPID_AGGREGATE_PATH + ".tmp"
+    Path(tmp).write_bytes(content)
+    os.replace(tmp, SPID_AGGREGATE_PATH)
     Path(_AGGREGATE_HASH_PATH).write_text(new_hash)
+    logger.info("SPID aggregate: %d IdP", count)
     logger.info("SPID aggregate metadata updated (hash %s)", new_hash[:12])
     return True
 
@@ -47,6 +57,11 @@ async def fetch_idp_metadata(db: AsyncSession, idp: SpidIdP) -> bool:
     content = resp.text
     new_hash = hashlib.sha256(content.encode()).hexdigest()
     if new_hash == idp.metadata_hash:
+        return False
+    try:
+        check_idp_metadata(content)
+    except InvalidMetadata as exc:
+        logger.error("Metadata %s scartato, cache precedente mantenuta: %s", idp.alias, exc)
         return False
     idp.metadata_cache = content
     idp.metadata_hash = new_hash

@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidIdP
+from app.saml_metadata import MAX_METADATA_BYTES, InvalidMetadata, check_idp_metadata
 from app.spid_seeder import EIDAS_ENTITY_IDS, FICEP_ENTITY_IDS
 from app.url_validation import valid_public_url
 from app.version import get_display_version
@@ -192,7 +193,7 @@ def _download_metadata(url: str) -> bytes:
     ctx = ssl.create_default_context()
     req = urllib.request.Request(url, headers={"User-Agent": "config-api/1.0"})
     with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
-        return resp.read()
+        return resp.read(MAX_METADATA_BYTES + 1)
 
 
 def _write_atomic(path: str, data: bytes) -> None:
@@ -200,6 +201,15 @@ def _write_atomic(path: str, data: bytes) -> None:
     with open(tmp, "wb") as f:
         f.write(data)
     os.replace(tmp, path)
+
+
+def _metadata_ok(content: str, alias: str) -> bool:
+    try:
+        check_idp_metadata(content)
+        return True
+    except InvalidMetadata as exc:
+        logger.warning("metadata_cache di %s non valido, ignorato: %s", alias, exc)
+        return False
 
 
 async def _ensure_remote_metadata(conf_dir: str, idps: list) -> None:
@@ -224,7 +234,7 @@ async def _ensure_remote_metadata(conf_dir: str, idps: list) -> None:
         marker = dest + ".url"
 
         cache = getattr(idp, "metadata_cache", None) or ""
-        if "EntityDescriptor" in cache:
+        if cache and _metadata_ok(cache, alias):
             data = cache.encode("utf-8")
             current = open(dest, "rb").read() if os.path.exists(dest) else None
             if current != data:
@@ -239,6 +249,7 @@ async def _ensure_remote_metadata(conf_dir: str, idps: list) -> None:
 
         try:
             data = await asyncio.to_thread(_download_metadata, url)
+            check_idp_metadata(data)
             _write_atomic(dest, data)
             _write_atomic(marker, url.encode("utf-8"))
             logger.info("remote metadata downloaded: %s <- %s", alias, url)

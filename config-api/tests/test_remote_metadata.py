@@ -8,8 +8,11 @@ from types import SimpleNamespace
 
 from app import satosa_config_generator as gen
 
-META_A = '<?xml version="1.0"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="A"/>'
-META_B = '<?xml version="1.0"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="B"/>'
+IDP_SSO = ('<md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><md:KeyDescriptor use="signing"><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>MIIB</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor></md:IDPSSODescriptor>')
+META_A = ('<?xml version="1.0"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="A">'
+          + IDP_SSO + '</md:EntityDescriptor>')
+META_B = ('<?xml version="1.0"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="B">'
+          + IDP_SSO + '</md:EntityDescriptor>')
 
 
 def _idp(url="https://demo.example/metadata.xml", cache=None, alias="spid-demo"):
@@ -78,4 +81,15 @@ async def test_invalid_cache_is_ignored(tmp_path, monkeypatch):
     calls = _fake_download(monkeypatch, META_A)
     await gen._ensure_remote_metadata(str(tmp_path), [_idp(cache="<html>errore</html>")])
     assert calls == ["https://demo.example/metadata.xml"]
+    assert _dest(tmp_path).read_text() == META_A
+
+
+async def test_invalid_cache_and_download_never_reach_satosa(tmp_path, monkeypatch):
+    """Cache in DB non valida ignorata; download non valido: resta il file precedente."""
+    _fake_download(monkeypatch, "<html>Manutenzione</html>")
+    _dest(tmp_path).parent.mkdir()
+    _dest(tmp_path).write_text(META_A)
+    await gen._ensure_remote_metadata(
+        str(tmp_path), [_idp(url="https://nuovo.example/md", cache="<EntityDescriptor>troncato")]
+    )
     assert _dest(tmp_path).read_text() == META_A
