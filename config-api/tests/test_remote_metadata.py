@@ -93,3 +93,10 @@ async def test_invalid_cache_and_download_never_reach_satosa(tmp_path, monkeypat
         str(tmp_path), [_idp(url="https://nuovo.example/md", cache="<EntityDescriptor>troncato")]
     )
     assert _dest(tmp_path).read_text() == META_A
+
+
+def test_download_metadata_rejects_non_http_schemes():
+    import pytest
+    for url in ["file:///etc/passwd", "ftp://x/y", "data:,x"]:
+        with pytest.raises(ValueError):
+            gen._download_metadata(url)

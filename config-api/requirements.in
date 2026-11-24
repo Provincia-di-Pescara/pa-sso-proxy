@@ -16,6 +16,8 @@ apscheduler==3.11.3
 PyYAML==6.0.3
 sentry-sdk[fastapi]==2.75.0
 defusedxml==0.7.1
+# Firma XML del metadata aggregato SPID (verifica col certificato AgID pinnato).
+signxml==5.3.1
 pyotp==2.10.0
 segno==1.6.6
 

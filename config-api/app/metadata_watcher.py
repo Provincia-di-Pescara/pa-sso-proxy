@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AccessLog, AccessStatsMonthly, SpidIdP
-from app.saml_metadata import InvalidMetadata, check_idp_metadata
+from app.saml_metadata import InvalidMetadata, check_idp_metadata, verify_aggregate_signature
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_seeder import sync_spid_idps_from_registry
@@ -35,13 +35,16 @@ async def fetch_spid_aggregate() -> bool:
     if new_hash == old_hash:
         return False
     try:
-        count = check_idp_metadata(content)
+        signed = verify_aggregate_signature(content)
+        count = check_idp_metadata(signed)
     except InvalidMetadata as exc:
-        # Resta il file precedente: meglio IdP di ieri che SPID (o SATOSA) giù.
+        # Resta il file precedente: meglio IdP di ieri che SPID (o SATOSA) giù,
+        # o IdP non firmati da AgID.
         logger.error("SPID aggregate scartato, file precedente mantenuto: %s", exc)
         return False
     tmp = SPID_AGGREGATE_PATH + ".tmp"
-    Path(tmp).write_bytes(content)
+    # Si scrive solo ciò che la firma copre (non il documento scaricato).
+    Path(tmp).write_bytes(signed)
     os.replace(tmp, SPID_AGGREGATE_PATH)
     Path(_AGGREGATE_HASH_PATH).write_text(new_hash)
     logger.info("SPID aggregate: %d IdP", count)
@@ -51,6 +54,8 @@ async def fetch_spid_aggregate() -> bool:
 
 async def fetch_idp_metadata(db: AsyncSession, idp: SpidIdP) -> bool:
     """Fetch metadata XML for one IdP. Returns True if content changed and DB was updated."""
+    if not (idp.metadata_url or "").lower().startswith(("https://", "http://")):
+        raise ValueError(f"schema URL non ammesso per {idp.alias}")
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         resp = await client.get(idp.metadata_url)
         resp.raise_for_status()
