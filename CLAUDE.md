@@ -70,6 +70,8 @@ Il reload avviene toccando `/satosa-conf/.reload` (volume condiviso) → uWSGI `
 
 Reload graceful uWSGI: zero downtime (worker swap in-flight).
 
+**Metadata scaricati validati prima dell'uso** (`app/saml_metadata.py`, `check_idp_metadata`: defusedxml, radice `md:Entit(y|ies)Descriptor`, almeno un `IDPSSODescriptor` con certificato, max 20 MB): aggregato, fetch per IdP, cache DB e download diretto nel generatore. Non valido → resta la versione precedente (log ERROR). Motivo: XML troncato = `SAMLError` all'avvio del backend → giù tutto SATOSA (anche CIE); pagina HTML con 200 = 0 IdP SPID. Firma XML dell'aggregato AgID NON verificata (fiducia nel TLS del registro).
+
 ## Variabili d'ambiente chiave
 
 Tutte in `.env` (vedi `.env.example`). Le variabili sono passate dal compose a satosa e config-api.
