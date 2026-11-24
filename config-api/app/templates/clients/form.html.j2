@@ -26,7 +26,7 @@
         <label class="a-check-chip {% if scope in current_scopes %}selected{% endif %}">
           <input type="checkbox" name="scopes" value="{{ scope }}"
                  {% if scope in current_scopes %}checked{% endif %}
-                 onchange="this.closest('.a-check-chip').classList.toggle('selected', this.checked)">
+                 data-chip-toggle>
           {{ scope }}
         </label>
         {% endfor %}

@@ -35,19 +35,23 @@ server {
     set $satosa_upstream http://satosa:8080;
 
     # Admin UI → config-api.
-    # CSP: i template admin usano ancora handler inline (onclick/onsubmit), da
-    # qui 'unsafe-inline' sugli script; il resto (connect/form/base/frame)
-    # impedisce di esfiltrare dati verso altre origini anche in caso di XSS.
+    # CSP: script solo da file dell'origine (/admin/static/js/admin.js), nessun
+    # JS inline nei template (test_csp_templates.py lo verifica): markup
+    # iniettato non esegue codice. 'unsafe-inline' resta solo sugli stili
+    # (attributi style nei template, non eseguono codice); connect/form/base/frame
+    # impediscono di esfiltrare dati verso altre origini.
     # img-src https: per i loghi di ente e IdP (domini esterni).
     location ^~ /admin {
         include /etc/nginx/conf.d/admin-access.inc;
         proxy_pass $config_api_upstream;
-        proxy_set_header Host $host;
+        # $http_host (con porta), non $host: config-api confronta Origin con Host
+        # (CSRF) e su una porta non standard $host la perde → login rifiutato.
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         include /etc/nginx/snippets/security-headers.conf;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
         add_header Cache-Control "no-store" always;
     }
 
@@ -56,12 +60,14 @@ server {
         limit_req zone=admin_login burst=10 nodelay;
         include /etc/nginx/conf.d/admin-access.inc;
         proxy_pass $config_api_upstream;
-        proxy_set_header Host $host;
+        # $http_host (con porta), non $host: config-api confronta Origin con Host
+        # (CSRF) e su una porta non standard $host la perde → login rifiutato.
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         include /etc/nginx/snippets/security-headers.conf;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
         add_header Cache-Control "no-store" always;
     }
 
@@ -91,6 +97,7 @@ server {
     }
 
     # Pagina pubblica verifica SPID (attiva solo con validator/demo IdP)
+    # Font serviti da config-api (/verifica/static/fonts): nessuna richiesta a Google.
     location /verifica {
         limit_req zone=sso burst=200 nodelay;
         proxy_pass $config_api_upstream;
@@ -99,7 +106,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         include /etc/nginx/snippets/security-headers.conf;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'" always;
     }
 
     # SATOSA OIDC/SAML endpoints.

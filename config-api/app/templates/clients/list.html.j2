@@ -31,13 +31,13 @@
           <td>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <a href="/admin/clients/{{ c.id }}/edit" class="a-btn a-btn-secondary a-btn-sm">Modifica</a>
-              <button type="button" class="a-btn a-btn-secondary a-btn-sm" onclick="copyText('{{ c.client_id }}', this)">Copia ID</button>
-              <button type="button" class="a-btn a-btn-secondary a-btn-sm" onclick="copyText('{{ c.client_secret_plain if c.client_secret_plain else '' }}', this)">Copia Secret</button>
+              <button type="button" class="a-btn a-btn-secondary a-btn-sm" data-copy="{{ c.client_id }}">Copia ID</button>
+              <button type="button" class="a-btn a-btn-secondary a-btn-sm" data-copy="{{ c.client_secret_plain or '' }}">Copia Secret</button>
               <form method="post" action="/admin/clients/{{ c.id }}/toggle" style="display:inline;">
                 <button class="a-btn a-btn-neutral a-btn-sm">{% if c.enabled %}Disabilita{% else %}Abilita{% endif %}</button>
               </form>
               <form method="post" action="/admin/clients/{{ c.id }}/delete" style="display:inline;"
-                    onsubmit="return confirm('Eliminare {{ c.name }}?')">
+                    data-confirm="Eliminare {{ c.name }}?">
                 <button class="a-btn a-btn-danger a-btn-sm">Elimina</button>
               </form>
             </div>
@@ -86,7 +86,7 @@
             <strong>Issuer (Provider):</strong><br>
             <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC</code>
           </div>
-          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC', this)">Copia</button>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="https://{{ proxy_hostname }}/OIDC">Copia</button>
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
@@ -94,7 +94,7 @@
             <strong>Discovery URL (Well-Known):</strong><br>
             <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/.well-known/openid-configuration</code>
           </div>
-          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/.well-known/openid-configuration', this)">Copia</button>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="https://{{ proxy_hostname }}/OIDC/.well-known/openid-configuration">Copia</button>
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
@@ -102,7 +102,7 @@
             <strong>Authorization Endpoint:</strong><br>
             <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/authorization</code>
           </div>
-          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/authorization', this)">Copia</button>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="https://{{ proxy_hostname }}/OIDC/authorization">Copia</button>
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
@@ -110,7 +110,7 @@
             <strong>Token Endpoint:</strong><br>
             <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/token</code>
           </div>
-          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/token', this)">Copia</button>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="https://{{ proxy_hostname }}/OIDC/token">Copia</button>
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
@@ -118,7 +118,7 @@
             <strong>Userinfo Endpoint:</strong><br>
             <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/userinfo</code>
           </div>
-          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/userinfo', this)">Copia</button>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="https://{{ proxy_hostname }}/OIDC/userinfo">Copia</button>
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border-1); padding-bottom:8px;">
@@ -126,7 +126,7 @@
             <strong>JWKS URI:</strong><br>
             <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/jwks</code>
           </div>
-          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/jwks', this)">Copia</button>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="https://{{ proxy_hostname }}/OIDC/jwks">Copia</button>
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; padding-bottom:4px;">
@@ -135,7 +135,7 @@
             <code class="a-mono" style="font-size:12px;">https://{{ proxy_hostname }}/OIDC/end_session</code><br>
             <span class="a-muted" style="font-size:11px;">Parametri supportati: <code>post_logout_redirect_uri</code> (obbligatorio), <code>id_token_hint</code> (consigliato).</span>
           </div>
-          <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyText('https://{{ proxy_hostname }}/OIDC/end_session', this)">Copia</button>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="https://{{ proxy_hostname }}/OIDC/end_session">Copia</button>
         </div>
       </div>
     </div>
@@ -144,24 +144,4 @@
 </div>
 {% endif %}
 
-<script>
-  function copyText(val, btn) {
-    if (!val) return;
-    navigator.clipboard.writeText(val).then(function() {
-      var originalText = btn.textContent;
-      btn.textContent = 'Copiato!';
-      var originalColor = btn.style.color;
-      var originalBorder = btn.style.borderColor;
-      btn.style.color = '#10B981';
-      btn.style.borderColor = '#10B981';
-      setTimeout(function() {
-        btn.textContent = originalText;
-        btn.style.color = originalColor;
-        btn.style.borderColor = originalBorder;
-      }, 1500);
-    }).catch(function(err) {
-      console.error('Errore copia:', err);
-    });
-  }
-</script>
 {% endblock %}

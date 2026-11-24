@@ -145,7 +145,7 @@
     {% endif %}
     {% endif %}
     <form method="post" action="/admin/cie/generate-all" style="display:inline;"
-          onsubmit="return !{{ 'true' if jwk_keys else 'false' }} || confirm('Rigenera tutte le chiavi JWK?\n\nLe chiavi esistenti verranno eliminate. Dopo la rigenerazione dovrai aggiornare il portale federazione CIE con il nuovo JWKS.')">
+          {% if jwk_keys %}data-confirm="Rigenera tutte le chiavi JWK?&#10;&#10;Le chiavi esistenti verranno eliminate. Dopo la rigenerazione dovrai aggiornare il portale federazione CIE con il nuovo JWKS."{% endif %}>
       <button type="submit" class="a-btn a-btn-secondary a-btn-sm">
         {{ 'Rigenera chiavi' if jwk_keys else 'Genera chiavi' }}
       </button>
@@ -155,25 +155,25 @@
 
 {% if jwk_keys %}
 <div class="a-card">
-  <div class="a-tabs" id="jwksTabs">
-    <button class="a-tab active" data-tab="tab-portal" onclick="switchTab('tab-portal', this)">
+  <div class="a-tabs" id="jwksTabs" data-tabs>
+    <button type="button" class="a-tab active" data-tab="tab-portal">
       Portale CIE <span class="a-badge a-badge-warning" style="margin-left:4px;">incolla qui</span>
     </button>
-    <button class="a-tab" data-tab="tab-satosa" onclick="switchTab('tab-satosa', this)">
+    <button type="button" class="a-tab" data-tab="tab-satosa">
       SATOSA interno
     </button>
   </div>
   <div id="tab-portal" class="a-tab-panel" style="padding:16px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <span class="a-muted" style="font-size:12px;">Chiave pubblica federation (kty/kid/e/n) — incollare nel portale federazione CIE. La chiave privata non va mai inviata.</span>
-      <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyPortalJwks(event)">Copia</button>
+      <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy-from="jwks-portal">Copia</button>
     </div>
     <pre style="margin:0;font-size:11px;background:var(--bg-1);padding:12px;border-radius:4px;overflow-x:auto;"><code id="jwks-portal">{{ portal_jwks_json }}</code></pre>
   </div>
-  <div id="tab-satosa" class="a-tab-panel" style="padding:16px;display:none;">
+  <div id="tab-satosa" class="a-tab-panel" style="padding:16px;" hidden>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <span class="a-muted" style="font-size:12px;">Chiavi pubbliche con alg/use — esposte da SATOSA su /openid_relying_party/jwks.json.</span>
-      <button type="button" class="a-btn a-btn-neutral a-btn-sm" onclick="copyPublicJwks(event)">Copia</button>
+      <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy-from="jwks-public">Copia</button>
     </div>
     <pre style="margin:0;font-size:11px;background:var(--bg-1);padding:12px;border-radius:4px;overflow-x:auto;"><code id="jwks-public">{{ public_jwks_json }}</code></pre>
   </div>
@@ -182,47 +182,5 @@
 <div class="a-muted" style="font-size:13px;">Nessuna chiave JWK generata.</div>
 {% endif %}
 
-<script>
-  const CIE_ENVIRONMENTS = {{ environments | tojson }};
-
-  function switchTab(tabId, btn) {
-    document.querySelectorAll('.a-tab-panel').forEach(function(p) { p.style.display = 'none'; });
-    document.querySelectorAll('#jwksTabs .a-tab').forEach(function(t) { t.classList.remove('active'); });
-    document.getElementById(tabId).style.display = '';
-    btn.classList.add('active');
-  }
-
-  function renderEnvUrls() {
-    var sel = document.getElementById('oidc_environment');
-    var preview = document.getElementById('env-urls-preview');
-    if (!sel || !preview) return;
-    var env = CIE_ENVIRONMENTS[sel.value];
-    if (!env) { preview.textContent = ''; return; }
-    preview.innerHTML =
-      'Provider: ' + env.provider_url + '<br>' +
-      'Trust Anchor: ' + env.trust_anchor_url + '<br>' +
-      'Authority Hint: ' + env.authority_hint_url;
-  }
-
-  function _copyFromEl(elId, btn) {
-    var el = document.getElementById(elId);
-    if (!el || !btn) return;
-    navigator.clipboard.writeText(el.textContent).then(function () {
-      var prev = btn.textContent;
-      btn.textContent = 'Copiato!';
-      setTimeout(function () { btn.textContent = prev; }, 1500);
-    });
-  }
-  function copyPortalJwks(event) {
-    _copyFromEl('jwks-portal', event.target);
-  }
-  function copyPublicJwks(event) {
-    _copyFromEl('jwks-public', event.target);
-  }
-
-  document.addEventListener('DOMContentLoaded', function () {
-    var sel = document.getElementById('oidc_environment');
-    if (sel) { sel.addEventListener('change', renderEnvUrls); renderEnvUrls(); }
-  });
-</script>
+<script type="application/json" id="cie-environments">{{ environments | tojson }}</script>
 {% endblock %}

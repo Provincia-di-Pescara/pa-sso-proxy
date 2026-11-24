@@ -72,7 +72,7 @@
         <span class="a-mono" style="font-size: 13px; color: #555; background: #eef1f6; padding: 2px 6px; border-radius: 4px; word-break: break-all;">
           {{ computed_hash }}
         </span>
-        <button onclick="copyToClipboard('{{ computed_hash }}', this)" 
+        <button type="button" data-copy="{{ computed_hash }}" 
                 class="a-btn a-btn-neutral a-btn-sm" 
                 style="padding: 2px 6px; font-size: 11px; min-width: 60px;" 
                 title="Copia hash negli appunti">
@@ -139,7 +139,7 @@
                     title="{{ log.fiscal_number_hash }}">
                 {{ log.fiscal_number_hash[:10] }}...{{ log.fiscal_number_hash[-8:] }}
               </span>
-              <button onclick="copyToClipboard('{{ log.fiscal_number_hash }}', this)" 
+              <button type="button" data-copy="{{ log.fiscal_number_hash }}" 
                       class="a-btn a-btn-neutral a-btn-sm" 
                       style="padding: 1px 4px; font-size: 10px; line-height: 1.2; height: auto;" 
                       title="Copia hash completo">
@@ -186,43 +186,4 @@
 {% endif %}
 
 <!-- Javascript copy-to-clipboard logic -->
-<script>
-function copyToClipboard(text, btn) {
-  if (!navigator.clipboard) {
-    // Fallback if not HTTPS
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-      document.execCommand('copy');
-      const originalText = btn.innerText;
-      btn.innerText = 'Copiato!';
-      btn.style.color = '#2e7d32';
-      setTimeout(() => {
-        btn.innerText = originalText;
-        btn.style.color = '';
-      }, 1500);
-    } catch (err) {
-      console.error('Fallback copy failed', err);
-    }
-    document.body.removeChild(textArea);
-    return;
-  }
-  
-  navigator.clipboard.writeText(text).then(() => {
-    const originalText = btn.innerText;
-    btn.innerText = 'Copiato!';
-    btn.style.color = '#2e7d32';
-    setTimeout(() => {
-      btn.innerText = originalText;
-      btn.style.color = '';
-    }, 1500);
-  }).catch(err => {
-    console.error('Failed to copy: ', err);
-  });
-}
-</script>
 {% endblock %}
