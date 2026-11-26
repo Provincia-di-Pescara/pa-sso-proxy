@@ -25,9 +25,20 @@ limit_req_zone $binary_remote_addr zone=admin_login:10m rate=10r/m;
 limit_req_zone $binary_remote_addr zone=sso:10m rate=30r/s;
 limit_req_status 429;
 
+# Healthcheck del container (wget da loopback ogni 30 s) fuori dal log di accesso,
+# solo se riusciti (status 200): un healthcheck fallito resta nel log.
+# $realip_remote_addr = indirizzo della connessione TCP, anche con real_ip attivo:
+# un client esterno non può farsi escludere col solo X-Forwarded-For.
+map "$realip_remote_addr $status $request_uri" $access_loggable {
+    "~^(127\.0\.0\.1|::1) 200 /(health|\.well-known/openid-configuration)$" 0;
+    default 1;
+}
+
 server {
     # nginx-unprivileged: niente porte < 1024 senza root.
     listen 8080;
+
+    access_log /var/log/nginx/access.log main if=$access_loggable;
 
     # Senza URI nella variabile, proxy_pass inoltra la request URI originale
     # (stesso comportamento del vecchio proxy_pass con hostname fisso).

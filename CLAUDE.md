@@ -239,6 +239,8 @@ Due prerequisiti, entrambi già a posto in questo repo:
 ### Log SATOSA
 Senza `LOGGING` in `proxy.yaml` il fork SATOSA (`proxy_server.make_app`) applica un default **DEBUG hardcoded**, e a DEBUG `generate_configuration_plugin` del backend CIE stampa la config completa, **chiavi private JWK (`jwks_core`/`jwks_federation`) incluse**. `_satosa_logging()` in `satosa_config_generator.py` scrive sempre `LOGGING` (livello da `SATOSA_LOG_LEVEL`, default `INFO`, valore invalido → `INFO`). Log satosa di istanze < v0.9.16 vanno trattati come contenenti segreti.
 
+**Healthcheck fuori dai log di accesso** (rumore: 1 riga ogni 10-30 s per servizio): `satosa/entrypoint.sh` solo per `GET /.well-known/openid-configuration` (da 127.0.0.1: `--log-drain` sulla riga con status 200; con `X-Real-IP` loopback, cioè healthcheck nginx: `--route-if ... donotlog:`, deciso prima della risposta, un fallimento lo logga nginx), nginx `map $access_loggable` (loopback via `$realip_remote_addr`, solo status 200, `/health` e openid-configuration), config-api `app/log_filters.py` (`GET /health` 200 su `uvicorn.access`). Healthcheck fallito = resta nel log. Le stesse richieste degli applicativi restano loggate.
+
 ### PostgreSQL 18
 `postgres:18` con volume `proxy_db_data_pg18` montato su `/var/lib/postgresql` (non `/data`): dalla 18 l'immagine usa `PGDATA=/var/lib/postgresql/18/docker` e **si rifiuta di partire** se trova dati sul vecchio mount `/var/lib/postgresql/data`.
 
