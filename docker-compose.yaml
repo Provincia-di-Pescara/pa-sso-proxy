@@ -28,7 +28,7 @@ services:
   # config-api e nginx vengono creati ma non avviati. Variabile e non profilo:
   # con un profilo opzionale una verifica fallita darebbe solo un warning.
   verify-images:
-    image: ghcr.io/sigstore/cosign/cosign:v3.1.5-dev@sha256:d35084676a35418684f41790a4929fd1834405a09f59743d9295bd1244f1ee04
+    image: ghcr.io/sigstore/cosign/cosign:v3.1.6-dev@sha256:92c6e36fa840ec72f6c54a2c064a9de5c64fd6f489ce7eaa04641c8ee84cca58
     <<: *hardening
     restart: "no"
     environment:
