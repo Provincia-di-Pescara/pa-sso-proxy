@@ -152,6 +152,52 @@ def test_handle_authn_request_unknown_client_passthrough(ext):
     assert seen["scope"] == "openid email"  # pyop rifiuta il client sconosciuto
 
 
+def test_dropped_scopes_reported_to_config_api(ext, monkeypatch):
+    sent = []
+    monkeypatch.setattr(ext, "report_dropped", lambda *a: sent.append(a))
+    fe = _frontend(ext)
+    fe.handle_authn_request(_ctx(client_id="app-min", scope="openid legal_entity"))
+    fe.handle_authn_request(_ctx(client_id="app-min", scope="openid"))  # niente da segnalare
+    assert sent == [("app-min", ["legal_entity"], [])]
+
+
+def test_report_posts_in_background(ext, monkeypatch):
+    posted = []
+
+    class _Resp:
+        def close(self):
+            pass
+
+    def fake_urlopen(req, timeout):
+        posted.append((req.full_url, json.loads(req.data), timeout))
+        return _Resp()
+
+    monkeypatch.setattr(ext.urllib.request, "urlopen", fake_urlopen)
+    started = []
+    real_thread = ext.threading.Thread
+
+    def thread(*a, **kw):
+        t = real_thread(*a, **kw)
+        started.append(t)
+        return t
+
+    monkeypatch.setattr(ext.threading, "Thread", thread)
+    ext.report_dropped("app-min", ["legal_entity"], ["company_name"])
+    started[0].join(2)
+    assert started[0].daemon
+    assert posted == [(ext.REPORT_URL, {"client_id": "app-min", "scopes": ["legal_entity"],
+                                        "claims": ["company_name"]}, 2)]
+    assert ext.REPORT_URL.endswith("/internal/scope-rejected")
+
+
+def test_report_errors_ignored(ext, monkeypatch):
+    def boom(*a, **kw):
+        raise OSError("config-api giù")
+
+    monkeypatch.setattr(ext.urllib.request, "urlopen", boom)
+    ext._post_report({"client_id": "x", "scopes": [], "claims": []})  # nessuna eccezione
+
+
 def test_generated_client_db_has_allowed_scopes():
     """Il filtro legge allowed_scopes dal client db scritto dal generatore."""
     import inspect

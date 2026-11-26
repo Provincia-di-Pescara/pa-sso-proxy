@@ -8,6 +8,7 @@ from app.jinja_templates import templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import scope_rejections
 from app.database import get_db
 from app.models import AccessLog, CieConfig, EnteSettings, OIDCClient, SpidCert, SpidIdP
 from app.satosa_config_generator import _cie_oidc_client_id
@@ -158,8 +159,14 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
 
     access = await _access_stats(db)
 
-    clients_res = await db.execute(select(OIDCClient.client_id, OIDCClient.name))
-    client_name_map = {row.client_id: row.name for row in clients_res.all()}
+    clients_res = await db.execute(select(OIDCClient.id, OIDCClient.client_id, OIDCClient.name))
+    client_rows = clients_res.all()
+    client_name_map = {row.client_id: row.name for row in client_rows}
+    client_db_ids = {row.client_id: row.id for row in client_rows}
+    scope_alert = [
+        {**entry, "name": client_name_map.get(entry["client_id"]), "db_id": client_db_ids.get(entry["client_id"])}
+        for entry in scope_rejections.recent()
+    ]
 
     return templates.TemplateResponse(request, "dashboard.html.j2", {
         "user": user,
@@ -176,4 +183,5 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "access": access,
         "client_name_map": client_name_map,
         "aggregate_alert": _aggregate_alert(),
+        "scope_alert": scope_alert,
     })

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import scope_rejections
 from app.database import get_db
 from app.metadata_profile import latest_generated_version, metadata_fingerprint
 from app.models import AccessLog, EnteSettings, SpidCert, SpidMetadataVersion
@@ -40,6 +41,19 @@ async def log_access(entry: AccessLogEntry, db: AsyncSession = Depends(get_db)):
         await db.commit()
     except Exception:
         logger.error("Failed to save access log entry", exc_info=True)
+    return {"ok": True}
+
+
+class ScopeRejectedEntry(BaseModel):
+    client_id: str
+    scopes: list[str] = []
+    claims: list[str] = []
+
+
+@router.post("/internal/scope-rejected")
+async def scope_rejected(entry: ScopeRejectedEntry):
+    """Scope/claim tolti dal filtro per client del frontend OIDC (avviso in dashboard)."""
+    scope_rejections.record(entry.client_id, entry.scopes, entry.claims)
     return {"ok": True}
 
 
