@@ -1,13 +1,13 @@
 # Dipendenze dirette di runtime. Il lock con hash (requirements.txt, usato dal
 # Dockerfile con --require-hashes) si rigenera con scripts/compile-requirements.sh.
-fastapi==0.162.5
+fastapi==0.165.0
 uvicorn[standard]==0.54.0
-sqlalchemy[asyncio]==2.1.8
+sqlalchemy[asyncio]==2.1.9
 asyncpg==0.32.0
 psycopg2-binary==2.9.13
 alembic==1.20.1
 jinja2==3.1.6
-python-multipart==0.0.33
+python-multipart==0.0.34
 itsdangerous==2.2.0
 bcrypt==5.0.0
 cryptography==50.0.2
@@ -18,6 +18,6 @@ sentry-sdk[fastapi]==2.75.0
 defusedxml==0.7.1
 # Firma XML del metadata aggregato SPID (verifica col certificato AgID pinnato).
 signxml==5.3.1
-pyotp==2.10.0
+pyotp==2.12.1
 segno==1.6.6
 
