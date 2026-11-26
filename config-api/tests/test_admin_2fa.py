@@ -41,13 +41,13 @@ def test_is_2fa_reset_requested(monkeypatch, value, expected):
 # --- cifratura --------------------------------------------------------------
 
 def test_encrypt_decrypt_roundtrip():
-    token = admin_2fa.encrypt_secret("JBSWY3DPEHPK3PXP")
-    assert token != "JBSWY3DPEHPK3PXP"
-    assert admin_2fa.decrypt_secret(token) == "JBSWY3DPEHPK3PXP"
+    token = admin_2fa.encrypt_secret("JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP")
+    assert token != "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+    assert admin_2fa.decrypt_secret(token) == "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
 
 
 def test_decrypt_with_other_session_secret_fails(monkeypatch):
-    token = admin_2fa.encrypt_secret("JBSWY3DPEHPK3PXP")
+    token = admin_2fa.encrypt_secret("JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP")
     monkeypatch.setenv("SESSION_SECRET", "another-secret-entirely-different")
     with pytest.raises(admin_2fa.TotpSecretError):
         admin_2fa.decrypt_secret(token)
@@ -170,9 +170,9 @@ async def test_apply_startup_flags_disabled_keeps_row(db_session, monkeypatch, c
 # --- QR / URI ---------------------------------------------------------------
 
 def test_provisioning_uri_and_qr():
-    uri = admin_2fa.provisioning_uri("JBSWY3DPEHPK3PXP", "admin", "Provincia di Pescara")
+    uri = admin_2fa.provisioning_uri("JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP", "admin", "Provincia di Pescara")
     assert uri.startswith("otpauth://totp/")
-    assert "secret=JBSWY3DPEHPK3PXP" in uri
+    assert "secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" in uri
     assert "issuer=Provincia%20di%20Pescara" in uri
     svg = admin_2fa.qr_svg(uri)
     assert svg.lstrip().startswith("<svg")

@@ -460,7 +460,7 @@ async def test_export_excludes_admin_totp(db_session, app_env):
     from app import admin_2fa
     from app.models import AdminTotp
 
-    enc = admin_2fa.encrypt_secret("JBSWY3DPEHPK3PXP")
+    enc = admin_2fa.encrypt_secret("JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP")
     db_session.add(AdminTotp(id=1, secret_enc=enc, confirmed_at=datetime.now(timezone.utc)))
     await db_session.commit()
 
