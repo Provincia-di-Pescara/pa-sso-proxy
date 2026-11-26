@@ -63,12 +63,16 @@ _OIDC_FRONTEND_EXT_CLASS = "oidc_frontend_ext.OIDCFrontendWithEndSession"
 # Custom OIDC frontend extension deployed to satosa-conf:
 # - scope e parametro `claims` limitati agli `allowed_scopes` del client
 #   (SATOSA/pyop non li applicano: senza questo filtro ogni client otteneva
-#   tutti i dati del cittadino chiedendoli)
+#   tutti i dati del cittadino chiedendoli); quello che viene tolto è segnalato
+#   a config-api (/internal/scope-rejected) per l'avviso in dashboard
 # - end_session_endpoint nel discovery + RP-initiated logout, con redirect
 #   solo verso l'origine di una redirect_uri registrata (prima: open redirect)
 _OIDC_FRONTEND_EXT_PY = '''\
 import json
 import logging
+import os
+import threading
+import urllib.request
 from urllib.parse import urlsplit
 
 from oic.oic import scope2claims
@@ -78,6 +82,27 @@ from satosa.response import SeeOther, Response
 logger = logging.getLogger(__name__)
 
 CLAIMS_TARGETS = ("userinfo", "id_token")
+REPORT_URL = os.environ.get("CONFIG_API_INTERNAL_URL", "http://config-api:8000").rstrip("/") + "/internal/scope-rejected"
+
+
+def _post_report(payload):
+    try:
+        req = urllib.request.Request(
+            REPORT_URL,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=2).close()
+    except Exception:
+        pass
+
+
+def report_dropped(client_id, scopes, claims):
+    """Avvisa config-api (dashboard) senza rallentare il login: thread a parte,
+    errori ignorati."""
+    payload = {"client_id": client_id, "scopes": list(scopes), "claims": list(claims)}
+    threading.Thread(target=_post_report, args=(payload,), daemon=True).start()
 
 
 def _single(value):
@@ -180,6 +205,7 @@ class OIDCFrontendWithEndSession(OpenIDConnectFrontend):
                     "Client %s: scope/claim non consentiti rimossi (scope=%s, claims=%s)",
                     client_id, dropped_scopes, dropped_claims,
                 )
+                report_dropped(client_id, dropped_scopes, dropped_claims)
         return super().handle_authn_request(context)
 
     def end_session(self, context):

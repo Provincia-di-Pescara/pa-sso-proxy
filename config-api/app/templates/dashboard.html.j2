@@ -33,6 +33,25 @@
 </div>
 {% endif %}
 
+{% if scope_alert %}
+<div class="a-alert a-alert-warning" style="margin-bottom: 24px;">
+  <strong>Applicativi che chiedono dati non consentiti</strong> (ultimi 7 giorni).
+  Scope e claim non abilitati nel client vengono tolti dalla richiesta: l'applicativo riceve meno dati del previsto, senza errori
+  (senza lo scope <code class="a-mono">legal_entity</code> il login avviene come <strong>persona fisica</strong>).
+  Se l'applicativo ne ha bisogno, abilita lo scope nel client; altrimenti va corretto l'applicativo.
+  <ul style="margin: 8px 0 0 18px;">
+    {% for entry in scope_alert %}
+    <li>
+      {% if entry.db_id %}<a href="/admin/clients/{{ entry.db_id }}/edit">{{ entry.name or entry.client_id }}</a>{% else %}{{ entry.name or entry.client_id }}{% endif %}
+      (<code class="a-mono">{{ entry.client_id }}</code>):
+      {% for item in entry["items"] %}{{ item.kind }} <code class="a-mono">{{ item.name }}</code> × {{ item.count }}{% if not loop.last %}, {% endif %}{% endfor %}
+      — ultima richiesta {{ entry.last_seen.strftime('%d/%m/%Y %H:%M') }} UTC
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 {# ── Sezione 1: Stato sistema ────────────────────────────────────────────── #}
 <div class="a-stat-grid" style="margin-bottom: 24px;">
 
