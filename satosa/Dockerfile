@@ -1,7 +1,7 @@
 # Digest fisso: aggiornato da dependabot con una PR (revisione manuale, vedi
 # dependabot-automerge.yml). Deve corrispondere a IAM_PROXY_REF qui sotto:
 # venv dell'immagine e codice clonato vengono dalla stessa release upstream.
-FROM ghcr.io/italia/iam-proxy-italia:latest@sha256:28d1255aa6e9a22349e7071442196c489b69092f8aa8baac2b13e68c087f4ca7
+FROM ghcr.io/italia/iam-proxy-italia:latest@sha256:bb54f19c05e75446be10f249dc93e0983cc61ff55dc3e0aee6e985a844b37a5d
 
 USER root
 
@@ -21,7 +21,7 @@ RUN echo "pkg refresh: ${PKG_REFRESH}" && apk update && apk upgrade --no-cache
 RUN apk add --no-cache git
 
 # Non visto da dependabot: upstream-check.yml apre una issue a ogni nuova release.
-ARG IAM_PROXY_REF=v3.6.2
+ARG IAM_PROXY_REF=v3.9.0
 RUN git clone --depth 1 --branch "${IAM_PROXY_REF}" \
         https://github.com/italia/iam-proxy-italia.git /tmp/upstream \
     && cp -r /tmp/upstream/iam-proxy-italia-project/. /satosa_proxy/ \
