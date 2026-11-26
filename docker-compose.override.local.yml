@@ -10,3 +10,10 @@ services:
       context: ./config-api
     volumes:
       - ./.git:/app/.git:ro
+
+  # Anche nginx dal sorgente: altrimenti resta l'immagine GHCR :latest in cache,
+  # che può essere vecchia (es. Host senza porta → login admin 403 "altra origine").
+  nginx:
+    image: pa-sso-proxy-nginx:local
+    build:
+      context: ./nginx

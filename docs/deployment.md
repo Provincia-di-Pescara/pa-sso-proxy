@@ -52,7 +52,8 @@ al primo login.
 Il backup (*Backup & Ripristino* nella WebUI) è un file cifrato con una passphrase scelta
 all'export (almeno 16 caratteri; AES-256-GCM, chiave derivata con scrypt): contiene la chiave
 privata SPID, le chiavi JWK CIE e i secret dei client. Export e import chiedono di nuovo la
-password admin e, con il 2FA attivo, un codice TOTP nuovo (non quello appena usato per il login).
+password admin e, con il 2FA attivo, un codice TOTP mai usato: ogni codice vale una volta
+sola, quindi se si è appena fatto il login bisogna aspettare il codice successivo dell'app.
 
 - Conservare la passphrase separata dal file (password manager): **senza passphrase il backup
   non è recuperabile**.

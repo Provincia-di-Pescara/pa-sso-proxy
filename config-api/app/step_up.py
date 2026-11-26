@@ -2,8 +2,9 @@
 
 Una sessione admin rubata (cookie copiato, postazione lasciata aperta) non
 basta per esportare o sostituire chiavi e configurazione: serve di nuovo la
-password admin e, con il 2FA attivo, un codice TOTP nuovo (i codici già usati
-sono rifiutati, anche quello del login appena fatto).
+password admin e, con il 2FA attivo, un codice TOTP mai usato prima (si accetta
+solo un codice successivo all'ultimo usato, quindi non quello del login appena fatto
+se l'app non è ancora passata al codice seguente).
 
 I fallimenti contano nel ban per IP del login (rate_limiter).
 """
@@ -47,7 +48,8 @@ async def verify(request: Request, db: AsyncSession, password: str, code: str, a
         await record_failed_attempt(db, ip)
         logger.warning("step-up fallito: azione=%s utente=%s ip=%s", action, user, ip)
         if admin_2fa.is_2fa_enabled():
-            return "Password o codice 2FA non validi (serve un codice nuovo, non quello già usato)."
+            return ("Password o codice 2FA non validi. Ogni codice vale una volta sola: "
+                    "se hai appena usato quello mostrato dall'app, aspetta il successivo.")
         return "Password non valida."
 
     await clear_attempts(db, ip)
