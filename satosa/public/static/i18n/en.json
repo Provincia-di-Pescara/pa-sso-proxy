@@ -69,6 +69,8 @@
   "error.legal_entity_spid_only.troubleshoot": "Go back to the service and sign in with SPID using a professional-use identity of the legal entity. CIE and eIDAS do not support this type of access.",
   "error.test_idp_verifica_only": "This identity provider is reserved for testing.",
   "error.test_idp_verifica_only.troubleshoot": "The Demo Provider and the AgID validator can only be used from the proxy's verification page. Go back to the service and sign in with your SPID provider.",
+  "error.itwallet_test_only": "IT-Wallet is in the testing phase: for now it is only available to test applications.",
+  "error.itwallet_test_only.troubleshoot": "Sign in with SPID or CIE, or contact the organisation.",
   "error.eidas_not_enabled": "eIDAS login is not enabled.",
   "error.eidas_not_enabled.troubleshoot": "This service does not allow login through the eIDAS node. Go back to the service and sign in with SPID or CIE.",
 

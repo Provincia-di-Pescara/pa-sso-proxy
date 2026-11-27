@@ -13,7 +13,7 @@ Aggiunge al backend upstream:
   "allowed_client_ids": [...]}``. Con ``test_only`` (ambiente collaudo/lab, il
   wallet accetta credenziali di prova) passano solo ``__spid_verifica__`` e i
   client in lista (il generatore ci mette ``__admin_test__`` e i client con
-  ``allow_test_idps``), gli altri -> ``TEST_IDP_VERIFICA_ONLY_ERROR``. Chiave
+  ``allow_test_idps``), gli altri -> ``ITWALLET_TEST_ONLY_ERROR``. Chiave
   assente = produzione, tutti ammessi. Vale anche per l'URL di login aperto a
   mano: ``start_auth`` è l'unico ingresso, perché il ``PreRequestHandler`` di
   pyeudiw 2.9.0 risponde 400 senza ``context.target_frontend``, che SATOSA
@@ -39,13 +39,20 @@ from pyeudiw.satosa.backends.openid4vp.openid4vp import OpenID4VPBackend
 from ..proxy_errors import render_proxy_error
 from ..spidsaml2 import (
     LEGAL_ENTITY_SPID_ONLY_ERROR,
-    TEST_IDP_VERIFICA_ONLY_ERROR,
     VERIFICA_CLIENT_ID,
     _legal_entity_requested,
     _requesting_client_id,
 )
 
 logger = logging.getLogger(__name__)
+
+# Wallet in collaudo/personalizzato (credenziali di prova) chiesto da un client
+# non di test: messaggio dedicato (quello degli IdP SPID di test parla di Demo e
+# validatore AgID).
+ITWALLET_TEST_ONLY_ERROR = {
+    "message_key": "error.itwallet_test_only",
+    "troubleshoot_key": "error.itwallet_test_only.troubleshoot",
+}
 
 # Nome interno (internal_attributes.yaml) del luogo di nascita.
 PLACE_OF_BIRTH_ATTRIBUTE = "placeOfBirth"
@@ -117,7 +124,7 @@ class ItWalletBackend(OpenID4VPBackend):
                 phase,
                 _requesting_client_id(context),
             )
-            return render_proxy_error(context, TEST_IDP_VERIFICA_ONLY_ERROR)
+            return render_proxy_error(context, ITWALLET_TEST_ONLY_ERROR)
         return None
 
     def start_auth(self, context, internal_request):

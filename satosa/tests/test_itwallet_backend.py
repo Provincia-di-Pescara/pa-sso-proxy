@@ -77,7 +77,7 @@ def test_test_only_blocks_production_client():
     backend = _backend({"test_only": True, "allowed_client_ids": ["app-collaudo"]})
     with patch(PARENT_START_AUTH) as parent:
         resp = backend.start_auth(_context(client_id="app-x"), MagicMock())
-    _assert_error_page(resp, "error.test_idp_verifica_only")
+    _assert_error_page(resp, "error.itwallet_test_only")
     parent.assert_not_called()
 
 
@@ -87,7 +87,7 @@ def test_test_only_blocks_missing_client_id():
     ctx.state = {}
     with patch(PARENT_START_AUTH) as parent:
         resp = backend.start_auth(ctx, MagicMock())
-    _assert_error_page(resp, "error.test_idp_verifica_only")
+    _assert_error_page(resp, "error.itwallet_test_only")
     parent.assert_not_called()
 
 
@@ -188,7 +188,7 @@ def test_auth_callback_rejects_client_changed_after_start():
         assert backend.start_auth(ctx, MagicMock()) == "WALLET_PAGE"
     ctx.state = {"OIDC": {"oidc_request": "client_id=app-x&scope=openid+profile&state=z"}}
     resp = backend.auth_callback_func(ctx, _internal())
-    _assert_error_page(resp, "error.test_idp_verifica_only")
+    _assert_error_page(resp, "error.itwallet_test_only")
     satosa_callback.assert_not_called()
 
 
