@@ -68,10 +68,10 @@ def test_qr_template_escapes_context():
 
 def test_qr_template_no_inline_script_and_no_external_urls():
     html = _env().get_template("qr_code.html").render(CTX)
-    for m in re.finditer(r"<script([^>]*)>", html):
+    for m in re.finditer(r"<script\b([^>]*)>", html, re.IGNORECASE):
         attrs = m.group(1)
         assert "src=" in attrs or "application/json" in attrs, f"script inline: {attrs}"
-    assert not re.search(r"\son\w+=", html), "handler inline"
+    assert not re.search(r"\son\w+=", html, re.IGNORECASE), "handler inline"
     urls = re.findall(r'(?:src|href)="(https?://[^"]+)"', html)
     own = [u for u in urls if u.startswith("https://sso.example.it/static/")]
     assert urls == own, f"URL esterni: {set(urls) - set(own)}"
