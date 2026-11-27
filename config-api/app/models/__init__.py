@@ -2,6 +2,7 @@ from .base import Base
 from .client import OIDCClient
 from .idp import SpidIdP
 from .cie import CieConfig
+from .itwallet import ItWalletConfig
 from .settings import EnteSettings
 from .key import JwkKey
 from .cert import SpidCert
@@ -12,4 +13,4 @@ from .metadata_version import SpidMetadataVersion
 from .metadata_profile import SpidMetadataProfile
 from .admin_totp import AdminTotp
 
-__all__ = ["Base", "OIDCClient", "SpidIdP", "CieConfig", "EnteSettings", "JwkKey", "SpidCert", "AccessLog", "AccessStatsMonthly", "LoginAttempt", "SpidMetadataVersion", "SpidMetadataProfile", "AdminTotp"]
+__all__ = ["Base", "OIDCClient", "SpidIdP", "CieConfig", "ItWalletConfig", "EnteSettings", "JwkKey", "SpidCert", "AccessLog", "AccessStatsMonthly", "LoginAttempt", "SpidMetadataVersion", "SpidMetadataProfile", "AdminTotp"]

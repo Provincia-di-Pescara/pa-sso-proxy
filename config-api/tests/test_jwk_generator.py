@@ -47,3 +47,33 @@ def test_portal_jwk_public_only():
     assert out["n"] == key.private_jwk["n"]
     # Anche se riceve la privata, non deve mai esportarne i parametri
     assert set(portal_jwk(key.private_jwk)) == {"kty", "kid", "e", "n"}
+
+
+def test_ec_jwk_public_has_no_private_fields():
+    from app.jwk_generator import generate_ec_jwk
+    for use, alg in (("federation", "ES256"), ("sig", "ES256"), ("enc", "ECDH-ES")):
+        key = generate_ec_jwk(f"ec-{use}", use)
+        assert isinstance(key, JwkKey)
+        assert key.use == use
+        assert set(key.public_jwk) == {"kty", "crv", "x", "y", "kid", "use", "alg"}
+        assert key.public_jwk["kty"] == "EC"
+        assert key.public_jwk["crv"] == "P-256"
+        assert key.public_jwk["alg"] == alg
+        assert key.public_jwk["use"] == use
+        assert "d" not in key.public_jwk
+        assert "d" in key.private_jwk
+        assert {k: key.private_jwk[k] for k in key.public_jwk} == key.public_jwk
+
+
+def test_ec_jwk_kid_is_rfc7638():
+    import base64
+    import hashlib
+    from app.jwk_generator import generate_ec_jwk
+    key = generate_ec_jwk("ec-kid", "sig")
+    pub = key.public_jwk
+    # Calcolo a mano: SHA-256 del JSON canonico con membri in ordine lessicografico.
+    canonical = '{"crv":"P-256","kty":"EC","x":"%s","y":"%s"}' % (pub["x"], pub["y"])
+    expected = base64.urlsafe_b64encode(hashlib.sha256(canonical.encode()).digest()).rstrip(b"=").decode()
+    assert pub["kid"] == expected
+    assert len(base64.urlsafe_b64decode(pub["x"] + "==")) == 32
+    assert len(base64.urlsafe_b64decode(pub["y"] + "==")) == 32
