@@ -60,3 +60,21 @@ def test_legacy_11_digit_fiscal_number_is_pg(reporter):
 
 def test_no_fiscal_number_no_company_is_none(reporter):
     assert reporter._detect_user_type({}, None) is None
+
+
+def test_itwallet_provider_type(reporter, monkeypatch):
+    import hashlib
+    import hmac
+
+    posted = {}
+    monkeypatch.setattr(reporter, "_post_access_log", lambda url, provider_type, client_id, result, **kw: posted.update(provider_type=provider_type, **kw))
+    monkeypatch.setenv("CF_HASH_KEY", "k")
+    ctx = types.SimpleNamespace(target_backend="OpenID4VP", state={})
+    data = types.SimpleNamespace(attributes={"fiscal_number": ["TINIT-RSSMRA80A01H501U"]}, auth_info=None)
+    svc = reporter.AccessLogReporter({"report_url": "http://x"})
+    reporter.ResponseMicroService.process = lambda self, c, d: d
+    svc.process(ctx, data)
+    assert posted["provider_type"] == "itwallet"
+    assert posted["user_type"] == "PF"
+    expected = hmac.new(b"k", b"RSSMRA80A01H501U", hashlib.sha256).hexdigest()
+    assert posted["fiscal_number_hash"] == expected

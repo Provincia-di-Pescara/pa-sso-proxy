@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="itwallet.qr.page_title">Accedi con IT-Wallet</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link id="page-favicon" rel="icon" type="image/svg+xml" href="{{ static }}favicon.svg">
+  <link rel="stylesheet" href="{{ static }}sso/sso.css">
+  <style>
+    .itw-card { text-align: center; max-width: 460px; align-self: center; }
+    .itw-mark { width: 40px; height: 48px; margin: 0 auto var(--sp-4); display: block; }
+    .itw-qr-wrap { position: relative; width: 250px; max-width: 100%; margin: var(--sp-5) auto; }
+    .itw-qr-wrap img.itw-qr-img { width: 100%; height: auto; display: block; border: 1px solid var(--border-1); border-radius: var(--r-sm); background: #fff; padding: 8px; box-sizing: border-box; }
+    .itw-qr-wrap .itw-qr-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 17%; background: #fff; padding: 4px; border-radius: 6px; box-sizing: border-box; }
+    .itw-qr-wrap .itw-qr-center img { width: 100%; height: auto; display: block; }
+    .itw-qr-wrap.is-expired img.itw-qr-img, .itw-qr-wrap.is-expired .itw-qr-center { opacity: .15; }
+    .itw-same-device { display: none; }
+    .itw-state { margin-top: var(--sp-4); }
+    .itw-state[hidden], .itw-actions[hidden] { display: none; }
+    @media (max-width: 768px) {
+      .itw-same-device { display: flex; }
+      .itw-qr-wrap { margin-top: var(--sp-5); }
+    }
+  </style>
+</head>
+<body>
+<div class="sso">
+
+  <div class="sso-slim">
+    <div class="sso-slim-in">
+      <span class="gov">
+        <span class="gov-dot"></span>
+        <span data-i18n="common.gov_site">Sito ufficiale della Pubblica Amministrazione</span>
+      </span>
+      <label class="sso-lang">
+        <span class="sr-only" data-i18n="common.language">Lingua</span>
+        <select id="sso-lang-select">
+          <option value="it" lang="it">Italiano</option>
+          <option value="en" lang="en">English</option>
+          <option value="fr" lang="fr">Français</option>
+          <option value="de" lang="de">Deutsch</option>
+          <option value="es" lang="es">Español</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="sso-brand">
+    <img class="sso-crest" id="ente-logo" src="" alt="Logo ente" data-i18n-attr="alt:common.ente_logo_alt" style="display:none">
+    <svg class="sso-crest-svg" id="ente-crest-svg" viewBox="0 0 64 64" fill="none" aria-label="Logo ente" data-i18n-attr="aria-label:common.ente_logo_alt" role="img">
+      <rect x="2" y="2" width="60" height="60" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5"/>
+      <path d="M32 13 L48 21 H16 Z" fill="#64748B"/>
+      <rect x="17" y="21" width="30" height="3" fill="#64748B"/>
+      <rect x="20" y="26" width="4" height="18" fill="#94A3B8"/>
+      <rect x="30" y="26" width="4" height="18" fill="#94A3B8"/>
+      <rect x="40" y="26" width="4" height="18" fill="#94A3B8"/>
+      <rect x="15" y="45" width="34" height="4" rx="1" fill="#64748B"/>
+    </svg>
+    <div>
+      <p class="sso-brand-name" id="ente-name" data-i18n="common.default_ente_name">Servizi digitali</p>
+    </div>
+  </div>
+
+  <main class="sso-main">
+    <div class="sso-card itw-card" id="itw-qr" aria-live="polite">
+      <img class="itw-mark" src="{{ static }}itwallet/it-wallet-mark.svg" alt="">
+      <h1 class="sso-title" id="itw-title" data-i18n="itwallet.qr.title">Accedi con IT-Wallet</h1>
+      <p class="sso-lead" id="itw-instructions" data-i18n="itwallet.qr.instructions">Apri l'app IT-Wallet sul tuo smartphone e inquadra il codice QR per condividere i dati richiesti.</p>
+
+      <div class="sso-btn-row itw-same-device" id="itw-same-device">
+        <a class="btn-primary" id="itw-open-app" href="{{ qrcode_text }}" data-i18n="itwallet.qr.open_app">Apri l'app IT-Wallet</a>
+      </div>
+
+      <div class="itw-qr-wrap" id="itw-qr-wrap" style="max-width: {{ qrcode_size }}px">
+        <img class="itw-qr-img" id="itw-qr-img" src="data:image/svg+xml;base64,{{ qrcode_base64 }}" alt="Codice QR per accedere con IT-Wallet" data-i18n-attr="alt:itwallet.qr.qr_alt">
+        <span class="itw-qr-center"><img src="{{ static }}itwallet/it-wallet-mark.svg" alt=""></span>
+      </div>
+
+      <p class="sso-desc itw-state" id="itw-timer" data-i18n-template="itwallet.qr.expires_in"></p>
+      <p class="sso-desc itw-state" id="itw-message" role="status" hidden></p>
+
+      <div class="sso-btn-row itw-actions" id="itw-actions" hidden>
+        <button type="button" class="btn-primary" id="itw-retry" data-i18n="itwallet.qr.retry">Genera un nuovo codice</button>
+      </div>
+      <div class="sso-btn-row">
+        <a class="btn-outline" id="itw-cancel" href="{{ static }}disco.html" data-i18n="itwallet.qr.cancel">Annulla</a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="sso-foot">
+    <span class="agid">SPID · CIE · IT-Wallet</span>
+    <span class="links-placeholder"></span>
+  </footer>
+
+</div>
+<script type="application/json" id="itw-config">{{ {"static": static, "status_endpoint": status_endpoint, "expiration": qrcode_expiration_time, "page": "qr"} | tojson }}</script>
+<script src="{{ static }}sso/itwallet-qr.js"></script>
+</body>
+</html>

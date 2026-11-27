@@ -1,0 +1,339 @@
+{% extends "base.html.j2" %}
+{% block title %}IT-Wallet — PA SSO Proxy{% endblock %}
+{% block page_title %}IT-Wallet{% endblock %}
+
+{% macro step_up_fields(prefix) %}
+<div class="a-form-grid-2">
+  <div class="a-form-group">
+    <label class="a-label" for="{{ prefix }}-password">Password admin</label>
+    <input type="password" class="a-input" id="{{ prefix }}-password" name="password" autocomplete="current-password" required>
+  </div>
+  {% if twofa %}
+  <div class="a-form-group">
+    <label class="a-label" for="{{ prefix }}-code">Codice 2FA</label>
+    <input type="text" class="a-input" id="{{ prefix }}-code" name="code" inputmode="numeric" pattern="[0-9 ]{6,7}" autocomplete="one-time-code" required>
+    <div class="a-form-hint">Ogni codice vale una volta sola: se hai appena usato quello mostrato dall'app, aspetta il successivo.</div>
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<style>
+.a-tabs { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:16px; border-bottom:1px solid var(--border-1); }
+.a-tab { display:inline-flex; align-items:center; gap:8px; padding:10px 16px; font-size:13px; font-weight:600; color:var(--fg-muted); background:transparent; border:1px solid transparent; border-bottom:none; border-radius:6px 6px 0 0; cursor:pointer; }
+.a-tab:hover { color:var(--fg-1); background:var(--bg-2); }
+.a-tab.active { color:var(--fg-1); background:var(--bg-1); border-color:var(--border-1); }
+.a-tab-dot { width:8px; height:8px; border-radius:50%; flex:none; }
+.a-tab-panel[hidden] { display:none; }
+.itw-pre { margin:0; font-size:11px; background:var(--bg-1); padding:12px; border-radius:4px; overflow-x:auto; white-space:pre-wrap; word-break:break-all; }
+.itw-row { display:flex; gap:8px; align-items:center; }
+.itw-row .a-input { flex:1; min-width:0; }
+</style>
+
+{% if flash.err %}<div class="a-alert a-alert-danger">{{ flash.err }}</div>{% endif %}
+{% if flash.warn %}<div class="a-alert a-alert-warning"><strong>Attenzione:</strong> {{ flash.warn }}</div>{% endif %}
+{% if flash.ok %}<div class="a-alert a-alert-success">{{ flash.ok }}</div>{% endif %}
+
+{% if production_without_trust_mark %}
+<div class="a-alert a-alert-danger">
+  <strong>Produzione senza trust mark.</strong> Il verifier può essere attivato, ma i wallet possono rifiutarlo finché non incolli il trust mark di registrazione (scheda <em>Trust mark</em>).
+</div>
+{% endif %}
+
+<div class="a-tabs" role="tablist" data-tabs="hash">
+  <button type="button" class="a-tab" data-tab="stato" role="tab">
+    <span class="a-tab-dot" style="background:{% if config and config.enabled %}var(--success){% else %}var(--fg-muted){% endif %};"></span>
+    Stato
+  </button>
+  <button type="button" class="a-tab" data-tab="configurazione" role="tab">Configurazione</button>
+  <button type="button" class="a-tab" data-tab="chiavi" role="tab">
+    <span class="a-tab-dot" style="background:{% if keys | length == 3 %}var(--success){% else %}var(--danger){% endif %};"></span>
+    Chiavi
+  </button>
+  <button type="button" class="a-tab" data-tab="onboarding" role="tab">Onboarding</button>
+  <button type="button" class="a-tab" data-tab="trust-mark" role="tab">
+    <span class="a-tab-dot" style="background:{% if trust_mark and not trust_mark.error and not trust_mark.expired %}var(--success){% elif trust_mark %}var(--danger){% else %}var(--fg-muted){% endif %};"></span>
+    Trust mark
+  </button>
+</div>
+
+{# ------------------------------------------------------------------ Stato #}
+<section id="stato" class="a-tab-panel" style="max-width:720px;">
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">Stato</div>
+    <div class="a-card-body">
+      <p style="font-size:13px;margin-top:0;">
+        IT-Wallet:
+        {% if config and config.enabled %}<span class="a-badge a-badge-success">attivo</span>{% else %}<span class="a-badge a-badge-neutral">spento</span>{% endif %}
+        {% if config and config.environment %}<span class="a-badge a-badge-secondary">{{ environments.get(config.environment, config.environment) }}</span>{% endif %}
+      </p>
+      {% if ready %}
+      <p class="a-form-hint" style="color:var(--success);">Configurazione completa: il verifier può essere attivato.</p>
+      {% else %}
+      <p class="a-form-hint" style="color:var(--danger);">Configurazione incompleta: {{ ready_reason }}.</p>
+      {% endif %}
+      {% if config and config.environment in ('collaudo', 'personalizzato') %}
+      <p class="a-form-hint">In {{ environments.get(config.environment) }} il wallet accetta credenziali di prova: è disponibile solo per <code>/verifica</code>, il Test Auth e i client con "IdP test".</p>
+      {% endif %}
+
+      {% if config and config.enabled %}
+      <form method="post" action="/admin/itwallet/toggle"
+            data-confirm="Disattivare IT-Wallet?&#10;&#10;La tab IT-Wallet sparisce dalla discovery e gli endpoint /OpenID4VP rispondono 404.">
+        {{ step_up_fields("off") }}
+        <button type="submit" class="a-btn a-btn-danger a-btn-sm">Disattiva IT-Wallet</button>
+      </form>
+      {% else %}
+      <form method="post" action="/admin/itwallet/toggle"
+            data-confirm="Attivare IT-Wallet?&#10;&#10;La configurazione SATOSA viene rigenerata e il pulsante IT-Wallet compare nella discovery.">
+        <input type="hidden" name="enabled" value="yes">
+        <input type="hidden" name="confirmed" value="yes">
+        {% if config and config.environment == 'produzione' and not config.trust_mark %}
+        <div class="a-alert a-alert-warning">Stai per attivare la produzione senza trust mark: i wallet possono rifiutare il verifier.</div>
+        {% endif %}
+        {{ step_up_fields("on") }}
+        <button type="submit" class="a-btn a-btn-primary a-btn-sm" {% if not ready %}disabled{% endif %}>Attiva IT-Wallet</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{# --------------------------------------------------------- Configurazione #}
+<section id="configurazione" class="a-tab-panel" style="max-width:720px;" hidden>
+  <form method="post" action="/admin/itwallet/settings" data-submit="itwallet-settings"
+        data-wallet-enabled="{{ 'true' if config and config.enabled else 'false' }}"
+        data-initial-environment="{{ config.environment if config and config.environment else '' }}"
+        data-confirm-production="Passare IT-Wallet in produzione?&#10;&#10;Il wallet è attivo: la restrizione ai soli client di test (/verifica, Test Auth, client con &quot;IdP test&quot;) viene tolta e tutti gli applicativi vedranno IT-Wallet nella discovery. L'onboarding va rifatto per l'ambiente di produzione.">
+    <div class="a-card" style="margin-bottom:14px;">
+      <div class="a-card-header">Ambiente e trust anchor</div>
+      <div class="a-card-body">
+        <div class="a-form-group">
+          <label class="a-label" for="environment">Ambiente</label>
+          <select class="a-select" id="environment" name="environment">
+            <option value="">— seleziona —</option>
+            {% for value, label in environments.items() %}
+            <option value="{{ value }}" {% if config and config.environment == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <div class="a-form-hint">Cambiare ambiente mantiene le chiavi ma l'onboarding va rifatto per il nuovo ambiente. Gli URL IPZS di collaudo e produzione arrivano con l'onboarding.</div>
+        </div>
+        <div class="a-form-group">
+          <label class="a-label" for="trust_anchor_url">URL trust anchor</label>
+          <input type="text" class="a-input a-mono" id="trust_anchor_url" name="trust_anchor_url"
+                 value="{{ config.trust_anchor_url or '' if config else '' }}" placeholder="https://…">
+          <div class="a-form-hint">https; http solo in ambiente personalizzato (es. lab <code>http://trust-anchor.example.org:5002</code>).</div>
+        </div>
+        <div class="a-form-group">
+          <label class="a-label" for="authority_hint_url">URL authority hint</label>
+          <input type="text" class="a-input a-mono" id="authority_hint_url" name="authority_hint_url"
+                 value="{{ config.authority_hint_url or '' if config else '' }}" placeholder="vuoto = trust anchor">
+        </div>
+        <div class="a-form-group">
+          <label class="a-label" for="trust_anchor_jwks">JWKS trust anchor (opzionale)</label>
+          <textarea class="a-textarea a-mono" id="trust_anchor_jwks" name="trust_anchor_jwks" rows="4"
+                    placeholder='{"keys": [...]} — vuoto = JWKS pubblicato dal trust anchor'>{{ trust_anchor_jwks_json }}</textarea>
+          <div class="a-form-hint">Solo chiavi pubbliche.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="a-card" style="margin-bottom:14px;">
+      <div class="a-card-header">Dati ente per i metadata</div>
+      <div class="a-card-body">
+        <div class="a-form-grid-2">
+          <div class="a-form-group">
+            <label class="a-label" for="organization_name">Nome organizzazione</label>
+            <input type="text" class="a-input" id="organization_name" name="organization_name" value="{{ defaults.organization_name }}">
+          </div>
+          <div class="a-form-group">
+            <label class="a-label" for="client_name">Nome del servizio (client_name)</label>
+            <input type="text" class="a-input" id="client_name" name="client_name" value="{{ defaults.client_name }}">
+          </div>
+          <div class="a-form-group">
+            <label class="a-label" for="homepage_uri">Homepage</label>
+            <input type="text" class="a-input" id="homepage_uri" name="homepage_uri" value="{{ defaults.homepage_uri }}">
+          </div>
+          <div class="a-form-group">
+            <label class="a-label" for="policy_uri">Informativa privacy</label>
+            <input type="text" class="a-input" id="policy_uri" name="policy_uri" value="{{ defaults.policy_uri }}">
+          </div>
+          <div class="a-form-group">
+            <label class="a-label" for="tos_uri">Termini di servizio</label>
+            <input type="text" class="a-input" id="tos_uri" name="tos_uri" value="{{ defaults.tos_uri }}">
+          </div>
+          <div class="a-form-group">
+            <label class="a-label" for="logo_uri">Logo</label>
+            <input type="text" class="a-input" id="logo_uri" name="logo_uri" value="{{ defaults.logo_uri }}">
+          </div>
+          <div class="a-form-group">
+            <label class="a-label" for="contact_email">PEC ente</label>
+            <input type="email" class="a-input" id="contact_email" name="contact_email" value="{{ defaults.contact_email }}">
+          </div>
+        </div>
+        <div class="a-form-hint">Valori iniziali presi dalle Impostazioni ente. URL solo https.</div>
+      </div>
+    </div>
+    <button type="submit" class="a-btn a-btn-primary">Salva configurazione</button>
+  </form>
+</section>
+
+{# ----------------------------------------------------------------- Chiavi #}
+<section id="chiavi" class="a-tab-panel" style="max-width:720px;" hidden>
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">Chiavi EC P-256</div>
+    <div class="a-card-body">
+      {% if keys %}
+      <table class="a-table" style="margin-bottom:14px;">
+        <thead><tr><th>Ruolo</th><th>kid</th><th>Creata</th></tr></thead>
+        <tbody>
+          {% for role in key_roles %}
+          <tr>
+            <td>{{ role }}</td>
+            <td class="a-mono">{{ keys[role].public_jwk.kid if role in keys else '—' }}</td>
+            <td class="a-mono">{{ keys[role].created_at.strftime('%Y-%m-%d %H:%M') if role in keys and keys[role].created_at else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="a-muted" style="font-size:13px;margin-top:0;">Nessuna chiave generata.</p>
+      {% endif %}
+
+      <form method="post" action="/admin/itwallet/keys/generate"
+            {% if keys %}data-confirm="Rigenerare le chiavi IT-Wallet?&#10;&#10;Le chiavi attuali vengono eliminate: l'onboarding (JWKS, CSR, trust mark) va rifatto."{% endif %}>
+        {% if keys %}
+        <div class="a-alert a-alert-warning">Rigenerare le chiavi invalida l'onboarding: JWKS e CSR cambiano, la registrazione e il trust mark vanno rifatti.</div>
+        <div class="a-form-group">
+          <label style="font-size:13px;"><input type="checkbox" name="confirm_regenerate" value="yes" required> Confermo la rigenerazione delle chiavi</label>
+        </div>
+        {% endif %}
+        {{ step_up_fields("keys") }}
+        <button type="submit" class="a-btn {{ 'a-btn-danger' if keys else 'a-btn-primary' }} a-btn-sm">{{ 'Rigenera chiavi' if keys else 'Genera chiavi' }}</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------------------- Onboarding #}
+<section id="onboarding" class="a-tab-panel" style="max-width:820px;" hidden>
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">Dati per la registrazione</div>
+    <div class="a-card-body">
+      {% if hostname %}
+      <div class="a-form-group">
+        <label class="a-label" for="itw-entity-id">Entity ID</label>
+        <div class="itw-row">
+          <input type="text" class="a-input a-input-ro a-mono" id="itw-entity-id" value="{{ entity_id }}" readonly>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="{{ entity_id }}">Copia</button>
+        </div>
+      </div>
+      <div class="a-form-group">
+        <label class="a-label" for="itw-client-id">client_id OpenID4VP</label>
+        <div class="itw-row">
+          <input type="text" class="a-input a-input-ro a-mono" id="itw-client-id" value="{{ client_id }}" readonly>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="{{ client_id }}">Copia</button>
+        </div>
+      </div>
+      <div class="a-form-group">
+        <label class="a-label" for="itw-ec-url">URL Entity Configuration</label>
+        <div class="itw-row">
+          <input type="text" class="a-input a-input-ro a-mono" id="itw-ec-url" value="{{ ec_url }}" readonly>
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy="{{ ec_url }}">Copia</button>
+        </div>
+      </div>
+      {% else %}
+      <div class="a-alert a-alert-warning">Hostname del proxy non impostato (Impostazioni ente).</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">JWKS pubblico di federazione</div>
+    <div class="a-card-body">
+      {% if keys.federation %}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;">
+        <span class="a-muted" style="font-size:12px;">Solo parte pubblica (kty/crv/x/y/kid/use/alg).</span>
+        <span style="display:flex;gap:8px;">
+          <button type="button" class="a-btn a-btn-neutral a-btn-sm" data-copy-from="itw-jwks">Copia</button>
+          <a class="a-btn a-btn-neutral a-btn-sm" href="/admin/itwallet/jwks.json" download="itwallet-federation-jwks.json">Scarica</a>
+        </span>
+      </div>
+      <pre class="itw-pre"><code id="itw-jwks">{{ federation_jwks_json }}</code></pre>
+      {% else %}
+      <p class="a-muted" style="font-size:13px;margin:0;">Genera prima le chiavi (scheda Chiavi).</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">CSR PKCS#10</div>
+    <div class="a-card-body">
+      <p style="font-size:13px;margin-top:0;">Richiesta firmata con la chiave di federazione. Soggetto: <code>CN={{ hostname or '<host>' }}</code>, <code>O</code> = ente, <code>2.5.4.97=PA:IT-&lt;codice IPA&gt;</code>, <code>C=IT</code>, <code>L</code> = città; SAN DNS = host.</p>
+      {% if csr_missing %}
+      <div class="a-alert a-alert-warning">Mancano nelle Impostazioni ente: {{ csr_missing | join(', ') }}.</div>
+      {% endif %}
+      {% if keys.federation and not csr_missing %}
+      <a class="a-btn a-btn-primary a-btn-sm" href="/admin/itwallet/csr">Scarica CSR</a>
+      {% elif not keys.federation %}
+      <p class="a-muted" style="font-size:13px;margin:0;">Genera prima le chiavi (scheda Chiavi).</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="a-card">
+    <div class="a-card-header">Entity Configuration pubblicata (decodificata)</div>
+    <div class="a-card-body">
+      {% if ec_preview.error %}
+      <p class="a-muted" style="font-size:13px;margin:0;">{{ ec_preview.error }}</p>
+      {% else %}
+      <p style="font-size:12px;margin-top:0;">Letta da SATOSA, firma non verificata. <code>iss</code>: <span class="a-mono">{{ ec_preview.iss }}</span></p>
+      <pre class="itw-pre">{{ ec_preview.payload_json }}</pre>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------------------- Trust mark #}
+<section id="trust-mark" class="a-tab-panel" style="max-width:820px;" hidden>
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">Trust mark</div>
+    <div class="a-card-body">
+      {% if trust_mark %}
+        {% if trust_mark.error %}
+        <div class="a-alert a-alert-danger">Trust mark salvato non decodificabile: {{ trust_mark.error }}.</div>
+        {% else %}
+        <table class="a-table" style="margin-bottom:12px;">
+          <tbody>
+            <tr><td>id</td><td class="a-mono">{{ trust_mark.id or '—' }}</td></tr>
+            <tr><td>iss</td><td class="a-mono">{{ trust_mark.iss or '—' }}</td></tr>
+            <tr><td>sub</td><td class="a-mono">{{ trust_mark.sub or '—' }}</td></tr>
+            <tr><td>Scadenza</td><td>
+              {% if trust_mark.exp %}
+              <span class="a-mono">{{ trust_mark.exp.strftime('%Y-%m-%d %H:%M') }} UTC</span>
+              {% if trust_mark.expired %}<span class="a-badge a-badge-danger">Scaduto</span>{% else %}<span class="a-badge a-badge-success">valido</span>{% endif %}
+              {% else %}—{% endif %}
+            </td></tr>
+          </tbody>
+        </table>
+        <details style="margin-bottom:12px;">
+          <summary style="font-size:13px;cursor:pointer;">Payload decodificato</summary>
+          <pre class="itw-pre" style="margin-top:8px;">{{ trust_mark.payload_json }}</pre>
+        </details>
+        {% endif %}
+      {% else %}
+      <p class="a-muted" style="font-size:13px;margin-top:0;">Nessun trust mark. Si ottiene dopo l'onboarding{% if config and config.environment == 'produzione' %}; in produzione senza trust mark i wallet possono rifiutare il verifier{% endif %}.</p>
+      {% endif %}
+
+      <form method="post" action="/admin/itwallet/trust-mark">
+        <div class="a-form-group">
+          <label class="a-label" for="trust_mark">Trust mark (JWT)</label>
+          <textarea class="a-textarea a-mono" id="trust_mark" name="trust_mark" rows="4" placeholder="eyJ…">{{ config.trust_mark or '' if config else '' }}</textarea>
+          <div class="a-form-hint">Incolla il JWT ricevuto dopo la registrazione. Vuoto = rimuovi.</div>
+        </div>
+        <button type="submit" class="a-btn a-btn-primary a-btn-sm">Salva trust mark</button>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

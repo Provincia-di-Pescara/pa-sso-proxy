@@ -102,6 +102,15 @@
           eIDAS
         </button>
 
+        <button class="sso-tab" id="tab-itwallet" role="tab"
+                aria-selected="false" aria-controls="panel-itwallet"
+                type="button" onclick="ssoTab('itwallet')" style="display:none">
+          <span class="sso-tab-ico-wrapper" style="display:inline-flex;align-items:center;justify-content:center;padding:0;">
+            <img class="sso-tab-ico" src="/static/itwallet/it-wallet-mark.svg" alt="IT-Wallet" style="width:100%;height:100%;">
+          </span>
+          <span data-i18n="disco.itwallet.tab">IT-Wallet</span>
+        </button>
+
       </div><!-- /sso-tabs -->
 
       <!-- SPID PANEL -->
@@ -205,6 +214,22 @@
             </svg>
             <span data-i18n="disco.eidas.eu">Unione Europea</span>
           </span>
+        </div>
+      </div>
+
+      <!-- IT-Wallet PANEL -->
+      <div class="sso-tab-panel" id="panel-itwallet" role="tabpanel" aria-labelledby="tab-itwallet" hidden>
+        <p class="sso-desc" data-i18n="disco.itwallet.description">
+          Accedi con i documenti digitali custoditi nell'app IT-Wallet, inquadrando un codice QR o aprendo l'app sul tuo smartphone.
+        </p>
+
+        <div class="cie-panel">
+          <a class="eidas-btn" id="itwallet-login-btn" href="#">
+            <span class="eidas-btn-icon">
+              <img src="/static/itwallet/it-wallet-mark.svg" alt="">
+            </span>
+            <span class="eidas-btn-text" data-i18n="disco.itwallet.button">Entra con IT-Wallet</span>
+          </a>
         </div>
       </div>
 
@@ -485,6 +510,15 @@ function ssoMakeDot() {
         var btnEidas = document.getElementById('eidas-login-btn');
         if (tabEidas) tabEidas.style.display = '';
         if (btnEidas) btnEidas.href = eidas.login_url;
+      }
+
+      /* IT-Wallet tab — login_url configurato; in modalita test solo da /verifica o client con IdP di test */
+      var itw = data && data.digital_id && data.digital_id.itwallet;
+      if (itw && itw.login_url && !LEGAL_ENTITY && (!itw.test_only || VERIFICA)) {
+        var tabItw = document.getElementById('tab-itwallet');
+        var btnItw = document.getElementById('itwallet-login-btn');
+        if (tabItw) tabItw.style.display = '';
+        if (btnItw) btnItw.href = itw.login_url;
       }
 
       /* Footer links */

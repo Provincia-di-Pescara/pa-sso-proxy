@@ -1,13 +1,11 @@
 import logging
 import inspect
-import os
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
 from satosa.backends.base import BackendModule
 from satosa.backends.oauth import get_metadata_desc_for_oauth_backend
 from satosa.response import Response
 
-from .. import i18n
+from ..proxy_errors import render_proxy_error
 from ..spidsaml2 import LEGAL_ENTITY_SPID_ONLY_ERROR, _legal_entity_requested
 from .utils.endpoints_loader import EndpointsLoader
 
@@ -20,24 +18,7 @@ logger = logging.getLogger(__name__)
 
 def _render_legal_entity_error(context=None) -> Response:
     """Pagina di errore del proxy: CIE non supporta l'accesso per conto di un'impresa."""
-    template_folder = os.environ.get("SATOSA_TEMPLATE_FOLDER", "/satosa_proxy/templates")
-    static_url = os.environ.get("SATOSA_STATIC_URL", "/static/")
-    if not static_url.endswith("/"):
-        static_url += "/"
-    env = Environment(
-        loader=FileSystemLoader(searchpath=template_folder),
-        autoescape=select_autoescape(["html"]),
-    )
-    env.globals.update({"static": static_url})
-    lang = i18n.resolve_lang(context)
-    result = env.get_template("spid_login_error.html").render({
-        "message": i18n.t(lang, LEGAL_ENTITY_SPID_ONLY_ERROR["message_key"]),
-        "troubleshoot": i18n.t(lang, LEGAL_ENTITY_SPID_ONLY_ERROR["troubleshoot_key"]),
-        "error_type": "generic",
-        "cancel_url": os.environ.get("SATOSA_CANCEL_REDIRECT_URL") or "/",
-        **i18n.template_vars(lang),
-    })
-    return Response(result.encode("utf-8"), content="text/html; charset=utf8", status="403")
+    return render_proxy_error(context, LEGAL_ENTITY_SPID_ONLY_ERROR)
 
 
 class CieOidcBackend(BackendModule):

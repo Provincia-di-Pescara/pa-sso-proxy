@@ -20,7 +20,8 @@ from app import admin_2fa, backup_crypto, step_up
 from app.cie_jwks_writer import write_jwks_files
 from app.database import get_db
 from app.jinja_templates import templates
-from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidCert, SpidIdP, SpidMetadataProfile
+from app.models import CieConfig, EnteSettings, ItWalletConfig, JwkKey, OIDCClient, SpidCert, SpidIdP, SpidMetadataProfile
+from app.routes.cie import _get_all_keys as _get_cie_keys
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 from app.spid_cert_writer import write_spid_cert
@@ -82,7 +83,12 @@ async def _export_bundle(db: AsyncSession) -> dict:
     cie = res.scalar_one_or_none()
     cie_dict = _row_to_dict(cie) if cie else {}
 
-    # jwk_keys
+    # itwallet_config (assente nei bundle precedenti a IT-Wallet)
+    res = await db.execute(select(ItWalletConfig).where(ItWalletConfig.id == 1))
+    itw = res.scalar_one_or_none()
+    itw_dict = _row_to_dict(itw) if itw else {}
+
+    # jwk_keys (tutte, comprese le 3 di IT-Wallet: id preservati per le FK)
     res = await db.execute(select(JwkKey).order_by(JwkKey.id))
     keys = [_row_to_dict(k) for k in res.scalars().all()]
 
@@ -114,6 +120,7 @@ async def _export_bundle(db: AsyncSession) -> dict:
         "oidc_clients": clients,
         "spid_idps": idps,
         "cie_config": cie_dict,
+        "itwallet_config": itw_dict,
         "jwk_keys": keys,
         "spid_cert": cert_dict,
         "spid_metadata_profiles": profiles,
@@ -134,6 +141,7 @@ async def _restore_bundle(bundle: dict, db: AsyncSession) -> None:
     # Ordine di delete: prima chi ha FK verso altre tabelle
     await db.execute(delete(SpidMetadataProfile))
     await db.execute(delete(CieConfig))
+    await db.execute(delete(ItWalletConfig))
     await db.execute(delete(SpidCert))
     await db.execute(delete(OIDCClient))
     await db.execute(delete(SpidIdP))
@@ -164,6 +172,11 @@ async def _restore_bundle(bundle: dict, db: AsyncSession) -> None:
     # cie_config — inserita DOPO jwk_keys (FK jwk_federation_id, jwk_core_sig_id, jwk_core_enc_id)
     if bundle.get("cie_config"):
         db.add(CieConfig(**_clean(bundle["cie_config"], CieConfig)))
+
+    # itwallet_config — stessa regola (FK verso jwk_keys). Bundle precedenti: assente,
+    # nessuna riga = wallet spento.
+    if bundle.get("itwallet_config"):
+        db.add(ItWalletConfig(**_clean(bundle["itwallet_config"], ItWalletConfig)))
 
     # spid_cert — il restore è una sostituzione completa dello stato: non esiste
     # nessun altro SpidCert nel DB appena ripristinato, quindi questo diventa
@@ -317,8 +330,8 @@ async def backup_import(
         if active_cert:
             await asyncio.to_thread(write_spid_cert, active_cert)
 
-        jwk_result = await db.execute(select(JwkKey))
-        jwk_keys = list(jwk_result.scalars().all())
+        # Solo chiavi CIE: quelle IT-Wallet non vanno nei cie_jwks_*.json
+        jwk_keys = await _get_cie_keys(db)
         if jwk_keys:
             await asyncio.to_thread(write_jwks_files, jwk_keys)
     except Exception as e:

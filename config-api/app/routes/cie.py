@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.cie_jwks_writer import write_jwks_files
 from app.database import get_db
 from app.jwk_generator import generate_jwk, portal_jwk
-from app.models import CieConfig, JwkKey
+from app.models import CieConfig, ItWalletConfig, JwkKey
 from app.satosa_generator import generate_and_write
 from app.satosa_reload import reload_satosa
 
@@ -48,9 +48,19 @@ def _auth_check(request: Request) -> bool:
     return request.session.get("user") is not None
 
 
+async def _itwallet_key_ids(db: AsyncSession) -> set[int]:
+    """Chiavi IT-Wallet (stessa tabella jwk_keys): gestite solo da /admin/itwallet."""
+    cfg = (await db.execute(select(ItWalletConfig).where(ItWalletConfig.id == 1))).scalar_one_or_none()
+    if cfg is None:
+        return set()
+    return {i for i in (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id) if i}
+
+
 async def _get_all_keys(db: AsyncSession) -> list[JwkKey]:
+    """Chiavi CIE: tutte le jwk_keys tranne quelle di IT-Wallet."""
+    excluded = await _itwallet_key_ids(db)
     result = await db.execute(select(JwkKey).order_by(JwkKey.created_at))
-    return list(result.scalars().all())
+    return [k for k in result.scalars().all() if k.id not in excluded]
 
 
 async def _write_jwks_safe(keys: list[JwkKey]) -> None:
@@ -244,6 +254,9 @@ async def cie_delete_jwk(
 ):
     if not _auth_check(request):
         return RedirectResponse("/admin/login", status_code=302)
+
+    if jwk_id in await _itwallet_key_ids(db):
+        return RedirectResponse("/admin/cie", status_code=302)
 
     result = await db.execute(select(CieConfig).where(CieConfig.id == 1))
     config = result.scalar_one_or_none()

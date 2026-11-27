@@ -17,7 +17,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import CieConfig, EnteSettings, JwkKey, OIDCClient, SpidIdP
+from app import itwallet_backend_config as itwallet_cfg
+from app.models import CieConfig, EnteSettings, ItWalletConfig, JwkKey, OIDCClient, SpidIdP
 from app.saml_metadata import MAX_METADATA_BYTES, InvalidMetadata, check_idp_metadata
 from app.spid_seeder import EIDAS_ENTITY_IDS, FICEP_ENTITY_IDS
 from app.url_validation import valid_public_url
@@ -246,17 +247,21 @@ def _satosa_logging() -> dict:
                 "formatter": "simple",
             }
         },
-        "loggers": {"satosa": {"level": level}},
+        # pyeudiw (backend IT-Wallet) a DEBUG logga request/response del wallet:
+        # stesso livello di satosa, mai DEBUG se non richiesto.
+        "loggers": {"satosa": {"level": level}, "pyeudiw": {"level": level}},
         "root": {"level": level, "handlers": ["stdout"]},
     }
 
 
-def _proxy_yaml(hostname: str, include_cie_oidc: bool) -> dict:
+def _proxy_yaml(hostname: str, include_cie_oidc: bool, include_itwallet: bool = False) -> dict:
     backend_modules = [
         "/satosa-conf/spid_backend.yaml",
     ]
     if include_cie_oidc:
         backend_modules.append("/satosa-conf/cie_oidc_backend.yaml")
+    if include_itwallet:
+        backend_modules.append(f"/satosa-conf/{itwallet_cfg.BACKEND_FILENAME}")
     return {
         "BASE": _base_url(hostname),
         "INTERNAL_ATTRIBUTES": "/satosa_proxy/internal_attributes.yaml",
@@ -769,11 +774,13 @@ def _eid_locale_strings(
     cie_oidc_login_url: str | None,
     settings: "EnteSettings | None" = None,
     enabled_idps: list | None = None,
+    itwallet: dict | None = None,
 ) -> dict:
     """Dati dinamici dell'ente per la discovery, uno per lingua (contenuto identico).
 
     I testi sono in satosa/public/static/i18n/<lang>.json: qui solo nome ente,
-    URL e login URL CIE/eIDAS, che non si traducono.
+    URL e login URL CIE/eIDAS/IT-Wallet, che non si traducono.
+    `itwallet` (solo se il wallet è attivo): {"login_url", "test_only"}.
     """
     # Disco visibility driven by IdP enabled state (not eidas_enabled).
     # This allows temporary hiding without touching SP metadata (ficep_enable).
@@ -787,6 +794,8 @@ def _eid_locale_strings(
         digital_id["eidas"] = {
             "login_url": f"/spidSaml2/disco?entityID={eidas_entity_id}&return=/spidSaml2/disco"
         }
+    if itwallet:
+        digital_id["itwallet"] = dict(itwallet)
     _s = settings
 
     def _url(value):
@@ -913,7 +922,9 @@ class AccessLogReporter(ResponseMicroService):
         provider_type = "spid"
         try:
             backend = getattr(context, "target_backend", "") or ""
-            if "cie" in backend.lower():
+            if "openid4vp" in backend.lower():
+                provider_type = "itwallet"
+            elif "cie" in backend.lower():
                 provider_type = "cie"
             elif idp_entity_id and "eid.gov.it" in idp_entity_id.lower():
                 provider_type = "eidas"
@@ -951,11 +962,16 @@ class DefaultBackendRouter(RequestMicroService):
         super().__init__(*args, **kwargs)
         self.default_backend = config.get("default_backend", "spidSaml2")
         self.cie_oidc_provider_urls = set(config.get("cie_oidc_provider_urls", []))
+        # entityID fittizi -> backend (es. "wallet" -> OpenID4VP), solo se attivi
+        self.entity_backends = dict(config.get("entity_backends") or {})
 
     def process(self, context, data):
         if not context.target_backend:
             entity_id = context.get_decoration(Context.KEY_TARGET_ENTITYID)
-            if entity_id and self.cie_oidc_provider_urls and entity_id in self.cie_oidc_provider_urls:
+            if entity_id and entity_id in self.entity_backends:
+                context.target_backend = self.entity_backends[entity_id]
+                logger.info(f"DefaultBackendRouter: entity {entity_id} → {context.target_backend}")
+            elif entity_id and self.cie_oidc_provider_urls and entity_id in self.cie_oidc_provider_urls:
                 context.target_backend = "CieOidcRp"
                 logger.info(f"DefaultBackendRouter: CIE OIDC entity {entity_id} → CieOidcRp")
             else:
@@ -986,6 +1002,26 @@ def _write(conf_dir: str, filename: str, data: dict) -> None:
 def _write_json(conf_dir: str, filename: str, data: dict) -> None:
     with open(os.path.join(conf_dir, filename), "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+
+
+async def _load_itwallet(db: AsyncSession) -> tuple["ItWalletConfig | None", dict]:
+    """Riga itwallet_config (id=1) e JWK private per ruolo ("federation", "sig", "enc")."""
+    result = await db.execute(select(ItWalletConfig).where(ItWalletConfig.id == 1))
+    cfg = result.scalar_one_or_none()
+    keys: dict = {}
+    if cfg is None:
+        return None, keys
+    for role, key_id in (
+        ("federation", cfg.jwk_federation_id),
+        ("sig", cfg.jwk_sig_id),
+        ("enc", cfg.jwk_enc_id),
+    ):
+        if key_id:
+            r = await db.execute(select(JwkKey).where(JwkKey.id == key_id))
+            k = r.scalar_one_or_none()
+            if k:
+                keys[role] = k.private_jwk
+    return cfg, keys
 
 
 async def generate_satosa_config(db: AsyncSession) -> None:
@@ -1042,6 +1078,13 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         and jwk_core_enc is not None
     )
 
+    itwallet_config, itwallet_keys = await _load_itwallet(db)
+    include_itwallet = False
+    if itwallet_config is not None and itwallet_config.enabled:
+        include_itwallet, reason = itwallet_cfg.itwallet_ready(itwallet_config, itwallet_keys)
+        if not include_itwallet:
+            logger.warning("IT-Wallet attivo ma configurazione incompleta (%s): backend non generato", reason)
+
     conf_dir = os.environ.get("SATOSA_CONF_DIR", SATOSA_CONF_DIR)
     os.makedirs(conf_dir, exist_ok=True)
 
@@ -1081,6 +1124,10 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         "config": {
             "default_backend": "spidSaml2",
             "cie_oidc_provider_urls": cie_oidc_urls,
+            # /Saml2/disco?entityID=wallet -> backend OpenID4VP (solo wallet attivo)
+            "entity_backends": (
+                {itwallet_cfg.DISCO_ENTITY_ID: itwallet_cfg.BACKEND_NAME} if include_itwallet else {}
+            ),
         },
     })
 
@@ -1106,7 +1153,8 @@ async def generate_satosa_config(db: AsyncSession) -> None:
             "allowed_scopes": list(c.allowed_scopes),
             "response_types": ["code"],
         }
-    # Inject public verifica client (always active)
+    # Client pubblico di /verifica, sempre presente: test SPID (Demo/Validator) e,
+    # in collaudo/personalizzato, IT-Wallet (ammesso dal guard test-only del wallet).
     import hmac as _hmac
     import hashlib as _hashlib
     _salt = os.environ.get("SATOSA_HASH_SALT", "changeme").encode()
@@ -1176,15 +1224,34 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         if include_cie_oidc and cie_config and cie_config.oidc_provider_url
         else None
     )
+    test_idp_client_ids = [c.client_id for c in clients if c.allow_test_idps]
+    itwallet_disco = None
+    itwallet_path = os.path.join(conf_dir, itwallet_cfg.BACKEND_FILENAME)
+    if include_itwallet:
+        _write(conf_dir, itwallet_cfg.BACKEND_FILENAME, itwallet_cfg.build_itwallet_backend(
+            itwallet_config, itwallet_keys, hostname, _redis_db_url(3), test_idp_client_ids,
+        ))
+        itwallet_disco = {
+            "login_url": itwallet_cfg.LOGIN_URL,
+            "test_only": itwallet_config.environment in itwallet_cfg.TEST_ONLY_ENVIRONMENTS,
+        }
+
     os.makedirs(os.path.join(conf_dir, "locales"), exist_ok=True)
-    for lang, strings in _eid_locale_strings(cie_oidc_login_url, settings, enabled_idps).items():
+    for lang, strings in _eid_locale_strings(
+        cie_oidc_login_url, settings, enabled_idps, itwallet=itwallet_disco,
+    ).items():
         _write_json(conf_dir, f"locales/eid-{lang}.json", strings)
 
-    _write(conf_dir, "proxy.yaml", _proxy_yaml(hostname, include_cie_oidc))
+    _write(conf_dir, "proxy.yaml", _proxy_yaml(hostname, include_cie_oidc, include_itwallet))
+    if not include_itwallet and os.path.lexists(itwallet_path):
+        # Spento (o incompleto): nessuna traccia, /OpenID4VP/* risponde 404.
+        # Solo DOPO proxy.yaml: un riavvio di SATOSA in mezzo troverebbe ancora
+        # il backend in BACKEND_MODULES ma non il suo file.
+        os.remove(itwallet_path)
     _write(conf_dir, "oidc_frontend.yaml", _oidc_frontend_yaml(hostname))
     _write(conf_dir, "spid_backend.yaml", _spid_backend_yaml(
         hostname, enabled_idps, cert_path, key_path, settings,
-        test_idp_client_ids=[c.client_id for c in clients if c.allow_test_idps],
+        test_idp_client_ids=test_idp_client_ids,
     ))
 
     # Write a mapping of alias -> metadata_url for every IdP whose metadata

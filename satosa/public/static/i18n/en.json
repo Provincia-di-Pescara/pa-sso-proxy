@@ -69,6 +69,8 @@
   "error.legal_entity_spid_only.troubleshoot": "Go back to the service and sign in with SPID using a professional-use identity of the legal entity. CIE and eIDAS do not support this type of access.",
   "error.test_idp_verifica_only": "This identity provider is reserved for testing.",
   "error.test_idp_verifica_only.troubleshoot": "The Demo Provider and the AgID validator can only be used from the proxy's verification page. Go back to the service and sign in with your SPID provider.",
+  "error.itwallet_test_only": "IT-Wallet is in the testing phase: for now it is only available to test applications.",
+  "error.itwallet_test_only.troubleshoot": "Sign in with SPID or CIE, or contact the organisation.",
   "error.eidas_not_enabled": "eIDAS login is not enabled.",
   "error.eidas_not_enabled.troubleshoot": "This service does not allow login through the eIDAS node. Go back to the service and sign in with SPID or CIE.",
 
@@ -76,5 +78,24 @@
   "error.cie.timeout": "The time allowed for authentication has expired. Please try again.",
   "error.cie.generic": "Sign-in with CIE was not successful.",
   "error.cie.state_lost": "The sign-in session is no longer valid: the CIE sign-in was completed in a different browser or app from the one where it started.",
-  "error.cie.state_lost.troubleshoot": "Go back to the service and start the sign-in again from the same browser. If you use the CieID app on your smartphone, open the service in the phone's default browser."
+  "error.cie.state_lost.troubleshoot": "Go back to the service and start the sign-in again from the same browser. If you use the CieID app on your smartphone, open the service in the phone's default browser.",
+
+  "itwallet.qr.page_title": "Sign in with IT-Wallet",
+  "itwallet.qr.title": "Sign in with IT-Wallet",
+  "itwallet.qr.instructions": "Open the IT-Wallet app on your smartphone and scan the QR code to share the requested data.",
+  "itwallet.qr.qr_alt": "QR code to sign in with IT-Wallet",
+  "itwallet.qr.open_app": "Open the IT-Wallet app",
+  "itwallet.qr.expires_in": "The code expires in {seconds} seconds.",
+  "itwallet.qr.expired": "The QR code has expired. Generate a new code to continue.",
+  "itwallet.qr.retry": "Generate a new code",
+  "itwallet.qr.cancel": "Cancel",
+  "itwallet.qr.success": "Verification completed, redirecting you…",
+  "itwallet.qr.failed": "The IT-Wallet verification was not successful. Please try again.",
+  "itwallet.error.page_title": "IT-Wallet sign-in error",
+  "itwallet.error.title": "IT-Wallet sign-in failed",
+  "itwallet.error.generic": "Sign-in was not successful: the IT-Wallet app rejected the request or you did not consent to share the mandatory data. Go back to the service and try again.",
+  "disco.itwallet.tab": "IT-Wallet",
+  "disco.itwallet.description": "Sign in with the digital documents stored in the IT-Wallet app, by scanning a QR code or opening the app on your smartphone.",
+  "disco.itwallet.button": "Sign in with IT-Wallet",
+  "disco.itwallet.more_info": "More information about IT-Wallet"
 }

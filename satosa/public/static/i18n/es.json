@@ -69,6 +69,8 @@
   "error.legal_entity_spid_only.troubleshoot": "Vuelva al servicio y acceda con SPID utilizando una identidad de uso profesional de la persona jurídica. CIE y eIDAS no admiten este tipo de acceso.",
   "error.test_idp_verifica_only": "Este proveedor de identidad está reservado para pruebas.",
   "error.test_idp_verifica_only.troubleshoot": "El Demo Provider y el validador AgID solo se pueden usar desde la página de verificación del proxy. Vuelve al servicio e inicia sesión con tu proveedor SPID.",
+  "error.itwallet_test_only": "IT-Wallet está en fase de pruebas: por ahora solo está disponible para las aplicaciones de prueba.",
+  "error.itwallet_test_only.troubleshoot": "Inicia sesión con SPID o CIE, o ponte en contacto con el organismo.",
   "error.eidas_not_enabled": "El acceso con eIDAS no está activado.",
   "error.eidas_not_enabled.troubleshoot": "Este servicio no permite el acceso a través del nodo eIDAS. Vuelve al servicio e inicia sesión con SPID o CIE.",
 
@@ -76,5 +78,24 @@
   "error.cie.timeout": "El tiempo disponible para la autenticación ha caducado. Inténtelo de nuevo.",
   "error.cie.generic": "El acceso con la CIE no se ha completado correctamente.",
   "error.cie.state_lost": "La sesión de acceso ya no es válida: el acceso con la CIE se completó en un navegador o una aplicación distintos de aquellos en los que se inició.",
-  "error.cie.state_lost.troubleshoot": "Vuelva al servicio e inicie de nuevo el acceso desde el mismo navegador. Si utiliza la aplicación CieID en su smartphone, abra el servicio en el navegador predeterminado del teléfono."
+  "error.cie.state_lost.troubleshoot": "Vuelva al servicio e inicie de nuevo el acceso desde el mismo navegador. Si utiliza la aplicación CieID en su smartphone, abra el servicio en el navegador predeterminado del teléfono.",
+
+  "itwallet.qr.page_title": "Acceder con IT-Wallet",
+  "itwallet.qr.title": "Acceder con IT-Wallet",
+  "itwallet.qr.instructions": "Abre la aplicación IT-Wallet en tu smartphone y escanea el código QR para compartir los datos solicitados.",
+  "itwallet.qr.qr_alt": "Código QR para acceder con IT-Wallet",
+  "itwallet.qr.open_app": "Abrir la aplicación IT-Wallet",
+  "itwallet.qr.expires_in": "El código caduca en {seconds} segundos.",
+  "itwallet.qr.expired": "El código QR ha caducado. Genera un nuevo código para continuar.",
+  "itwallet.qr.retry": "Generar un nuevo código",
+  "itwallet.qr.cancel": "Cancelar",
+  "itwallet.qr.success": "Verificación completada, te estamos redirigiendo…",
+  "itwallet.qr.failed": "La verificación con IT-Wallet no se ha completado. Inténtalo de nuevo.",
+  "itwallet.error.page_title": "Error de acceso con IT-Wallet",
+  "itwallet.error.title": "Acceso con IT-Wallet fallido",
+  "itwallet.error.generic": "El acceso no se ha completado: la aplicación IT-Wallet ha rechazado la solicitud o no has consentido compartir los datos obligatorios. Vuelve al servicio e inténtalo de nuevo.",
+  "disco.itwallet.tab": "IT-Wallet",
+  "disco.itwallet.description": "Accede con los documentos digitales guardados en la aplicación IT-Wallet, escaneando un código QR o abriendo la aplicación en tu smartphone.",
+  "disco.itwallet.button": "Acceder con IT-Wallet",
+  "disco.itwallet.more_info": "Más información sobre IT-Wallet"
 }

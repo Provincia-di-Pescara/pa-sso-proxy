@@ -123,3 +123,14 @@ async def test_satosa_status_unreachable():
         status = await _satosa_status()
 
     assert status == "unreachable"
+
+
+async def test_dashboard_shows_itwallet_provider(auth_client, db_session):
+    from app.models import AccessLog
+
+    db_session.add(AccessLog(provider_type="itwallet", client_id="c1", result="success"))
+    await db_session.commit()
+
+    response = await auth_client.get("/admin/")
+    assert response.status_code == 200
+    assert "IT-Wallet" in response.text

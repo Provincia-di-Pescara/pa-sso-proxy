@@ -1,9 +1,10 @@
 import base64
 import hashlib
 import json
+from typing import Literal
 
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
 from app.models import JwkKey
 
@@ -57,6 +58,36 @@ def generate_jwk(name: str, use: str) -> JwkKey:
         "qi": _b64url_int(priv.iqmp),
     }
 
+    return JwkKey(name=name, use=use, private_jwk=private_jwk, public_jwk=public_jwk)
+
+
+def generate_ec_jwk(name: str, use: Literal["federation", "sig", "enc"]) -> JwkKey:
+    """Genera una coppia EC P-256. KID = thumbprint RFC 7638 su {crv,kty,x,y}.
+
+    alg: ES256 per federation/sig, ECDH-ES per enc. La parte pubblica contiene
+    solo kty/crv/x/y/kid/use/alg.
+    """
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    numbers = private_key.private_numbers()
+    pub = numbers.public_numbers
+
+    x_b64 = _b64url(pub.x.to_bytes(32, "big"))
+    y_b64 = _b64url(pub.y.to_bytes(32, "big"))
+    canonical = json.dumps(
+        {"crv": "P-256", "kty": "EC", "x": x_b64, "y": y_b64}, separators=(",", ":"), sort_keys=True
+    )
+    kid = _b64url(hashlib.sha256(canonical.encode()).digest())
+
+    public_jwk = {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": x_b64,
+        "y": y_b64,
+        "kid": kid,
+        "use": use,
+        "alg": "ECDH-ES" if use == "enc" else "ES256",
+    }
+    private_jwk = {**public_jwk, "d": _b64url(numbers.private_value.to_bytes(32, "big"))}
     return JwkKey(name=name, use=use, private_jwk=private_jwk, public_jwk=public_jwk)
 
 

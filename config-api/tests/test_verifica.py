@@ -5,7 +5,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.database import get_db
-from app.models import EnteSettings, SpidIdP
+from app.models import EnteSettings, ItWalletConfig, SpidIdP
 
 
 @pytest.fixture
@@ -157,3 +157,30 @@ async def test_start_falls_back_when_discovery_unavailable(verifica_app, db_sess
     monkeypatch.setattr(verifica, "_satosa_discovery", no_discovery)
     loc = await _authorize_location(verifica_app)
     assert loc.startswith("https://proxy.ente.it/OIDC/authorization?")
+
+
+# /verifica non dipende dagli IdP SPID di test: serve anche a collaudare IT-Wallet
+# (in collaudo/personalizzato __spid_verifica__ è tra i client ammessi dal wallet).
+
+@pytest.mark.parametrize("environment", ["collaudo", "personalizzato", "produzione"])
+async def test_available_with_wallet_and_no_spid_test_idp(verifica_app, db_session, environment):
+    db_session.add_all([
+        EnteSettings(id=1, proxy_hostname="proxy.ente.it"),
+        ItWalletConfig(id=1, enabled=True, environment=environment,
+                       trust_anchor_url="https://ta.example", authority_hint_url="https://ta.example"),
+    ])
+    await db_session.commit()
+    async with _client(verifica_app) as c:
+        page = await c.get("/verifica")
+    assert page.status_code == 200
+    assert "IT-Wallet" in page.text
+    params = await _authorize_params(verifica_app)
+    assert params["client_id"] == "__spid_verifica__"
+
+
+async def test_available_without_any_test_provider(verifica_app, db_session):
+    db_session.add(EnteSettings(id=1, proxy_hostname="proxy.ente.it"))
+    await db_session.commit()
+    async with _client(verifica_app) as c:
+        page = await c.get("/verifica")
+    assert page.status_code == 200

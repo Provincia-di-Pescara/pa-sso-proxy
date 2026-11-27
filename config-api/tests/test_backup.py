@@ -474,3 +474,108 @@ async def test_export_excludes_admin_totp(db_session, app_env):
     text = json.dumps(_bundle(resp))
     assert "admin_totp" not in text
     assert enc not in text
+
+
+# ---------------------------------------------------------------------------
+# IT-Wallet
+# ---------------------------------------------------------------------------
+
+async def _import_bundle(app, db_session, bundle):
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with patch("app.routes.backup.generate_and_write", new_callable=AsyncMock), \
+         patch("app.routes.backup.reload_satosa", new_callable=AsyncMock):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            await _login(c)
+            resp = await c.post(
+                "/admin/backup/import",
+                files={"file": ("backup.json", _encrypted(bundle), "application/json")},
+                data=IMPORT_FORM,
+                follow_redirects=False,
+            )
+    app.dependency_overrides.clear()
+    return resp
+
+
+async def test_backup_roundtrip_itwallet(db_session, app_env, tmp_path, monkeypatch):
+    """Config IT-Wallet + 3 chiavi: export, import, FK coerenti; le chiavi
+    IT-Wallet non finiscono nei file JWKS della CIE."""
+    from sqlalchemy import select
+    from app.main import app
+    from app.models import ItWalletConfig, JwkKey
+
+    monkeypatch.setenv("SATOSA_CONF_DIR", str(tmp_path))
+
+    cie_key = JwkKey(name="cie-federation", use="federation",
+                     private_jwk={"kty": "RSA", "kid": "cie-kid", "d": "x"}, public_jwk={"kty": "RSA", "kid": "cie-kid"})
+    wf = JwkKey(name="itw-federation", use="federation",
+                private_jwk={"kty": "RSA", "kid": "itw-fed", "d": "x"}, public_jwk={"kty": "RSA", "kid": "itw-fed"})
+    ws = JwkKey(name="itw-sig", use="sig",
+                private_jwk={"kty": "RSA", "kid": "itw-sig", "d": "x"}, public_jwk={"kty": "RSA", "kid": "itw-sig"})
+    we = JwkKey(name="itw-enc", use="enc",
+                private_jwk={"kty": "RSA", "kid": "itw-enc", "d": "x"}, public_jwk={"kty": "RSA", "kid": "itw-enc"})
+    db_session.add_all([cie_key, wf, ws, we])
+    await db_session.flush()
+    db_session.add(ItWalletConfig(
+        id=1, enabled=True, environment="collaudo",
+        trust_anchor_url="https://ta.test", authority_hint_url="https://ta.test",
+        jwk_federation_id=wf.id, jwk_sig_id=ws.id, jwk_enc_id=we.id,
+        organization_name="Ente", contact_email="pec@ente.test",
+    ))
+    await db_session.commit()
+
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        await _login(c)
+        export_resp = await _export(c)
+    app.dependency_overrides.clear()
+    bundle = _bundle(export_resp)
+    assert bundle["itwallet_config"]["enabled"] is True
+    assert len(bundle["jwk_keys"]) == 4
+
+    resp = await _import_bundle(app, db_session, bundle)
+    assert resp.status_code == 302
+
+    db_session.expire_all()
+    cfg = (await db_session.execute(select(ItWalletConfig).where(ItWalletConfig.id == 1))).scalar_one()
+    assert cfg.enabled is True
+    assert cfg.trust_anchor_url == "https://ta.test"
+    keys = {k.id: k for k in (await db_session.execute(select(JwkKey))).scalars().all()}
+    assert len(keys) == 4
+    assert keys[cfg.jwk_federation_id].name == "itw-federation"
+    assert keys[cfg.jwk_sig_id].name == "itw-sig"
+    assert keys[cfg.jwk_enc_id].name == "itw-enc"
+
+    # Nessuna chiave IT-Wallet nei file CIE
+    for f in ("cie_jwks_public.json", "cie_jwks_private.json"):
+        text = (tmp_path / f).read_text()
+        assert "cie-kid" in text
+        assert "itw-" not in text
+
+
+async def test_restore_bundle_without_itwallet(db_session, app_env):
+    """Bundle precedente a IT-Wallet: ripristino senza errori, wallet spento."""
+    from sqlalchemy import select
+    from app.main import app
+    from app.models import ItWalletConfig
+
+    # wallet attivo prima del ripristino: il bundle vecchio non lo contiene
+    db_session.add(ItWalletConfig(id=1, enabled=True, environment="collaudo",
+                                  trust_anchor_url="https://ta.example.org"))
+    await db_session.commit()
+
+    bundle = {
+        "version": "1", "exported_at": "2026-01-01T00:00:00+00:00",
+        "ente_settings": {}, "oidc_clients": [], "spid_idps": [],
+        "cie_config": {}, "jwk_keys": [], "spid_cert": {},
+    }
+    resp = await _import_bundle(app, db_session, bundle)
+    assert resp.status_code == 302
+    db_session.expire_all()
+    cfg = (await db_session.execute(select(ItWalletConfig))).scalars().all()
+    assert cfg == []
