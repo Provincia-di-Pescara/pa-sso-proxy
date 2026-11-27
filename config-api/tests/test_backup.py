@@ -564,6 +564,11 @@ async def test_restore_bundle_without_itwallet(db_session, app_env):
     from app.main import app
     from app.models import ItWalletConfig
 
+    # wallet attivo prima del ripristino: il bundle vecchio non lo contiene
+    db_session.add(ItWalletConfig(id=1, enabled=True, environment="collaudo",
+                                  trust_anchor_url="https://ta.example.org"))
+    await db_session.commit()
+
     bundle = {
         "version": "1", "exported_at": "2026-01-01T00:00:00+00:00",
         "ente_settings": {}, "oidc_clients": [], "spid_idps": [],
@@ -571,5 +576,6 @@ async def test_restore_bundle_without_itwallet(db_session, app_env):
     }
     resp = await _import_bundle(app, db_session, bundle)
     assert resp.status_code == 302
+    db_session.expire_all()
     cfg = (await db_session.execute(select(ItWalletConfig))).scalars().all()
-    assert all(not c.enabled for c in cfg)
+    assert cfg == []
