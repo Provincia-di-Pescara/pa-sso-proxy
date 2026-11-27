@@ -100,8 +100,10 @@ def itwallet_ready(cfg, keys: dict | None) -> tuple[bool, str | None]:
         return False, "configurazione IT-Wallet assente"
     if cfg.environment not in ENVIRONMENTS:
         return False, "ambiente non scelto (collaudo, produzione o personalizzato)"
-    if not (cfg.trust_anchor_url or "").strip():
-        return False, "trust anchor non impostato"
+    # Senza trust anchor la Entity Configuration si pubblica lo stesso (serve all'onboarding:
+    # IPZS la legge prima di comunicare il trust anchor); in produzione invece è obbligatorio.
+    if cfg.environment == "produzione" and not (cfg.trust_anchor_url or "").strip():
+        return False, "trust anchor non impostato (obbligatorio in produzione)"
     missing = _missing_keys(keys)
     if missing:
         return False, "chiavi mancanti: " + ", ".join(missing)
@@ -160,7 +162,7 @@ def build_itwallet_backend(
     """
     base = f"https://{hostname}"
     backend_url = entity_id(hostname)
-    trust_anchor = cfg.trust_anchor_url.strip()
+    trust_anchor = (cfg.trust_anchor_url or "").strip()
     authority_hint = (cfg.authority_hint_url or "").strip() or trust_anchor
     org_name = cfg.organization_name or cfg.client_name or hostname
     client_name = cfg.client_name or org_name
@@ -338,11 +340,15 @@ def build_itwallet_backend(
                     "entity_configuration_exp": 600,
                     "metadata_type": "openid_credential_verifier",
                     "metadata": metadata(),
-                    "authority_hints": [authority_hint],
+                    # Vuoti finché l'onboarding non dà il trust anchor: la Entity
+                    # Configuration è pubblicata, ma nessuna catena di trust è valida.
+                    "authority_hints": [authority_hint] if authority_hint else [],
                     # dict TA -> chiavi: FederationHandler fa `ta in trust_anchors` e
                     # `trust_anchors[ta]`; lista vuota = JWKS letto dalla entity
                     # configuration del TA.
-                    "trust_anchors": {trust_anchor: _trust_anchor_keys(cfg.trust_anchor_jwks)},
+                    "trust_anchors": (
+                        {trust_anchor: _trust_anchor_keys(cfg.trust_anchor_jwks)} if trust_anchor else {}
+                    ),
                     "default_sig_alg": "ES256",
                     "trust_marks": trust_marks,
                     "federation_entity_metadata": federation_entity,

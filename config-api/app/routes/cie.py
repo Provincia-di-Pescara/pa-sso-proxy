@@ -49,11 +49,15 @@ def _auth_check(request: Request) -> bool:
 
 
 async def _itwallet_key_ids(db: AsyncSession) -> set[int]:
-    """Chiavi IT-Wallet (stessa tabella jwk_keys): gestite solo da /admin/itwallet."""
+    """Chiavi IT-Wallet (stessa tabella jwk_keys): gestite solo da /admin/itwallet.
+
+    In uso (FK di itwallet_config) + storico (nome `itwallet-…`): le chiavi archiviate non
+    devono finire nei JWKS CIE né essere cancellate da "genera tutte" della CIE.
+    """
     cfg = (await db.execute(select(ItWalletConfig).where(ItWalletConfig.id == 1))).scalar_one_or_none()
-    if cfg is None:
-        return set()
-    return {i for i in (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id) if i}
+    ids = {i for i in (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id) if i} if cfg else set()
+    archived = await db.execute(select(JwkKey.id).where(JwkKey.name.startswith("itwallet-")))
+    return ids | set(archived.scalars().all())
 
 
 async def _get_all_keys(db: AsyncSession) -> list[JwkKey]:

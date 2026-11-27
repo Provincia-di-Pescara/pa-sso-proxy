@@ -2,22 +2,6 @@
 {% block title %}IT-Wallet — PA SSO Proxy{% endblock %}
 {% block page_title %}IT-Wallet{% endblock %}
 
-{% macro step_up_fields(prefix) %}
-<div class="a-form-grid-2">
-  <div class="a-form-group">
-    <label class="a-label" for="{{ prefix }}-password">Password admin</label>
-    <input type="password" class="a-input" id="{{ prefix }}-password" name="password" autocomplete="current-password" required>
-  </div>
-  {% if twofa %}
-  <div class="a-form-group">
-    <label class="a-label" for="{{ prefix }}-code">Codice 2FA</label>
-    <input type="text" class="a-input" id="{{ prefix }}-code" name="code" inputmode="numeric" pattern="[0-9 ]{6,7}" autocomplete="one-time-code" required>
-    <div class="a-form-hint">Ogni codice vale una volta sola: se hai appena usato quello mostrato dall'app, aspetta il successivo.</div>
-  </div>
-  {% endif %}
-</div>
-{% endmacro %}
-
 {% block content %}
 <style>
 .a-tabs { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:16px; border-bottom:1px solid var(--border-1); }
@@ -73,6 +57,9 @@
       {% else %}
       <p class="a-form-hint" style="color:var(--danger);">Configurazione incompleta: {{ ready_reason }}.</p>
       {% endif %}
+      {% if config and config.environment and not config.trust_anchor_url %}
+      <p class="a-form-hint" style="color:var(--warning, #b45309);">Trust anchor non ancora impostato: una volta attivo, la Entity Configuration viene pubblicata e IPZS la può leggere per l'onboarding, ma il login col wallet non funziona finché non inserisci il trust anchor ricevuto (scheda Configurazione).</p>
+      {% endif %}
       {% if config and config.environment in ('collaudo', 'personalizzato') %}
       <p class="a-form-hint">In {{ environments.get(config.environment) }} il wallet accetta credenziali di prova: è disponibile solo per <code>/verifica</code>, il Test Auth e i client con "IdP test".</p>
       {% endif %}
@@ -80,7 +67,6 @@
       {% if config and config.enabled %}
       <form method="post" action="/admin/itwallet/toggle"
             data-confirm="Disattivare IT-Wallet?&#10;&#10;La tab IT-Wallet sparisce dalla discovery e gli endpoint /OpenID4VP rispondono 404.">
-        {{ step_up_fields("off") }}
         <button type="submit" class="a-btn a-btn-danger a-btn-sm">Disattiva IT-Wallet</button>
       </form>
       {% else %}
@@ -91,7 +77,6 @@
         {% if config and config.environment == 'produzione' and not config.trust_mark %}
         <div class="a-alert a-alert-warning">Stai per attivare la produzione senza trust mark: i wallet possono rifiutare il verifier.</div>
         {% endif %}
-        {{ step_up_fields("on") }}
         <button type="submit" class="a-btn a-btn-primary a-btn-sm" {% if not ready %}disabled{% endif %}>Attiva IT-Wallet</button>
       </form>
       {% endif %}
@@ -201,18 +186,45 @@
       {% endif %}
 
       <form method="post" action="/admin/itwallet/keys/generate"
-            {% if keys %}data-confirm="Rigenerare le chiavi IT-Wallet?&#10;&#10;Le chiavi attuali vengono eliminate: l'onboarding (JWKS, CSR, trust mark) va rifatto."{% endif %}>
+            {% if keys %}data-confirm="Rigenerare le chiavi IT-Wallet?&#10;&#10;Le chiavi attuali passano nello storico (riattivabili): l'onboarding (JWKS, CSR, trust mark) va rifatto per le nuove."{% endif %}>
         {% if keys %}
         <div class="a-alert a-alert-warning">Rigenerare le chiavi invalida l'onboarding: JWKS e CSR cambiano, la registrazione e il trust mark vanno rifatti.</div>
         <div class="a-form-group">
           <label style="font-size:13px;"><input type="checkbox" name="confirm_regenerate" value="yes" required> Confermo la rigenerazione delle chiavi</label>
         </div>
         {% endif %}
-        {{ step_up_fields("keys") }}
         <button type="submit" class="a-btn {{ 'a-btn-danger' if keys else 'a-btn-primary' }} a-btn-sm">{{ 'Rigenera chiavi' if keys else 'Genera chiavi' }}</button>
       </form>
     </div>
   </div>
+
+  {% if archived_key_sets %}
+  <div class="a-card" style="margin-bottom:14px;">
+    <div class="a-card-header">Storico chiavi</div>
+    <div class="a-card-body">
+      <p class="a-form-hint" style="margin-top:0;">Chiavi sostituite da una rigenerazione. Riattivarle ripristina JWKS e CSR di quel set (utile se la registrazione IPZS è stata fatta con quelle).</p>
+      <table class="a-table">
+        <thead><tr><th>Federation kid</th><th>Creata</th><th></th></tr></thead>
+        <tbody>
+          {% for ks in archived_key_sets %}
+          <tr>
+            <td class="a-mono">{{ ks.kid }}</td>
+            <td class="a-mono">{{ ks.created_at.strftime('%Y-%m-%d %H:%M') if ks.created_at else '—' }}</td>
+            <td>
+              <form method="post" action="/admin/itwallet/keys/restore"
+                    data-confirm="Riattivare queste chiavi IT-Wallet?&#10;&#10;Le chiavi attuali passano nello storico. JWKS e CSR tornano quelli di questo set.">
+                <input type="hidden" name="suffix" value="{{ ks.suffix }}">
+                <input type="hidden" name="confirmed" value="yes">
+                <button type="submit" class="a-btn a-btn-sm">Riattiva</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
 </section>
 
 {# ------------------------------------------------------------- Onboarding #}

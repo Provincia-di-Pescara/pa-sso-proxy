@@ -156,56 +156,45 @@ async def test_toggle_refused_when_incomplete(client, db_session, regen_calls):
     db_session.add(ItWalletConfig(id=1, enabled=False, environment="collaudo"))
     await db_session.commit()
     r = await client.post("/admin/itwallet/toggle",
-                          data={"enabled": "yes", "confirmed": "yes", "password": "secret"},
+                          data={"enabled": "yes", "confirmed": "yes"},
                           follow_redirects=False)
     assert r.status_code == 302
     cfg = await _config(db_session)
     assert cfg.enabled is False
     assert regen_calls == []
     page = await client.get("/admin/itwallet")
-    assert "trust anchor non impostato" in page.text
+    assert "chiavi mancanti" in page.text
 
 
-async def test_toggle_requires_step_up_and_confirm(client, db_session, regen_calls):
+async def test_toggle_requires_confirm_not_step_up(client, db_session, regen_calls):
     await _ready_config(db_session)
 
     # senza conferma: niente
     await client.post("/admin/itwallet/toggle",
-                      data={"enabled": "yes", "password": "secret"}, follow_redirects=False)
-    assert (await _config(db_session)).enabled is False
-
-    # senza password (step-up): niente
-    await client.post("/admin/itwallet/toggle",
-                      data={"enabled": "yes", "confirmed": "yes"}, follow_redirects=False)
-    assert (await _config(db_session)).enabled is False
-    page = await client.get("/admin/itwallet")
-    assert "Password non valida" in page.text
-
-    # password sbagliata: niente
-    await client.post("/admin/itwallet/toggle",
-                      data={"enabled": "yes", "confirmed": "yes", "password": "nope"},
-                      follow_redirects=False)
+                      data={"enabled": "yes"}, follow_redirects=False)
     assert (await _config(db_session)).enabled is False
     assert regen_calls == []
 
     r = await client.post("/admin/itwallet/toggle",
-                          data={"enabled": "yes", "confirmed": "yes", "password": "secret"},
+                          data={"enabled": "yes", "confirmed": "yes"},
                           follow_redirects=False)
     assert r.status_code == 302
     assert (await _config(db_session)).enabled is True
     assert regen_calls == ["generate", "reload"]
 
-    # disattivare: anche questo sotto step-up
+    # disattivare: niente password/TOTP
     await client.post("/admin/itwallet/toggle", data={}, follow_redirects=False)
-    assert (await _config(db_session)).enabled is True
-    await client.post("/admin/itwallet/toggle", data={"password": "secret"}, follow_redirects=False)
     assert (await _config(db_session)).enabled is False
+
+    page = await client.get("/admin/itwallet")
+    assert 'name="password"' not in page.text
+    assert 'name="code"' not in page.text
 
 
 async def test_toggle_production_without_trust_mark_warns(client, db_session):
     await _ready_config(db_session, environment="produzione")
     await client.post("/admin/itwallet/toggle",
-                      data={"enabled": "yes", "confirmed": "yes", "password": "secret"},
+                      data={"enabled": "yes", "confirmed": "yes"},
                       follow_redirects=False)
     assert (await _config(db_session)).enabled is True
     page = await client.get("/admin/itwallet")
@@ -214,13 +203,8 @@ async def test_toggle_production_without_trust_mark_warns(client, db_session):
 
 # --- chiavi -------------------------------------------------------------------
 
-async def test_generate_keys_requires_step_up(client, db_session, regen_calls):
+async def test_generate_keys_first_time_no_step_up(client, db_session, regen_calls):
     await client.post("/admin/itwallet/keys/generate", data={}, follow_redirects=False)
-    cfg = await _config(db_session)
-    assert cfg is None or cfg.jwk_federation_id is None
-
-    await client.post("/admin/itwallet/keys/generate", data={"password": "secret"},
-                      follow_redirects=False)
     cfg = await _config(db_session)
     ids = (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id)
     assert all(ids)
@@ -235,21 +219,80 @@ async def test_regenerate_requires_confirmation(client, db_session):
     cfg = await _ready_config(db_session)
     old = (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id)
 
-    await client.post("/admin/itwallet/keys/generate", data={"password": "secret"},
-                      follow_redirects=False)
+    await client.post("/admin/itwallet/keys/generate", data={}, follow_redirects=False)
     cfg = await _config(db_session)
     assert (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id) == old
     page = await client.get("/admin/itwallet")
     assert "non confermata" in page.text
 
     await client.post("/admin/itwallet/keys/generate",
-                      data={"password": "secret", "confirm_regenerate": "yes"},
+                      data={"confirm_regenerate": "yes"},
                       follow_redirects=False)
     cfg = await _config(db_session)
     new = (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id)
     assert all(new) and set(new).isdisjoint(old)
+    # le chiavi vecchie restano nello storico
     remaining = {k.id for k in (await db_session.execute(select(JwkKey))).scalars().all()}
-    assert remaining == set(new)
+    assert remaining == set(new) | set(old)
+
+
+async def test_regenerated_keys_archived_and_restorable(client, db_session, regen_calls):
+    cfg = await _ready_config(db_session)
+    old = (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id)
+    old_kid = (await db_session.get(JwkKey, old[0])).public_jwk["kid"]
+
+    await client.post("/admin/itwallet/keys/generate", data={"confirm_regenerate": "yes"},
+                      follow_redirects=False)
+    cfg = await _config(db_session)
+    new = (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id)
+
+    page = await client.get("/admin/itwallet")
+    assert "Storico chiavi" in page.text
+    assert old_kid in page.text
+    assert 'action="/admin/itwallet/keys/restore"' in page.text
+
+    # senza conferma: niente
+    regen_calls.clear()
+    await client.post("/admin/itwallet/keys/restore", data={"suffix": "t"}, follow_redirects=False)
+    cfg = await _config(db_session)
+    assert (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id) == new
+    assert regen_calls == []
+
+    # suffisso inesistente: niente
+    await client.post("/admin/itwallet/keys/restore", data={"suffix": "zzz", "confirmed": "yes"},
+                      follow_redirects=False)
+    cfg = await _config(db_session)
+    assert (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id) == new
+
+    await client.post("/admin/itwallet/keys/restore", data={"suffix": "t", "confirmed": "yes"},
+                      follow_redirects=False)
+    cfg = await _config(db_session)
+    assert (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id) == old
+    assert regen_calls == ["generate", "reload"]
+
+    # le chiavi appena sostituite sono ora nello storico
+    remaining = {k.id for k in (await db_session.execute(select(JwkKey))).scalars().all()}
+    assert remaining == set(new) | set(old)
+    new_kid = (await db_session.get(JwkKey, new[0])).public_jwk["kid"]
+    page = await client.get("/admin/itwallet")
+    assert new_kid in page.text
+
+
+async def test_restore_ignores_incomplete_or_foreign_sets(client, db_session):
+    cfg = await _ready_config(db_session)
+    current = (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id)
+    # set incompleto (manca enc) e chiave CIE: mai riattivabili
+    db_session.add_all([
+        generate_ec_jwk("itwallet-federation-half", "federation"),
+        generate_ec_jwk("itwallet-sig-half", "sig"),
+        generate_ec_jwk("cie-federation-x", "federation"),
+    ])
+    await db_session.commit()
+    for suffix in ("half", "x", ""):
+        await client.post("/admin/itwallet/keys/restore", data={"suffix": suffix, "confirmed": "yes"},
+                          follow_redirects=False)
+    cfg = await _config(db_session)
+    assert (cfg.jwk_federation_id, cfg.jwk_sig_id, cfg.jwk_enc_id) == current
 
 
 async def test_cie_regenerate_keeps_itwallet_keys(client, db_session, monkeypatch):
@@ -262,8 +305,15 @@ async def test_cie_regenerate_keeps_itwallet_keys(client, db_session, monkeypatc
     fed_id = cfg.jwk_federation_id
     wallet_ids = {fed_id, cfg.jwk_sig_id, cfg.jwk_enc_id}
 
+    # chiave IT-Wallet archiviata (storico): esclusa dalla CIE come quelle in uso
+    archived = generate_ec_jwk("itwallet-federation-old", "federation")
+    db_session.add(archived)
+    await db_session.commit()
+    wallet_ids.add(archived.id)
+
     page = await client.get("/admin/cie")
     assert "itwallet-federation-t" not in page.text
+    assert "itwallet-federation-old" not in page.text
 
     await client.post("/admin/cie/generate-all", follow_redirects=False)
     db_session.expire_all()
@@ -473,3 +523,12 @@ async def test_entity_configuration_preview_failure_is_friendly(client, db_sessi
     page = await client.get("/admin/itwallet")
     assert page.status_code == 200
     assert "non disponibile" in page.text
+
+
+async def test_settings_form_prefills_logo_and_tos_from_ente(client, db_session, ente):
+    ente.logo_url = "/static/sso/logo-ente.svg"
+    ente.legal_notes_url = "https://www.comune.example.it/note-legali"
+    await db_session.commit()
+    page = await client.get("/admin/itwallet")
+    assert f'value="https://{HOST}/static/sso/logo-ente.svg"' in page.text
+    assert 'value="https://www.comune.example.it/note-legali"' in page.text
