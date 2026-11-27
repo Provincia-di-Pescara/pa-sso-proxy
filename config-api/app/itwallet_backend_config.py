@@ -61,6 +61,24 @@ def _dcql_query() -> str:
     return json.dumps(query, separators=(",", ":"))
 
 
+def entity_id(hostname: str) -> str:
+    """Entity ID del verifier: `https://<host>/OpenID4VP`."""
+    return f"https://{hostname}/{BACKEND_NAME}"
+
+
+def federation_client_id(hostname: str) -> str:
+    """client_id OpenID4VP col prefisso `openid_federation:` (formato pyeudiw)."""
+    return f"openid_federation:{entity_id(hostname)}"
+
+
+def entity_configuration_path() -> str:
+    return f"/{BACKEND_NAME}/.well-known/openid-federation"
+
+
+def entity_configuration_url(hostname: str) -> str:
+    return f"https://{hostname}{entity_configuration_path()}"
+
+
 def _missing_keys(keys: dict | None) -> list[str]:
     keys = keys or {}
     return [
@@ -129,8 +147,7 @@ def build_itwallet_backend(
     `/verifica` e il test client admin).
     """
     base = f"https://{hostname}"
-    backend_url = f"{base}/{BACKEND_NAME}"
-    entity_id = backend_url
+    backend_url = entity_id(hostname)
     trust_anchor = cfg.trust_anchor_url.strip()
     authority_hint = (cfg.authority_hint_url or "").strip() or trust_anchor
     org_name = cfg.organization_name or cfg.client_name or hostname
@@ -152,7 +169,7 @@ def build_itwallet_backend(
             "authorization_encrypted_response_alg": list(_ENC_ALG_SUPPORTED),
             "authorization_encrypted_response_enc": list(_ENC_ENC_SUPPORTED),
             "authorization_signed_response_alg": list(_SIG_ALG_SUPPORTED),
-            "client_id": entity_id,
+            "client_id": backend_url,
             "client_name": client_name,
             **({"logo_uri": cfg.logo_uri} if cfg.logo_uri else {}),
             "contacts": list(contacts),
@@ -301,7 +318,7 @@ def build_itwallet_backend(
                 "module": "pyeudiw.trust.handler.federation",
                 "class": "FederationHandler",
                 "config": {
-                    "client_id": f"openid_federation:{entity_id}",
+                    "client_id": federation_client_id(hostname),
                     "httpc_params": copy.deepcopy(httpc_params),
                     "cache_ttl": 0,
                     "entity_configuration_exp": 600,
