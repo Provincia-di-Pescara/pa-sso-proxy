@@ -53,7 +53,7 @@ IdP → satosa (callback) → JWT con attributi → App
 - `spid_backend` — SPID SAML (tutti gli IdP ufficiali AgID + nodo eIDAS italiano)
 - `cie_oidc_backend` — CIE OIDC Federation 1.0 (codice in `satosa/plugins/`, mantenuto in questo repo)
 
-**IT-Wallet/OpenID4VP**: nessun backend esiste ancora in questo repo. Ricerca preparatoria (attori, processo onboarding federativo, variabili RP config) in `docs/itwallet-registration.md` — leggere prima di ripartire su questo, evita di rifare la ricerca.
+**IT-Wallet/OpenID4VP**: backend `pyeudiw` (sezione "IT-Wallet (OpenID4VP)"). Onboarding e limiti in `docs/itwallet-registration.md`, lab locale in `docs/itwallet-lab.md`.
 
 ### Config API (`config-api/`)
 
@@ -156,8 +156,19 @@ Discovery, pagina di errore e messaggi dei backend in `it/en/fr/de/es`. Fonte un
 
 `eid-<lang>.json` (config-api) = solo dati ente/URL, identici nelle 5 lingue; servito da `--static-map /static/locales=/satosa-conf/locales`. `/verifica` e WebUI admin restano solo in italiano.
 
+### IT-Wallet (OpenID4VP)
+Backend `backends.itwallet.ItWalletBackend` (pyeudiw 2.9.0 in satosa), WebUI `/admin/itwallet` (Stato, Configurazione, Chiavi, Onboarding, Trust mark), tabella `itwallet_config`, chiavi EC P-256 da config-api, secret derivati da `SATOSA_HASH_SALT`. Il generatore scrive `/satosa-conf/itwallet_backend.yaml`, `entity_backends {"wallet": "OpenID4VP"}` nel router e `digital_id.itwallet` **solo con `itwallet_ready`** (abilitato + completo); spento = `/OpenID4VP/.well-known/openid-federation` 404 e tab assente.
+
+Storage pyeudiw su Redis **DB 3** (chiavi `itw:`, TTL <= 1 h, `response_code` atomico); Redis giù = falliscono solo i login wallet. pyeudiw legge `HTTP_CONTENT_TYPE`, che con `proxy_pass` non esiste: la route uWSGI in `satosa/entrypoint.sh` lo espone, non toglierla. `place_of_birth` appiattito a `["<località>"]`, CF = `TINIT-<CF>`; `provider_type=itwallet` nell'access log.
+
+Guard (all'avvio E al completamento): `legal_entity` rifiutato (`LEGAL_ENTITY_SPID_ONLY_ERROR`); in ambiente `collaudo`/`personalizzato` solo client di test (`/verifica`, `__admin_test__` a livello backend, `allow_test_idps`), altrimenti `TEST_IDP_VERIFICA_ONLY_ERROR`. Discovery: tab solo con login_url, mai con `legal_entity`, in test-only solo con `verifica=1` (il test client admin non la vede, il guard server resta il confine).
+
+**SICUREZZA**: l'endpoint `jar_issuer` di pyeudiw 2.9.0 pubblica anche la parte privata `d` di `metadata_jwks`: NON è configurato di proposito, mai riattivarlo senza sottoclasse solo-pubblica (la rewrite nginx `/.well-known/jar-issuer/OpenID4VP` porta a 404). Aperto: `iss`/`sub` dell'entity configuration sono `openid_federation:https://<host>/OpenID4VP` (comportamento pyeudiw), da verificare con IPZS all'onboarding. Onboarding e lab: `docs/itwallet-registration.md`, `docs/itwallet-lab.md`.
+
+Test: `satosa/tests/test_itwallet_*.py` e `test_disco_itwallet.py` (container satosa, vedi `satosa/CLAUDE.md`); config-api `cd config-api && pytest -k itwallet`.
+
 ### Anti-replay assertion SPID
-`allow_unsolicited: True` (i worker uWSGI non condividono `outstanding_queries`), quindi InResponseTo + state non bastano contro il riuso di Response + cookie catturati. Dopo `Saml2ResponseValidator.run()` `spidsaml2.mark_assertions_used` registra gli ID delle assertion (`spid:used:<sha256(issuer|id)>`, SET NX, TTL 24 h) su Redis **DB 2** (`replay_cache_url` nel backend; DB 0 = CIE, 1 = frontend OIDC). Riuso → pagina d'errore. Redis giù → login rifiutato (fail closed: Redis serve comunque al frontend OIDC).
+`allow_unsolicited: True` (i worker uWSGI non condividono `outstanding_queries`), quindi InResponseTo + state non bastano contro il riuso di Response + cookie catturati. Dopo `Saml2ResponseValidator.run()` `spidsaml2.mark_assertions_used` registra gli ID delle assertion (`spid:used:<sha256(issuer|id)>`, SET NX, TTL 24 h) su Redis **DB 2** (`replay_cache_url` nel backend; DB 0 = CIE, 1 = frontend OIDC, 3 = IT-Wallet). Riuso → pagina d'errore. Redis giù → login rifiutato (fail closed: Redis serve comunque al frontend OIDC).
 
 ### Storico certificati e metadata SPID/eIDAS
 `SpidCert.is_active` (un solo `True` alla volta, applicativo non DB) sostituisce la selezione "ultimo per data" in tutti i punti che leggono il cert attivo (`idps.py`, `dashboard.py`, `eidas.py`, `backup.py`). Storico consultabile in `/admin/certs`: export cert/chiave, riattivazione, eliminazione dei non-attivi.
