@@ -46,6 +46,14 @@ Eccezioni allineate a ``MongoStorage``: documento di sessione assente ->
 ``ValueError`` (gli endpoint VP lo mappano su 401), trust assente -> ``None``
 (``DBEngine.get`` lo trasforma in ``EntryNotFound``).
 
+Divergenze note da ``MongoStorage``:
+
+- ``get_by_nonce_state(nonce, state=None)`` solleva ``ValueError``; Mongo ricade
+  sulla ricerca per solo ``nonce``. Nessun chiamante di pyeudiw 2.9.0 passa
+  ``state=None`` (``update_response_object`` riceve sempre lo ``state``).
+- ``add_trust_attestation_metadata`` su entità assente solleva ``ChainNotExist``
+  (che ``DBEngine`` intercetta); Mongo solleva ``ValueError``.
+
 Chiavi (con prefisso ``itw:``): ``sess:<document_id>`` (JSON),
 ``idx:state:<state>``, ``idx:sid:<session_id>`` (sorted set per data),
 ``idx:ns:<nonce>:<state>``, ``idx:kid:<kid>``, ``rc:<document_id>`` (codici di

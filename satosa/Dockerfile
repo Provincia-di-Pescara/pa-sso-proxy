@@ -73,8 +73,11 @@ COPY plugins/cieoidc-models/    /satosa_proxy/backends/cieoidc/models/
 COPY plugins/redis_storage.py   /satosa_proxy/backends/cieoidc/storage/impl/redis_storage.py
 # Storage redis per pyeudiw (backend IT-Wallet OpenID4VP) al posto di MongoDB
 COPY plugins/itwallet_storage.py /satosa_proxy/backends/itwallet/itwallet_storage.py
+# Backend IT-Wallet (sottoclasse OpenID4VPBackend): backends.itwallet.ItWalletBackend
+COPY plugins/itwallet_backend.py /satosa_proxy/backends/itwallet/__init__.py
 COPY plugins/spidsaml2.py       /satosa_proxy/backends/spidsaml2.py
 COPY plugins/i18n.py            /satosa_proxy/backends/i18n.py
+COPY plugins/proxy_errors.py    /satosa_proxy/backends/proxy_errors.py
 COPY internal_attributes.yaml  /satosa_proxy/internal_attributes.yaml
 
 # Override public-facing SSO pages (design system .italia — card centrata)

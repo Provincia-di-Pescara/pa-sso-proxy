@@ -25,9 +25,13 @@ def test_openid4vp_mappings(internal_attributes):
     assert attrs["placeOfBirth"]["openid4vp"] == ["place_of_birth"]
 
 
-@pytest.mark.xfail(strict=True, reason="appiattimento nel backend IT-Wallet, Task 4")
 def test_place_of_birth_flattened(internal_attributes):
+    """Il mapper da solo darebbe [{'locality': 'Roma'}] sul lato openid: lo
+    appiattisce il backend IT-Wallet (callback verso SATOSA, ItWalletBackend)."""
+    from backends.itwallet import flatten_place_of_birth
+
     mapper = AttributeMapper(internal_attributes)
     internal = mapper.to_internal("openid4vp", {"place_of_birth": {"locality": "Roma"}})
+    flatten_place_of_birth(internal)
     out = mapper.from_internal("openid", internal)
-    assert out["place_of_birth"] == "Roma"
+    assert out["place_of_birth"] == ["Roma"]
