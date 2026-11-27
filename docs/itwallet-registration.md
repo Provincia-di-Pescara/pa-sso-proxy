@@ -13,6 +13,14 @@ accreditamento: `docs/itwallet-lab.md`.
 - Abilitazione dalla scheda **Stato**: il backend viene generato solo con
   configurazione completa (`itwallet_ready`), altrimenti IT-Wallet resta spento
   e la tab sparisce dalla discovery.
+- **Trust anchor non serve per iniziare**: in `collaudo`/`personalizzato` si
+  attiva anche senza; la Entity Configuration viene pubblicata (con
+  `authority_hints` vuoto) così IPZS la può leggere durante l'onboarding. Il
+  login col wallet funziona solo dopo aver inserito il trust anchor ricevuto.
+  In `produzione` il trust anchor è obbligatorio.
+- Chiavi: rigenerarle non cancella le precedenti, che restano nello
+  **Storico chiavi** e si riattivano (tornano JWKS e CSR di quel set). Chiavi e
+  attivazione chiedono solo una conferma.
 - Chiavi EC P-256 generate da config-api (federazione + applicative); i
   segreti derivati vengono da `SATOSA_HASH_SALT`.
 - Sessioni OpenID4VP su Redis DB 3 (chiavi `itw:<hash>:`, TTL <= 1 h; l'hash

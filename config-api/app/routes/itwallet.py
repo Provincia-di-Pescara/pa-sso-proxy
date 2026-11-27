@@ -1,6 +1,8 @@
 """Pannello admin IT-Wallet (verifier OpenID4VP): configurazione, chiavi, onboarding, trust mark.
 
-Chiavi e attivazione sotto step-up (`app/step_up.py`). Ogni modifica che cambia la
+Rigenerare le chiavi non cancella le vecchie: restano in `jwk_keys` (nome
+`itwallet-<ruolo>-<suffisso>`) come storico e si riattivano da pannello, quindi
+chiavi e attivazione chiedono solo una conferma. Ogni modifica che cambia la
 config generata rigenera e ricarica SATOSA come eIDAS. Il generatore applica comunque
 `itwallet_ready`: un wallet acceso ma incompleto non produce config rotta.
 """
@@ -20,9 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import admin_2fa
 from app import itwallet_backend_config as itw
-from app import step_up
 from app.database import get_db
 from app.itwallet_csr import CsrError, build_csr
 from app.jinja_templates import templates
@@ -37,6 +37,7 @@ router = APIRouter()
 
 PANEL = "/admin/itwallet"
 KEY_FK = {"federation": "jwk_federation_id", "sig": "jwk_sig_id", "enc": "jwk_enc_id"}
+KEY_NAME_PREFIX = "itwallet-"
 PUBLIC_EC_MEMBERS = ("kty", "crv", "x", "y", "kid", "use", "alg")
 PRIVATE_JWK_MEMBERS = ("d", "p", "q", "dp", "dq", "qi", "k", "oth")
 ENVIRONMENT_LABELS = {
@@ -86,6 +87,14 @@ def _hostname(settings: EnteSettings | None) -> str:
     return (settings.proxy_hostname if settings else "") or os.environ.get("PROXY_HOSTNAME", "")
 
 
+def _absolute_url(value: str, hostname: str) -> str:
+    """URL dei dati ente per i metadata del verifier: un path relativo diventa https://<host>/path."""
+    value = (value or "").strip()
+    if value.startswith("/") and not value.startswith("//") and hostname:
+        return f"https://{hostname}{value}"
+    return value
+
+
 async def _load_keys(db: AsyncSession, cfg: ItWalletConfig | None) -> dict[str, JwkKey]:
     keys: dict[str, JwkKey] = {}
     if cfg is None:
@@ -97,6 +106,43 @@ async def _load_keys(db: AsyncSession, cfg: ItWalletConfig | None) -> dict[str, 
             if row is not None:
                 keys[role] = row
     return keys
+
+
+def _key_set_parts(name: str) -> tuple[str, str] | None:
+    """`itwallet-<ruolo>-<suffisso>` -> (ruolo, suffisso); il suffisso identifica il set generato insieme."""
+    if not name.startswith(KEY_NAME_PREFIX):
+        return None
+    role, sep, suffix = name[len(KEY_NAME_PREFIX):].rpartition("-")
+    return (role, suffix) if sep and role in KEY_FK and suffix else None
+
+
+async def _archived_key_sets(db: AsyncSession, cfg: ItWalletConfig | None) -> list[dict]:
+    """Set completi di chiavi IT-Wallet non in uso, dal più recente: [{suffix, created_at, kid, keys}]."""
+    current = {getattr(cfg, attr) for attr in KEY_FK.values()} if cfg else set()
+    rows = (await db.execute(
+        select(JwkKey).where(JwkKey.name.startswith(KEY_NAME_PREFIX))
+    )).scalars().all()
+    sets: dict[str, dict[str, JwkKey]] = {}
+    for row in rows:
+        parts = _key_set_parts(row.name)
+        if parts is None or row.id in current:
+            continue
+        role, suffix = parts
+        sets.setdefault(suffix, {})[role] = row
+    result = []
+    for suffix, keys in sets.items():
+        if set(keys) != set(KEY_FK):
+            continue
+        fed = keys["federation"]
+        result.append({
+            "suffix": suffix,
+            "created_at": fed.created_at,
+            "kid": (fed.public_jwk or {}).get("kid", ""),
+            "keys": keys,
+        })
+    epoch = datetime.min.replace(tzinfo=timezone.utc)
+    result.sort(key=lambda s: s["created_at"] or epoch, reverse=True)
+    return result
 
 
 def _public_federation_jwks(keys: dict[str, JwkKey]) -> dict:
@@ -254,8 +300,8 @@ async def itwallet_page(request: Request, db: AsyncSession = Depends(get_db)):
         "client_name": (cfg.client_name if cfg else None) or (s and (s.org_display_name or s.org_name)) or "",
         "homepage_uri": (cfg.homepage_uri if cfg else None) or (s.org_url if s else ""),
         "policy_uri": (cfg.policy_uri if cfg else None) or (s.privacy_url if s else ""),
-        "tos_uri": (cfg.tos_uri if cfg else None) or "",
-        "logo_uri": (cfg.logo_uri if cfg else None) or "",
+        "tos_uri": (cfg.tos_uri if cfg else None) or (s.legal_notes_url if s else ""),
+        "logo_uri": (cfg.logo_uri if cfg else None) or _absolute_url(s.logo_url if s else "", hostname),
         "contact_email": (cfg.contact_email if cfg else None) or (s.contact_email if s else ""),
     }
     csr_missing = [label for attr, label in (("org_name", "nome ente"), ("ipa_code", "codice IPA"),
@@ -281,7 +327,7 @@ async def itwallet_page(request: Request, db: AsyncSession = Depends(get_db)):
         "production_without_trust_mark": bool(cfg and cfg.environment == "produzione" and not cfg.trust_mark),
         "ec_preview": await _entity_configuration_preview(cfg),
         "csr_missing": csr_missing,
-        "twofa": admin_2fa.is_2fa_enabled(),
+        "archived_key_sets": await _archived_key_sets(db, cfg),
     })
 
 
@@ -370,8 +416,6 @@ async def itwallet_settings(
 async def itwallet_keys_generate(
     request: Request,
     confirm_regenerate: str = Form(default=""),
-    password: str = Form(default=""),
-    code: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     if not _auth_check(request):
@@ -384,10 +428,6 @@ async def itwallet_keys_generate(
         return _flash(request, "err",
                       "Rigenerazione non confermata: spunta la conferma (le chiavi nuove invalidano l'onboarding).",
                       tab)
-    error = await step_up.verify(request, db, password, code, "itwallet-keys")
-    if error:
-        return _flash(request, "err", error, tab)
-
     cfg = await _get_or_create_config(db)
     suffix = uuid4().hex[:8]
     new_keys = {role: generate_ec_jwk(f"itwallet-{role}-{suffix}", role) for role in KEY_FK}
@@ -395,19 +435,48 @@ async def itwallet_keys_generate(
     await db.flush()
     for role, attr in KEY_FK.items():
         setattr(cfg, attr, new_keys[role].id)
-    await db.flush()
-    for key_id in old_ids:
-        old = (await db.execute(select(JwkKey).where(JwkKey.id == key_id))).scalar_one_or_none()
-        if old is not None:
-            await db.delete(old)
+    # Le chiavi precedenti NON si cancellano: restano nello storico e si riattivano.
     await db.commit()
     await _regenerate(db)
 
     if old_ids:
         request.session["itwallet_warn"] = (
-            "Chiavi rigenerate: l'onboarding va rifatto (nuovo JWKS e nuova CSR)."
+            "Chiavi rigenerate: l'onboarding va rifatto (nuovo JWKS e nuova CSR). "
+            "Le chiavi precedenti sono nello storico e si possono riattivare."
         )
     request.session["itwallet_ok"] = "Chiavi IT-Wallet generate."
+    return _redirect(tab)
+
+
+@router.post("/itwallet/keys/restore")
+async def itwallet_keys_restore(
+    request: Request,
+    suffix: str = Form(default=""),
+    confirmed: str = Form(default=""),
+    db: AsyncSession = Depends(get_db),
+):
+    if not _auth_check(request):
+        return RedirectResponse("/admin/login", status_code=302)
+
+    tab = "chiavi"
+    if confirmed != "yes":
+        return _flash(request, "err", "Riattivazione non confermata.", tab)
+    cfg = await _get_config(db)
+    target = next((s for s in await _archived_key_sets(db, cfg) if s["suffix"] == suffix), None)
+    if target is None:
+        return _flash(request, "err", "Set di chiavi non trovato nello storico.", tab)
+
+    cfg = await _get_or_create_config(db)
+    for role, attr in KEY_FK.items():
+        setattr(cfg, attr, target["keys"][role].id)
+    await db.commit()
+    await _regenerate(db)
+
+    request.session["itwallet_ok"] = f"Chiavi riattivate (federation kid {target['kid']})."
+    request.session["itwallet_warn"] = (
+        "Le chiavi in uso prima sono nello storico. JWKS e CSR sono di nuovo quelli di questo set: "
+        "vale la registrazione (e il trust mark) ottenuta con queste chiavi."
+    )
     return _redirect(tab)
 
 
@@ -418,8 +487,6 @@ async def itwallet_toggle(
     request: Request,
     enabled: str = Form(default=""),
     confirmed: str = Form(default=""),
-    password: str = Form(default=""),
-    code: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     if not _auth_check(request):
@@ -437,10 +504,6 @@ async def itwallet_toggle(
             return _flash(request, "err", f"Impossibile attivare IT-Wallet: {reason}.", tab)
     elif cfg is None or not cfg.enabled:
         return _redirect(tab)
-
-    error = await step_up.verify(request, db, password, code, "itwallet-toggle")
-    if error:
-        return _flash(request, "err", error, tab)
 
     cfg.enabled = enable
     await db.commit()

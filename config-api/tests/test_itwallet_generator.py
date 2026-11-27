@@ -333,9 +333,25 @@ def test_itwallet_ready_ok():
     assert itwallet_ready(_cfg(), _keys()) == (True, None)
 
 
+@pytest.mark.parametrize("env", ["collaudo", "personalizzato"])
+def test_itwallet_ready_without_trust_anchor_in_test_envs(env):
+    from app.itwallet_backend_config import itwallet_ready
+    assert itwallet_ready(_cfg(environment=env, trust_anchor_url=None, authority_hint_url=None),
+                          _keys()) == (True, None)
+
+
+def test_build_without_trust_anchor_publishes_empty_hints():
+    from app.itwallet_backend_config import build_itwallet_backend
+    cfg = _cfg(trust_anchor_url=None, authority_hint_url=None)
+    out = build_itwallet_backend(cfg, _keys(), "sso.example.org", "redis://redis:6379/3", [])
+    fed = out["config"]["trust"]["federation"]["config"]
+    assert fed["authority_hints"] == []
+    assert fed["trust_anchors"] == {}
+
+
 @pytest.mark.parametrize("cfg_kw, drop, fragment", [
     ({}, "sig", "chiavi"),
-    ({"trust_anchor_url": ""}, None, "trust anchor"),
+    ({"trust_anchor_url": "", "environment": "produzione"}, None, "trust anchor"),
     ({"environment": None}, None, "ambiente"),
     ({"environment": "boh"}, None, "ambiente"),
 ])
