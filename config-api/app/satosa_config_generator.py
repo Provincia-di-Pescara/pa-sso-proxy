@@ -922,7 +922,9 @@ class AccessLogReporter(ResponseMicroService):
         provider_type = "spid"
         try:
             backend = getattr(context, "target_backend", "") or ""
-            if "cie" in backend.lower():
+            if "openid4vp" in backend.lower():
+                provider_type = "itwallet"
+            elif "cie" in backend.lower():
                 provider_type = "cie"
             elif idp_entity_id and "eid.gov.it" in idp_entity_id.lower():
                 provider_type = "eidas"

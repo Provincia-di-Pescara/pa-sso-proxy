@@ -29,7 +29,7 @@
           <option value="spid" {% if provider_type == 'spid' %}selected{% endif %}>SPID</option>
           <option value="cie" {% if provider_type == 'cie' %}selected{% endif %}>CIE</option>
           <option value="eidas" {% if provider_type == 'eidas' %}selected{% endif %}>eIDAS</option>
-          <option value="itwallet" {% if provider_type == 'itwallet' %}selected{% endif %}>IT Wallet</option>
+          <option value="itwallet" {% if provider_type == 'itwallet' %}selected{% endif %}>IT-Wallet</option>
         </select>
       </div>
 
@@ -116,7 +116,7 @@
             {% if log.provider_type == 'spid' %}<span class="a-badge-spid">SPID</span>
             {% elif log.provider_type == 'cie' %}<span class="a-badge-cie">CIE</span>
             {% elif log.provider_type == 'eidas' %}<span class="a-badge a-badge-neutral">eIDAS</span>
-            {% elif log.provider_type == 'itwallet' %}<span class="a-badge a-badge-neutral">IT Wallet</span>
+            {% elif log.provider_type == 'itwallet' %}<span class="a-badge a-badge-neutral">IT-Wallet</span>
             {% else %}<span class="a-badge a-badge-neutral">{{ log.provider_type }}</span>
             {% endif %}
           </td>
