@@ -76,5 +76,24 @@
   "error.cie.timeout": "Le délai accordé pour l'authentification a expiré. Veuillez réessayer.",
   "error.cie.generic": "La connexion avec la CIE n'a pas abouti.",
   "error.cie.state_lost": "La session de connexion n'est plus valide : la connexion avec la CIE a été terminée dans un navigateur ou une application différents de ceux où elle avait commencé.",
-  "error.cie.state_lost.troubleshoot": "Revenez au service et recommencez la connexion depuis le même navigateur. Si vous utilisez l'application CieID sur votre smartphone, ouvrez le service dans le navigateur par défaut du téléphone."
+  "error.cie.state_lost.troubleshoot": "Revenez au service et recommencez la connexion depuis le même navigateur. Si vous utilisez l'application CieID sur votre smartphone, ouvrez le service dans le navigateur par défaut du téléphone.",
+
+  "itwallet.qr.page_title": "Se connecter avec IT-Wallet",
+  "itwallet.qr.title": "Se connecter avec IT-Wallet",
+  "itwallet.qr.instructions": "Ouvrez l'application IT-Wallet sur votre smartphone et scannez le code QR pour partager les données demandées.",
+  "itwallet.qr.qr_alt": "Code QR pour se connecter avec IT-Wallet",
+  "itwallet.qr.open_app": "Ouvrir l'application IT-Wallet",
+  "itwallet.qr.expires_in": "Le code expire dans {seconds} secondes.",
+  "itwallet.qr.expired": "Le code QR a expiré. Générez un nouveau code pour continuer.",
+  "itwallet.qr.retry": "Générer un nouveau code",
+  "itwallet.qr.cancel": "Annuler",
+  "itwallet.qr.success": "Vérification terminée, redirection en cours…",
+  "itwallet.qr.failed": "La vérification avec IT-Wallet a échoué. Veuillez réessayer.",
+  "itwallet.error.page_title": "Erreur de connexion avec IT-Wallet",
+  "itwallet.error.title": "Échec de la connexion avec IT-Wallet",
+  "itwallet.error.generic": "La connexion a échoué : l'application IT-Wallet a refusé la demande ou vous n'avez pas consenti au partage des données obligatoires. Retournez au service et réessayez.",
+  "disco.itwallet.tab": "IT-Wallet",
+  "disco.itwallet.description": "Connectez-vous avec les documents numériques conservés dans l'application IT-Wallet, en scannant un code QR ou en ouvrant l'application sur votre smartphone.",
+  "disco.itwallet.button": "Se connecter avec IT-Wallet",
+  "disco.itwallet.more_info": "En savoir plus sur IT-Wallet"
 }

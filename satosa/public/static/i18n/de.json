@@ -76,5 +76,24 @@
   "error.cie.timeout": "Die für die Authentifizierung verfügbare Zeit ist abgelaufen. Bitte versuchen Sie es erneut.",
   "error.cie.generic": "Die Anmeldung mit der CIE war nicht erfolgreich.",
   "error.cie.state_lost": "Die Anmeldesitzung ist nicht mehr gültig: Die Anmeldung mit der CIE wurde in einem anderen Browser oder einer anderen App abgeschlossen als dort, wo sie begonnen wurde.",
-  "error.cie.state_lost.troubleshoot": "Kehren Sie zum Dienst zurück und starten Sie die Anmeldung erneut im selben Browser. Wenn Sie die CieID-App auf Ihrem Smartphone verwenden, öffnen Sie den Dienst im Standardbrowser des Telefons."
+  "error.cie.state_lost.troubleshoot": "Kehren Sie zum Dienst zurück und starten Sie die Anmeldung erneut im selben Browser. Wenn Sie die CieID-App auf Ihrem Smartphone verwenden, öffnen Sie den Dienst im Standardbrowser des Telefons.",
+
+  "itwallet.qr.page_title": "Mit IT-Wallet anmelden",
+  "itwallet.qr.title": "Mit IT-Wallet anmelden",
+  "itwallet.qr.instructions": "Öffnen Sie die IT-Wallet-App auf Ihrem Smartphone und scannen Sie den QR-Code, um die angeforderten Daten zu teilen.",
+  "itwallet.qr.qr_alt": "QR-Code zur Anmeldung mit IT-Wallet",
+  "itwallet.qr.open_app": "IT-Wallet-App öffnen",
+  "itwallet.qr.expires_in": "Der Code läuft in {seconds} Sekunden ab.",
+  "itwallet.qr.expired": "Der QR-Code ist abgelaufen. Erzeugen Sie einen neuen Code, um fortzufahren.",
+  "itwallet.qr.retry": "Neuen Code erzeugen",
+  "itwallet.qr.cancel": "Abbrechen",
+  "itwallet.qr.success": "Überprüfung abgeschlossen, Sie werden weitergeleitet …",
+  "itwallet.qr.failed": "Die Überprüfung mit IT-Wallet war nicht erfolgreich. Bitte versuchen Sie es erneut.",
+  "itwallet.error.page_title": "Fehler bei der Anmeldung mit IT-Wallet",
+  "itwallet.error.title": "Anmeldung mit IT-Wallet fehlgeschlagen",
+  "itwallet.error.generic": "Die Anmeldung war nicht erfolgreich: Die IT-Wallet-App hat die Anfrage abgelehnt oder Sie haben der Weitergabe der erforderlichen Daten nicht zugestimmt. Kehren Sie zum Dienst zurück und versuchen Sie es erneut.",
+  "disco.itwallet.tab": "IT-Wallet",
+  "disco.itwallet.description": "Melden Sie sich mit den in der IT-Wallet-App gespeicherten digitalen Dokumenten an, indem Sie einen QR-Code scannen oder die App auf Ihrem Smartphone öffnen.",
+  "disco.itwallet.button": "Mit IT-Wallet anmelden",
+  "disco.itwallet.more_info": "Weitere Informationen zu IT-Wallet"
 }

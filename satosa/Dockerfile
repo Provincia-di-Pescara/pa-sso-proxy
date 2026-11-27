@@ -85,6 +85,7 @@ COPY public/static/sso/         /satosa_proxy/static/sso/
 COPY public/static/spid/        /satosa_proxy/static/spid/
 COPY public/static/cie/         /satosa_proxy/static/cie/
 COPY public/static/eidas/       /satosa_proxy/static/eidas/
+COPY public/static/itwallet/    /satosa_proxy/static/itwallet/
 COPY public/static/disco.html   /satosa_proxy/static/disco.html
 COPY public/static/favicon.svg  /satosa_proxy/static/favicon.svg
 COPY public/static/i18n/        /satosa_proxy/static/i18n/

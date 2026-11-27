@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="itwallet.error.page_title">Errore di accesso con IT-Wallet</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link id="page-favicon" rel="icon" type="image/svg+xml" href="{{ static }}favicon.svg">
+  <link rel="stylesheet" href="{{ static }}sso/sso.css">
+</head>
+<body>
+<div class="sso">
+
+  <div class="sso-slim">
+    <div class="sso-slim-in">
+      <span class="gov">
+        <span class="gov-dot"></span>
+        <span data-i18n="common.gov_site">Sito ufficiale della Pubblica Amministrazione</span>
+      </span>
+      <label class="sso-lang">
+        <span class="sr-only" data-i18n="common.language">Lingua</span>
+        <select id="sso-lang-select">
+          <option value="it" lang="it">Italiano</option>
+          <option value="en" lang="en">English</option>
+          <option value="fr" lang="fr">Français</option>
+          <option value="de" lang="de">Deutsch</option>
+          <option value="es" lang="es">Español</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="sso-brand">
+    <img class="sso-crest" id="ente-logo" src="" alt="Logo ente" data-i18n-attr="alt:common.ente_logo_alt" style="display:none">
+    <svg class="sso-crest-svg" id="ente-crest-svg" viewBox="0 0 64 64" fill="none" aria-label="Logo ente" data-i18n-attr="aria-label:common.ente_logo_alt" role="img">
+      <rect x="2" y="2" width="60" height="60" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5"/>
+      <path d="M32 13 L48 21 H16 Z" fill="#64748B"/>
+      <rect x="17" y="21" width="30" height="3" fill="#64748B"/>
+      <rect x="20" y="26" width="4" height="18" fill="#94A3B8"/>
+      <rect x="30" y="26" width="4" height="18" fill="#94A3B8"/>
+      <rect x="40" y="26" width="4" height="18" fill="#94A3B8"/>
+      <rect x="15" y="45" width="34" height="4" rx="1" fill="#64748B"/>
+    </svg>
+    <div>
+      <p class="sso-brand-name" id="ente-name" data-i18n="common.default_ente_name">Servizi digitali</p>
+    </div>
+  </div>
+
+  <main class="sso-main">
+    <div class="sso-card err">
+      <div class="sso-err-icon warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+          <path d="M12 9v4"/><path d="M12 17h.01"/>
+        </svg>
+      </div>
+      <h1 class="sso-title" data-i18n="itwallet.error.title">Accesso con IT-Wallet non riuscito</h1>
+      <p class="sso-lead" data-i18n="itwallet.error.generic">L'accesso non è andato a buon fine: l'app IT-Wallet ha rifiutato la richiesta oppure non hai acconsentito alla condivisione dei dati obbligatori. Torna al servizio e riprova.</p>
+
+      <div class="sso-btn-row">
+        <a class="btn-primary" id="btn-retry" href="{{ static }}disco.html" data-i18n="error.button.retry">Riprova</a>
+      </div>
+
+      {% if error %}
+      <span class="sso-err-code">{{ error }}{% if error_description %}: {{ error_description }}{% endif %}</span>
+      {% endif %}
+    </div>
+  </main>
+
+  <footer class="sso-foot">
+    <span class="agid">SPID · CIE · IT-Wallet</span>
+    <span class="links-placeholder"></span>
+  </footer>
+
+</div>
+<script type="application/json" id="itw-config">{{ {"static": static, "page": "error"} | tojson }}</script>
+<script src="{{ static }}sso/itwallet-qr.js"></script>
+</body>
+</html>
