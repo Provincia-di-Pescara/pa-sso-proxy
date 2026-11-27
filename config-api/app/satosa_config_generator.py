@@ -1153,7 +1153,8 @@ async def generate_satosa_config(db: AsyncSession) -> None:
             "allowed_scopes": list(c.allowed_scopes),
             "response_types": ["code"],
         }
-    # Inject public verifica client (always active)
+    # Client pubblico di /verifica, sempre presente: test SPID (Demo/Validator) e,
+    # in collaudo/personalizzato, IT-Wallet (ammesso dal guard test-only del wallet).
     import hmac as _hmac
     import hashlib as _hashlib
     _salt = os.environ.get("SATOSA_HASH_SALT", "changeme").encode()
@@ -1234,9 +1235,6 @@ async def generate_satosa_config(db: AsyncSession) -> None:
             "login_url": itwallet_cfg.LOGIN_URL,
             "test_only": itwallet_config.environment in itwallet_cfg.TEST_ONLY_ENVIRONMENTS,
         }
-    elif os.path.lexists(itwallet_path):
-        # Spento (o incompleto): nessuna traccia, /OpenID4VP/* risponde 404.
-        os.remove(itwallet_path)
 
     os.makedirs(os.path.join(conf_dir, "locales"), exist_ok=True)
     for lang, strings in _eid_locale_strings(
@@ -1245,6 +1243,11 @@ async def generate_satosa_config(db: AsyncSession) -> None:
         _write_json(conf_dir, f"locales/eid-{lang}.json", strings)
 
     _write(conf_dir, "proxy.yaml", _proxy_yaml(hostname, include_cie_oidc, include_itwallet))
+    if not include_itwallet and os.path.lexists(itwallet_path):
+        # Spento (o incompleto): nessuna traccia, /OpenID4VP/* risponde 404.
+        # Solo DOPO proxy.yaml: un riavvio di SATOSA in mezzo troverebbe ancora
+        # il backend in BACKEND_MODULES ma non il suo file.
+        os.remove(itwallet_path)
     _write(conf_dir, "oidc_frontend.yaml", _oidc_frontend_yaml(hostname))
     _write(conf_dir, "spid_backend.yaml", _spid_backend_yaml(
         hostname, enabled_idps, cert_path, key_path, settings,

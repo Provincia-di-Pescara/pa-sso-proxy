@@ -16,6 +16,7 @@ v3.9.0, provato end-to-end con un wallet nello spike), con queste differenze vol
 """
 import base64
 import copy
+import hashlib
 import json
 import os
 
@@ -107,6 +108,17 @@ def itwallet_ready(cfg, keys: dict | None) -> tuple[bool, str | None]:
     if not os.environ.get("SATOSA_HASH_SALT"):
         return False, "SATOSA_HASH_SALT non impostata: impossibile derivare i segreti"
     return True, None
+
+
+def storage_key_prefix(environment: str | None, trust_anchor_url: str | None) -> str:
+    """Prefisso redis delle chiavi del wallet, legato ad ambiente e trust anchor.
+
+    Il trust (catene, entity configuration) resta in cache fino a 24 h: cambiando
+    ambiente o trust anchor si riparte da un namespace vuoto, così un issuer di
+    collaudo già in cache non vale in produzione.
+    """
+    material = f"{environment or ''}|{(trust_anchor_url or '').strip()}"
+    return f"itw:{hashlib.sha256(material.encode()).hexdigest()[:8]}:"
 
 
 def _public(jwk: dict) -> dict:
@@ -217,13 +229,15 @@ def build_itwallet_backend(
         tm_id = cfg.trust_mark_id or _trust_mark_id(cfg.trust_mark)
         trust_marks.append({"id": tm_id, "trust_mark": cfg.trust_mark})
 
+    key_prefix = storage_key_prefix(cfg.environment, trust_anchor)
+
     def storage_entry(cls: str) -> dict:
         return {
             "module": "backends.itwallet.itwallet_storage",
             "class": cls,
             "init_params": {
                 "url": redis_url,
-                "conf": {"data_ttl": 3600, "key_prefix": "itw:"},
+                "conf": {"data_ttl": 3600, "key_prefix": key_prefix},
                 "connection_params": {},
             },
         }

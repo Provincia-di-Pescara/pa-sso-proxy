@@ -54,7 +54,8 @@ Divergenze note da ``MongoStorage``:
 - ``add_trust_attestation_metadata`` su entità assente solleva ``ChainNotExist``
   (che ``DBEngine`` intercetta); Mongo solleva ``ValueError``.
 
-Chiavi (con prefisso ``itw:``): ``sess:<document_id>`` (JSON),
+Chiavi (con ``key_prefix``; config-api lo genera come ``itw:<hash di ambiente e
+trust anchor>:``, così cambiare ambiente o trust anchor svuota trust e cache): ``sess:<document_id>`` (JSON),
 ``idx:state:<state>``, ``idx:sid:<session_id>`` (sorted set per data),
 ``idx:ns:<nonce>:<state>``, ``idx:kid:<kid>``, ``rc:<document_id>`` (codici di
 risposta consumati), tutte con la scadenza della sessione;

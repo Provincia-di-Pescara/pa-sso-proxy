@@ -360,3 +360,47 @@ def test_itwallet_ready_without_salt(monkeypatch):
     monkeypatch.delenv("SATOSA_HASH_SALT")
     ok, reason = itwallet_ready(_cfg(), _keys())
     assert ok is False and "SATOSA_HASH_SALT" in reason
+
+
+# --- prefisso redis legato ad ambiente/trust anchor --------------------------
+
+def test_storage_key_prefix_depends_on_environment_and_trust_anchor():
+    from app.itwallet_backend_config import storage_key_prefix
+    base = storage_key_prefix("collaudo", TA)
+    assert base.startswith("itw:") and base.endswith(":") and len(base) == len("itw:") + 9
+    assert storage_key_prefix("collaudo", TA) == base
+    assert storage_key_prefix("collaudo", TA + "  ") == base
+    assert storage_key_prefix("produzione", TA) != base
+    assert storage_key_prefix("collaudo", "https://other-ta.example") != base
+
+
+def test_backend_storage_and_cache_use_same_prefix():
+    from app.itwallet_backend_config import build_itwallet_backend, storage_key_prefix
+    doc = build_itwallet_backend(_cfg(), _keys(), "sso.example.it", "redis://redis:6379/3", [])
+    redis_conf = doc["config"]["storage"]["redis"]
+    prefixes = {redis_conf[k]["init_params"]["conf"]["key_prefix"] for k in ("cache", "storage")}
+    assert prefixes == {storage_key_prefix("collaudo", TA)}
+    other = build_itwallet_backend(
+        _cfg(environment="produzione"), _keys(), "sso.example.it", "redis://redis:6379/3", []
+    )
+    assert other["config"]["storage"]["redis"]["storage"]["init_params"]["conf"]["key_prefix"]         not in prefixes
+
+
+@pytest.mark.parametrize("environment", ["collaudo", "personalizzato", "produzione"])
+async def test_verifica_client_injected_without_spid_test_idp(base_db, tmp_path, monkeypatch, environment):
+    """Nessun IdP SPID di test abilitato: /verifica resta il percorso di collaudo del
+    wallet, quindi __spid_verifica__ è in oidc_clients.json e tra i client ammessi."""
+    from sqlalchemy import func
+    from app.models import SpidIdP
+    n_test = (await base_db.execute(
+        select(func.count()).select_from(SpidIdP).where(
+            SpidIdP.alias.in_(["spid-demo", "spid-validator"]), SpidIdP.enabled == True)
+    )).scalar_one()
+    assert n_test == 0
+    await _add_wallet(base_db, environment=environment)
+    await _generate(base_db, tmp_path, monkeypatch)
+    clients = json.loads((tmp_path / "oidc_clients.json").read_text())
+    assert "__spid_verifica__" in clients
+    access = _backend(tmp_path)["config"]["itwallet_access"]
+    assert "__spid_verifica__" in access["allowed_client_ids"]
+    assert access["test_only"] is (environment != "produzione")

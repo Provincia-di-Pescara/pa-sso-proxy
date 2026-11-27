@@ -199,6 +199,38 @@ def test_session_ttl_default_and_key_prefix(server, raw):
     assert st.get_by_state("st-1")["document_id"] == "doc-1"
 
 
+def test_two_prefixes_are_isolated(server, raw):
+    """Prefisso diverso (ambiente/trust anchor cambiati) = namespace separato:
+    sessioni, indici, codici di risposta, trust e cache del vecchio non si vedono."""
+    old = RedisStorage(conf={"key_prefix": "itw:aaaaaaaa:"}, url=URL)
+    new = RedisStorage(conf={"key_prefix": "itw:bbbbbbbb:"}, url=URL)
+    old_cache = RedisCache(conf={"key_prefix": "itw:aaaaaaaa:"}, url=URL)
+    new_cache = RedisCache(conf={"key_prefix": "itw:bbbbbbbb:"}, url=URL)
+
+    old.init_session("doc-1", "sid-1", "st-1", "same_device")
+    old.update_request_object("doc-1", {"nonce": "n-1", "state": "st-1"}, {"kid": "kid-1"})
+    assert old.consume_response_code("doc-1", "rc-1") is True
+    exp = dt.datetime.now(tz=dt.timezone.utc) + dt.timedelta(seconds=500)
+    old.add_trust_attestation("https://issuer.example", ["jwt"], exp, TrustType.FEDERATION, None)
+    old.add_trust_anchor("https://ta.example", "ec", exp, TrustType.FEDERATION)
+    old.add_trust_source({"entity_id": "https://issuer.example", "federation": {}})
+    old_cache.overwrite("obj", lambda: "v-old")
+
+    assert all(k.startswith("itw:aaaaaaaa:") for k in raw.keys("*"))
+    with pytest.raises(ValueError):
+        new.get_by_state("st-1")
+    with pytest.raises(ValueError):
+        new.get_latest_by_session_id("sid-1")
+    with pytest.raises(ValueError):
+        new.get_by_nonce_state("n-1", "st-1")
+    assert new.get_by_response_encryption_kid("kid-1") is None
+    assert new.get_trust_attestation("https://issuer.example") is None
+    assert new.get_trust_anchor("https://ta.example") is None
+    assert new.get_trust_source("https://issuer.example") is None
+    assert new_cache.try_retrieve("obj", lambda: "v-new")[0]["data"] == "v-new"
+    assert old_cache.try_retrieve("obj", lambda: "x")[0]["data"] == "v-old"
+
+
 def test_set_session_fields(storage):
     storage.init_session("doc-1", "sid-1", "st-1", "same_device")
 
