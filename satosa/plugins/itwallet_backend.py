@@ -15,7 +15,17 @@ Aggiunge al backend upstream:
   client in lista (il generatore ci mette ``__admin_test__`` e i client con
   ``allow_test_idps``), gli altri -> ``TEST_IDP_VERIFICA_ONLY_ERROR``. Chiave
   assente = produzione, tutti ammessi. Vale anche per l'URL di login aperto a
-  mano (``start_auth`` è l'unico ingresso dal router);
+  mano: ``start_auth`` è l'unico ingresso, perché il ``PreRequestHandler`` di
+  pyeudiw 2.9.0 risponde 400 senza ``context.target_frontend``, che SATOSA
+  imposta solo nel routing da un frontend (richiesta OIDC). Se un aggiornamento
+  di pyeudiw cambia pre-request, ricontrollare;
+- stessi due guard ripetuti al completamento (callback verso SATOSA): SATOSA
+  tiene ``SESSION_ID`` nello stesso cookie ``satosa_state`` attraverso una nuova
+  authorization OIDC ma sostituisce la richiesta salvata. Senza ricontrollo, un
+  flusso wallet avviato da /verifica (ammesso) e completato dopo aver aperto il
+  login di un applicativo di produzione nello stesso browser consegnerebbe
+  l'identità di prova a quell'applicativo (idem persona fisica a una richiesta
+  ``legal_entity``);
 - ``place_of_birth``: la credenziale PID lo porta come oggetto
   (``{"locality": "Roma", ...}``), il mapper SATOSA lo copia così com'è
   (``[{"locality": "Roma"}]`` sul claim OIDC). Lo appiattiamo alla ``locality``
@@ -77,6 +87,10 @@ class ItWalletBackend(OpenID4VPBackend):
         super().__init__(self._auth_callback_to_satosa, internal_attributes, config, base_url, name)
 
     def _auth_callback_to_satosa(self, context, internal_response):
+        # La richiesta OIDC nello stato può essere cambiata dopo start_auth.
+        rejected = self._guard(context, "completamento")
+        if rejected is not None:
+            return rejected
         flatten_place_of_birth(internal_response.attributes)
         return self._satosa_auth_callback(context, internal_response)
 
@@ -89,14 +103,25 @@ class ItWalletBackend(OpenID4VPBackend):
             return False
         return client_id == VERIFICA_CLIENT_ID or client_id in (access.get("allowed_client_ids") or [])
 
-    def start_auth(self, context, internal_request):
+    def _guard(self, context, phase: str):
+        """Pagina d'errore se la richiesta OIDC corrente non può usare il wallet,
+        altrimenti None. Persona giuridica controllata per prima."""
         if _legal_entity_requested(context):
-            logger.warning("IT-Wallet richiesto con scope legal_entity: rifiutato (solo SPID)")
+            logger.warning(
+                "IT-Wallet (%s) con scope legal_entity: rifiutato (solo SPID)", phase
+            )
             return render_proxy_error(context, LEGAL_ENTITY_SPID_ONLY_ERROR)
         if not self._client_allowed(context):
             logger.warning(
-                "IT-Wallet di collaudo richiesto dal client %r non autorizzato: rifiutato",
+                "IT-Wallet di collaudo (%s) per il client %r non autorizzato: rifiutato",
+                phase,
                 _requesting_client_id(context),
             )
             return render_proxy_error(context, TEST_IDP_VERIFICA_ONLY_ERROR)
+        return None
+
+    def start_auth(self, context, internal_request):
+        rejected = self._guard(context, "avvio")
+        if rejected is not None:
+            return rejected
         return super().start_auth(context, internal_request)

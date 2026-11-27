@@ -82,7 +82,7 @@ def test_test_only_blocks_production_client():
 
 
 def test_test_only_blocks_missing_client_id():
-    backend = _backend({"test_only": True, "allowed_client_ids": [""]})
+    backend = _backend({"test_only": True, "allowed_client_ids": []})
     ctx = _context()
     ctx.state = {}
     with patch(PARENT_START_AUTH) as parent:
@@ -151,14 +151,59 @@ def _base_init(self, auth_req_callback_func, internal_attributes, config, base_u
     self.config = config
 
 
-def test_auth_callback_flattens_before_satosa():
-    """Il callback dato a pyeudiw (endpoint get-response) appiattisce prima di SATOSA."""
+def _completion_backend(config):
     satosa_callback = MagicMock(return_value="FRONTEND")
     with patch.object(OpenID4VPBackend, "__init__", _base_init):
-        backend = ItWalletBackend(satosa_callback, {"attributes": {}}, {}, "https://h", "OpenID4VP")
+        backend = ItWalletBackend(
+            satosa_callback, {"attributes": {}}, config, "https://h", "OpenID4VP"
+        )
+    return backend, satosa_callback
+
+
+def _internal():
     internal = InternalData()
     internal.attributes = {"placeOfBirth": [{"locality": "Roma"}], "fiscalnumber": ["X"]}
-    ctx = Context()
+    return internal
+
+
+def test_auth_callback_flattens_before_satosa():
+    """Il callback dato a pyeudiw (endpoint get-response) appiattisce prima di SATOSA."""
+    backend, satosa_callback = _completion_backend({})
+    internal = _internal()
+    ctx = _context(client_id="app-x")
     assert backend.auth_callback_func(ctx, internal) == "FRONTEND"
     satosa_callback.assert_called_once_with(ctx, internal)
     assert internal.attributes == {"placeOfBirth": ["Roma"], "fiscalnumber": ["X"]}
+
+
+def test_auth_callback_rejects_client_changed_after_start():
+    """Wallet avviato da /verifica, poi nello stesso browser il login di un
+    applicativo di produzione sostituisce la richiesta OIDC nello stato: al
+    completamento l'identità di prova non va consegnata."""
+    backend, satosa_callback = _completion_backend(
+        {"itwallet_access": {"test_only": True, "allowed_client_ids": []}}
+    )
+    ctx = _context(client_id="__spid_verifica__")
+    with patch(PARENT_START_AUTH, return_value="WALLET_PAGE"):
+        assert backend.start_auth(ctx, MagicMock()) == "WALLET_PAGE"
+    ctx.state = {"OIDC": {"oidc_request": "client_id=app-x&scope=openid+profile&state=z"}}
+    resp = backend.auth_callback_func(ctx, _internal())
+    _assert_error_page(resp, "error.test_idp_verifica_only")
+    satosa_callback.assert_not_called()
+
+
+def test_auth_callback_rejects_legal_entity_requested_after_start():
+    backend, satosa_callback = _completion_backend({})
+    ctx = _context(client_id="app-x", scope="openid+legal_entity")
+    resp = backend.auth_callback_func(ctx, _internal())
+    _assert_error_page(resp, "error.legal_entity_spid_only")
+    satosa_callback.assert_not_called()
+
+
+def test_auth_callback_allows_listed_client_in_test_only():
+    backend, satosa_callback = _completion_backend(
+        {"itwallet_access": {"test_only": True, "allowed_client_ids": ["app-collaudo"]}}
+    )
+    ctx = _context(client_id="app-collaudo")
+    assert backend.auth_callback_func(ctx, _internal()) == "FRONTEND"
+    satosa_callback.assert_called_once()
