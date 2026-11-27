@@ -2,7 +2,9 @@
    - i18n: stessa precedenza della discovery (cookie sso_lang -> ?lang= -> navigator.languages -> it);
      fallback chiave: lingua -> en -> it. Catalogo: <static>i18n/<lang>.json.
    - QR: conto alla rovescia, polling dello status endpoint di pyeudiw
-     (201/202 attesa, 200 {redirect_uri} -> redirect, 401 errore wallet, 403 scaduto). */
+     (201/202 attesa, 200 {redirect_uri} -> redirect, 401 errore wallet, 403 scaduto;
+     429/5xx/errore di rete = transitori: nuovo tentativo con backoff 2 s -> max 10 s
+     finche' il QR non scade). */
 (function () {
   'use strict';
 
@@ -139,14 +141,37 @@
       return u.origin === loc.origin && u.origin !== 'null' ? u.href : null;
     } catch (e) { return null; }
   }
-  window.ItwQr = { safeRedirectUrl: safeRedirectUrl };
+
+  /* Esito di una risposta dello status endpoint. */
+  function classifyStatus(status) {
+    if (status === 200) return 'redirect';
+    if (status === 201 || status === 202) return 'wait';
+    if (status === 403) return 'expired';
+    if (status === 429 || (status >= 500 && status <= 599)) return 'retry';
+    return 'failed';
+  }
+  /* Attesa (ms) prima del tentativo n. attempt (0, 1, ...) dopo un errore transitorio. */
+  function retryDelay(attempt) {
+    return Math.min(2000 * Math.pow(2, Math.max(attempt, 0)), 10000);
+  }
+  window.ItwQr = { safeRedirectUrl: safeRedirectUrl, classifyStatus: classifyStatus, retryDelay: retryDelay };
+
+  var transientFailures = 0;
+  function retryLater() {
+    if (state !== 'waiting') return;
+    pollTimer = setTimeout(poll, retryDelay(transientFailures));
+    transientFailures += 1;
+  }
 
   function poll() {
     if (state !== 'waiting') return;
     fetch(cfg.status_endpoint, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then(function (r) {
         if (state !== 'waiting') return null;
-        if (r.status === 200) {
+        var outcome = classifyStatus(r.status);
+        if (outcome === 'retry') { retryLater(); return null; }
+        transientFailures = 0;
+        if (outcome === 'redirect') {
           return r.json().then(function (d) {
             var target = d && safeRedirectUrl(d.redirect_uri, window.location);
             if (target) {
@@ -157,12 +182,12 @@
             }
           });
         }
-        if (r.status === 201 || r.status === 202) { pollTimer = setTimeout(poll, 1000); return null; }
-        if (r.status === 403) { finish('expired', 'itwallet.qr.expired'); return null; }
+        if (outcome === 'wait') { pollTimer = setTimeout(poll, 1000); return null; }
+        if (outcome === 'expired') { finish('expired', 'itwallet.qr.expired'); return null; }
         finish('failed', 'itwallet.qr.failed');
         return null;
       })
-      .catch(function () { if (state === 'waiting') pollTimer = setTimeout(poll, 2000); });
+      .catch(function () { retryLater(); });
   }
 
   function initQr() {
