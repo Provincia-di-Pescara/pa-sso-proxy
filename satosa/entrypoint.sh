@@ -150,6 +150,11 @@ mkdir -p /satosa-conf/locales
 #   deciso prima della risposta; se fallisce lo logga nginx (status != 200).
 # Le stesse richieste degli applicativi restano nel log. `last:` chiude la catena
 # di routing per ogni altro path.
+# Content-Type per pyeudiw: il backend OpenID4VP legge context.http_headers["HTTP_CONTENT_TYPE"],
+# chiave presente solo con nginx `uwsgi_pass`; noi usiamo `proxy_pass` verso --http-socket, dove
+# uWSGI espone solo CONTENT_TYPE (CGI) -> KeyError/500 sul POST response-uri. La regola va PRIMA
+# di quella con `last:`, che chiude il routing per ogni altro path.
+# (segnalazione upstream: da aprire)
 exec uwsgi \
     --chdir /satosa_proxy \
     --wsgi-file "/satosa_proxy/wsgi_sentry.py" \
@@ -163,6 +168,7 @@ exec uwsgi \
     --static-map /static/locales=/satosa-conf/locales \
     --static-map /static=/satosa_proxy/static \
     --log-drain '^\[pid: [0-9]+\|app: -?[0-9]+\|req: -?[0-9]+/[0-9]+\] 127\.0\.0\.1 \(\) \{[^}]*\} \[[^]]*\] GET /\.well-known/openid-configuration => generated [0-9]+ bytes in [0-9]+ msecs \(HTTP/1\.[01] 200\)' \
+    --route-if-not 'empty:${CONTENT_TYPE} addvar:HTTP_CONTENT_TYPE=${CONTENT_TYPE}' \
     --route-if-not 'equal:${PATH_INFO};/.well-known/openid-configuration last:' \
     --route-if 'equal:${HTTP_X_REAL_IP};127.0.0.1 donotlog:'
 
