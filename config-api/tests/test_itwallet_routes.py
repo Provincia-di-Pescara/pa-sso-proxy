@@ -1,6 +1,8 @@
 import base64
 import json
+import re
 import time
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -124,6 +126,22 @@ async def test_page_prefills_organization_from_ente(client):
     assert 'value="Comune di Prova"' in r.text
     assert 'value="pec@comune.example.it"' in r.text
 
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_settings_form_confirms_switch_to_production(client, db_session, enabled):
+    """Wallet attivo: il form avvisa (admin.js, handler itwallet-settings) che in
+    produzione la restrizione ai client di test sparisce. Niente JS inline."""
+    await _ready_config(db_session, enabled=enabled)
+    r = await client.get("/admin/itwallet")
+    form = re.search(r'<form method="post" action="/admin/itwallet/settings"[^>]*>', r.text, re.S).group(0)
+    assert 'data-submit="itwallet-settings"' in form
+    assert f'data-wallet-enabled="{"true" if enabled else "false"}"' in form
+    assert 'data-initial-environment="collaudo"' in form
+    assert "tutti gli applicativi vedranno IT-Wallet" in form
+    assert "onsubmit" not in form
+    js = (Path(__file__).resolve().parents[1] / "app" / "static" / "js" / "admin.js").read_text(encoding="utf-8")
+    assert '"itwallet-settings"' in js and "data-confirm-production" in js
 
 async def test_page_shows_ready_reason(client, db_session):
     db_session.add(ItWalletConfig(id=1, enabled=False))

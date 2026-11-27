@@ -101,7 +101,10 @@
 
 {# --------------------------------------------------------- Configurazione #}
 <section id="configurazione" class="a-tab-panel" style="max-width:720px;" hidden>
-  <form method="post" action="/admin/itwallet/settings">
+  <form method="post" action="/admin/itwallet/settings" data-submit="itwallet-settings"
+        data-wallet-enabled="{{ 'true' if config and config.enabled else 'false' }}"
+        data-initial-environment="{{ config.environment if config and config.environment else '' }}"
+        data-confirm-production="Passare IT-Wallet in produzione?&#10;&#10;Il wallet è attivo: la restrizione ai soli client di test (/verifica, Test Auth, client con &quot;IdP test&quot;) viene tolta e tutti gli applicativi vedranno IT-Wallet nella discovery. L'onboarding va rifatto per l'ambiente di produzione.">
     <div class="a-card" style="margin-bottom:14px;">
       <div class="a-card-header">Ambiente e trust anchor</div>
       <div class="a-card-body">

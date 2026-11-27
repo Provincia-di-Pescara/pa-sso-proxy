@@ -76,6 +76,15 @@
   }
 
   var SUBMIT_HANDLERS = {
+    // IT-Wallet attivo portato in produzione: conferma (sparisce la restrizione
+    // ai client di test, tutti gli applicativi vedono il wallet).
+    "itwallet-settings": function (form) {
+      var env = form.querySelector("[name=environment]");
+      var toProduction = env && env.value === "produzione" &&
+        form.getAttribute("data-initial-environment") !== "produzione";
+      if (!toProduction || form.getAttribute("data-wallet-enabled") !== "true") return true;
+      return window.confirm(form.getAttribute("data-confirm-production"));
+    },
     eidas: function (form) {
       return toggleSubmit(form, "eidas-enabled", "eidas-confirmed", function () {
         var sel = document.getElementById("eidas-env");
