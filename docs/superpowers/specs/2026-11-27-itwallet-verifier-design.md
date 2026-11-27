@@ -184,7 +184,8 @@ Se `itwallet_config.enabled` e completo:
 - scrive `/satosa-conf/itwallet_backend.yaml` (nome backend `OpenID4VP`, modulo
   `pyeudiw.satosa.backends.openid4vp.openid4vp.OpenID4VPBackend`), costruito da zero da
   config-api (non copiando l'esempio upstream): endpoint upstream (`/pre-request`,
-  `/request-uri`, `/response-uri`, `/status`, `/redirect-uri`, `/.well-known/jar-issuer`),
+  `/request-uri`, `/response-uri`, `/status`, `/redirect-uri`; niente `jar_issuer`: in pyeudiw
+  2.9.0 pubblica le chiavi private),
   `authorization` (`haip-vp`, scope `urn:it-wallet:eid:1`, `direct_post.jwt`), DCQL con
   **un solo `claim_set` che include `tax_id_code`**, `metadata` verifier, trust solo
   `federation` (TA, authority hints, trust mark, jwks federazione), `storage` = classi del
@@ -223,8 +224,8 @@ Spento: niente file backend (rimosso se presente), niente modulo, niente voce ro
 
 ### 8. nginx
 
-- Rewrite path-insertion `/.well-known/jar-issuer/OpenID4VP` →
-  `/OpenID4VP/.well-known/jar-issuer`.
+- ~~Rewrite path-insertion `/.well-known/jar-issuer/OpenID4VP`~~: rimossa (endpoint
+  `jar_issuer` non configurato, pyeudiw 2.9.0 vi pubblica le chiavi private).
 - `/OpenID4VP/*` sotto il rate limit `sso` esistente (location `/`); la `response-uri`
   riceve POST dal wallet (server-to-server) e lo `status` è interrogato dal browser in
   polling: verificare che `burst` regga il polling.
@@ -247,8 +248,8 @@ prova: trattato come gli IdP di test SPID. La tab IT-Wallet e il backend sono am
 per `__spid_verifica__` (`/verifica`), `__admin_test__` e i client con `allow_test_idps`
 (stesso flag e badge "IdP test" già esistenti). Discovery: `itwallet.test_only` nell'`eid`
 JSON + flag `verifica=1` già passato da `disco_query` → tab visibile solo lì. Guard server:
-`entityID=wallet` per un client non ammesso → pagina d'errore del proxy con la stessa chiave
-`TEST_IDP_VERIFICA_ONLY_ERROR` (anche aprendo l'URL a mano). In `produzione` il wallet vale
+`entityID=wallet` per un client non ammesso → pagina d'errore del proxy
+`ITWALLET_TEST_ONLY_ERROR` (chiavi `error.itwallet_test_only*`, anche aprendo l'URL a mano). In `produzione` il wallet vale
 per tutti i client abilitati. Il cambio ambiente rigenera config e router.
 
 ### 11. Scelte del progettista (verificabili in lettura)

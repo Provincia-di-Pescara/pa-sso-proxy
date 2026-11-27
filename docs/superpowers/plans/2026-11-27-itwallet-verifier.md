@@ -20,7 +20,7 @@
 - Chiavi EC P-256 (ES256 firma, ECDH-ES cifratura risposta); kid = thumbprint RFC 7638.
 - `sym_key` (64 hex) e `subject_id_random_value` derivati con HMAC-SHA256 da `SATOSA_HASH_SALT` con etichette `itwallet-response-code` e `itwallet-subject`; mai salvati, mai valori di esempio upstream.
 - Trust handler solo `federation` (niente `x509`, niente `direct_trust_*`); `network.httpc_params.connection.ssl: true`.
-- Collaudo/personalizzato = solo `__spid_verifica__`, `__admin_test__` e client con `allow_test_idps`; produzione = tutti i client abilitati. Errore client non ammesso: `TEST_IDP_VERIFICA_ONLY_ERROR`. Scope `legal_entity`: `LEGAL_ENTITY_SPID_ONLY_ERROR`.
+- Collaudo/personalizzato = solo `__spid_verifica__`, `__admin_test__` e client con `allow_test_idps`; produzione = tutti i client abilitati. Errore client non ammesso: `ITWALLET_TEST_ONLY_ERROR` (chiavi `error.itwallet_test_only*`; fino alla review finale era `TEST_IDP_VERIFICA_ONLY_ERROR`). Scope `legal_entity`: `LEGAL_ENTITY_SPID_ONLY_ERROR`.
 - Admin: niente JS inline nei template (`admin.js`), POST chiavi/attivazione sotto `step_up.verify(..., action)`; testi admin solo in italiano.
 - Pagine utente (discovery, QR, errori): chiavi in tutti e 5 `satosa/public/static/i18n/<lang>.json`.
 - Asset statici solo locali in `satosa/public/static/` (mai hotlink).

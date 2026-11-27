@@ -55,8 +55,10 @@ docker exec iam-proxy-italia python /satosa_proxy/conf/frontends/openid4vci/seed
 
 ## 5. Configurazione e registrazione
 
-1. `/admin/itwallet`: ambiente `personalizzato`, Trust Anchor
-   `http://trust-anchor.example.org:5002`, abilitare e generare le chiavi.
+1. `/admin/itwallet`, in quest'ordine: **generare le chiavi** → **configurare**
+   (ambiente `personalizzato`, Trust Anchor
+   `http://trust-anchor.example.org:5002`) → **attivare** (l'attivazione è
+   rifiutata finché mancano le chiavi).
 2. Admin del trust anchor (spid-cie-oidc-django): creare un
    `FederationDescendant` con l'Entity ID dalla scheda Onboarding
    (`https://sso-lab.example.org/OpenID4VP`), JWKS di federazione e profilo
@@ -68,17 +70,21 @@ docker exec iam-proxy-italia python /satosa_proxy/conf/frontends/openid4vci/seed
 1. Wallet demo (`demo-wi.example.org`): ottiene l'IT-Wallet ID dall'issuer
    (login CIE finto `user`/`oidcuser`). Password del wallet demo: `wallet`.
 2. Da `/verifica` (o dal test client admin a livello backend) scegliere la
-   tab IT-Wallet: compare il QR.
+   tab IT-Wallet: compare il QR. `/verifica` è sempre raggiungibile, anche
+   senza IdP SPID Demo/Validator abilitati: con il wallet in
+   `collaudo`/`personalizzato` è il percorso di test pronto all'uso.
 3. Caricare il QR nel wallet demo (screenshot dell'SVG con margine, nel
    campo file) e presentare la credenziale.
-4. Atteso: `given_name`, `family_name`, `birthdate`, `place_of_birth` stringa,
-   `fiscal_number` `["TINIT-<CF>"]`.
+4. Atteso: `given_name`, `family_name`, `birthdate`, `fiscal_number`
+   `["TINIT-<CF>"]`. `place_of_birth` arriva come lista `["<località>"]` e
+   solo se il client chiede quel claim (scope/`claims`): nel giro e2e da
+   `/verifica` non compariva nello userinfo perché `/verifica` non lo chiede.
 
 La credenziale dura circa 6 minuti: se scade, riavviare
 `wallet-instance-demo` per riemetterla.
 
 Controlli utili: client senza `allow_test_idps` -> pagina
-`error.test_idp_verifica_only`; scope `legal_entity` ->
+`error.itwallet_test_only`; scope `legal_entity` ->
 `error.legal_entity_spid_only`; IT-Wallet spento ->
 `/OpenID4VP/.well-known/openid-federation` 404 e tab assente;
 `docker compose stop redis` -> il wallet dà pagina d'errore, SPID continua.

@@ -93,11 +93,6 @@ server {
         rewrite ^ /CieOidcRp/.well-known/openid-federation last;
     }
 
-    # IT-Wallet (OpenID4VP): path-insertion well-known (RFC 8615) → jar-issuer del backend
-    location = /.well-known/jar-issuer/OpenID4VP {
-        rewrite ^ /OpenID4VP/.well-known/jar-issuer last;
-    }
-
     # Suppress browser auto-request for favicon when not configured
     location = /favicon.ico {
         return 204;

@@ -15,14 +15,22 @@ accreditamento: `docs/itwallet-lab.md`.
   e la tab sparisce dalla discovery.
 - Chiavi EC P-256 generate da config-api (federazione + applicative); i
   segreti derivati vengono da `SATOSA_HASH_SALT`.
-- Sessioni OpenID4VP su Redis DB 3 (chiavi `itw:`, TTL <= 1 h). Redis senza
-  persistenza: un riavvio perde solo i login wallet in corso.
+- Sessioni OpenID4VP su Redis DB 3 (chiavi `itw:<hash>:`, TTL <= 1 h; l'hash
+  dipende da ambiente e trust anchor, così cambiandoli trust e cache in
+  memoria ripartono da zero e un issuer di collaudo non vale in produzione).
+  Redis senza persistenza: un riavvio perde solo i login wallet in corso.
 - **Solo persona fisica**: con scope `legal_entity` il login IT-Wallet è
   rifiutato (il wallet non ha identità PG).
 - Ambienti `collaudo`/`personalizzato` = **solo client di test** (`/verifica`,
   client admin di test a livello backend, client con `allow_test_idps`);
   `produzione` = tutti i client abilitati. Il client di test admin non vede la
-  tab in modalità test (il guard server resta il confine).
+  tab in modalità test (il guard server resta il confine). Un client non
+  ammesso riceve la pagina d'errore `error.itwallet_test_only`.
+- **Dove provare il wallet in collaudo**: `https://<PROXY_HOSTNAME>/verifica` è
+  sempre raggiungibile (non serve abilitare gli IdP SPID Demo/Validator) e il
+  suo client `__spid_verifica__` è sempre tra quelli ammessi dal wallet in
+  `collaudo`/`personalizzato`. In alternativa: un client con
+  `allow_test_idps`.
 - Access log con `provider_type=itwallet`; configurazione e chiavi nel backup.
 
 ## Attori e ruoli
@@ -69,12 +77,14 @@ Nessun SLA trovato nella documentazione.
 - **SICUREZZA - endpoint `jar_issuer`**: in pyeudiw 2.9.0 l'endpoint
   `jar_issuer` pubblica `metadata_jwks` comprensivo della parte privata `d`.
   Non è configurato di proposito. Non riattivarlo senza una sottoclasse che
-  esponga solo la parte pubblica. Segnalazione upstream da aprire. La regola
-  nginx `/.well-known/jar-issuer/OpenID4VP` esiste ma porta a 404.
+  esponga solo la parte pubblica. Segnalazione upstream da aprire. Nessuna
+  regola nginx `/.well-known/jar-issuer/...`: va aggiunta solo insieme a un
+  endpoint sicuro.
 - Il codice fiscale arriva come `TINIT-<CF>` dal claim `tax_id_code`
   (opzionale nel DCQL del verifier): gli applicativi lo ricevono in
   `fiscal_number` come lista a un elemento.
-- `place_of_birth` è appiattito a `["<località>"]`.
+- `place_of_birth` è appiattito a `["<località>"]` e arriva all'applicativo solo
+  se il client chiede quel claim.
 - Credenziali del wallet di test a vita breve (vedi lab).
 - Ambiente di test per operatori privati dichiarato da maggio 2026 (fonte
   stampa, non primaria).
