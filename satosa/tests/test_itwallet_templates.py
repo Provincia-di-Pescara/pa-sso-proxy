@@ -106,7 +106,6 @@ def test_templates_i18n_keys_in_catalog():
     used |= set(re.findall(r"""['"](itwallet\.[\w.]+)['"]""", js))
     assert used, "nessuna chiave trovata"
     assert not used - set(cat), sorted(used - set(cat))
-    assert env  # silence unused
 
 
 def test_mark_asset_and_license_present():
@@ -114,3 +113,29 @@ def test_mark_asset_and_license_present():
         pytest.skip("sorgenti repo non disponibili")
     assert (STATIC_DIR / "itwallet" / "it-wallet-mark.svg").is_file()
     assert "Apache" in (STATIC_DIR / "itwallet" / "LICENSE").read_text(encoding="utf-8")
+
+
+def test_status_redirect_origin_validation():
+    """Esegue safeRedirectUrl del JS reale con node (solo same-origin)."""
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    js = STATIC_DIR / "sso" / "itwallet-qr.js"
+    if not node or not js.is_file():
+        pytest.skip("node o sorgenti non disponibili")
+    script = (
+        "const fs=require('fs');global.window={};global.document={addEventListener(){},getElementById(){return null;}};"
+        "global.navigator={};eval(fs.readFileSync(process.argv[1],'utf8'));"
+        "const loc={href:'https://sso.example.it/OpenID4VP/pre-request',origin:'https://sso.example.it'};"
+        "const f=window.ItwQr.safeRedirectUrl;"
+        "console.log(JSON.stringify([f('https://sso.example.it/get_response?response_code=x',loc),"
+        "f('/get_response?x=1',loc),f('javascript:alert(1)',loc),f('https://evil.example/x',loc),"
+        "f('data:text/html,x',loc),f('',loc),f(null,loc),f('//evil.example/x',loc)]));"
+    )
+    out = subprocess.run([node, "-e", script, str(js)], capture_output=True, text=True, check=True).stdout
+    assert json.loads(out) == [
+        "https://sso.example.it/get_response?response_code=x",
+        "https://sso.example.it/get_response?x=1",
+        None, None, None, None, None, None,
+    ]

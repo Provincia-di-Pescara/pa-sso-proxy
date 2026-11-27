@@ -131,6 +131,16 @@
     }
   }
 
+  /* Redirect accettato solo same-origin (get-response e' sullo stesso host): niente javascript:, data: o host esterni. */
+  function safeRedirectUrl(value, loc) {
+    if (typeof value !== 'string' || !value) return null;
+    try {
+      var u = new URL(value, loc.href);
+      return u.origin === loc.origin && u.origin !== 'null' ? u.href : null;
+    } catch (e) { return null; }
+  }
+  window.ItwQr = { safeRedirectUrl: safeRedirectUrl };
+
   function poll() {
     if (state !== 'waiting') return;
     fetch(cfg.status_endpoint, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
@@ -138,9 +148,10 @@
         if (state !== 'waiting') return null;
         if (r.status === 200) {
           return r.json().then(function (d) {
-            if (d && d.redirect_uri) {
+            var target = d && safeRedirectUrl(d.redirect_uri, window.location);
+            if (target) {
               finish('done', 'itwallet.qr.success');
-              window.location.assign(d.redirect_uri);
+              window.location.assign(target);
             } else {
               finish('failed', 'itwallet.qr.failed');
             }
@@ -155,7 +166,7 @@
   }
 
   function initQr() {
-    remaining = Number(cfg.expiration) || 0;
+    remaining = Number(cfg.expiration) > 0 ? Number(cfg.expiration) : 120;
     renderTimer();
     countTimer = setInterval(function () {
       remaining -= 1;
