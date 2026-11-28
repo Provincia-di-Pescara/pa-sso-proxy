@@ -154,7 +154,7 @@ mkdir -p /satosa-conf/locales
 # chiave presente solo con nginx `uwsgi_pass`; noi usiamo `proxy_pass` verso --http-socket, dove
 # uWSGI espone solo CONTENT_TYPE (CGI) -> KeyError/500 sul POST response-uri. La regola va PRIMA
 # di quella con `last:`, che chiude il routing per ogni altro path.
-# (segnalazione upstream: da aprire)
+# (segnalazione upstream: https://github.com/italia/eudi-wallet-it-python/issues/560)
 exec uwsgi \
     --chdir /satosa_proxy \
     --wsgi-file "/satosa_proxy/wsgi_sentry.py" \
