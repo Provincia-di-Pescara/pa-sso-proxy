@@ -93,6 +93,15 @@
           CIE
         </button>
 
+        <button class="sso-tab" id="tab-itwallet" role="tab"
+                aria-selected="false" aria-controls="panel-itwallet"
+                type="button" onclick="ssoTab('itwallet')" style="display:none">
+          <span class="sso-tab-ico-wrapper">
+            <img class="sso-tab-ico sso-tab-ico--cie" src="/static/itwallet/it-wallet-mark-white.svg" alt="IT-Wallet">
+          </span>
+          <span data-i18n="disco.itwallet.tab">IT-Wallet</span>
+        </button>
+
         <button class="sso-tab" id="tab-eidas" role="tab"
                 aria-selected="false" aria-controls="panel-eidas"
                 type="button" onclick="ssoTab('eidas')" style="display:none">
@@ -100,15 +109,6 @@
             <img class="sso-tab-ico" src="/static/eidas/ficep-it-eidas-ybw.svg" alt="eIDAS" style="width:100%;height:100%;">
           </span>
           eIDAS
-        </button>
-
-        <button class="sso-tab" id="tab-itwallet" role="tab"
-                aria-selected="false" aria-controls="panel-itwallet"
-                type="button" onclick="ssoTab('itwallet')" style="display:none">
-          <span class="sso-tab-ico-wrapper" style="display:inline-flex;align-items:center;justify-content:center;padding:0;">
-            <img class="sso-tab-ico" src="/static/itwallet/it-wallet-mark.svg" alt="IT-Wallet" style="width:100%;height:100%;">
-          </span>
-          <span data-i18n="disco.itwallet.tab">IT-Wallet</span>
         </button>
 
       </div><!-- /sso-tabs -->
@@ -226,7 +226,7 @@
         <div class="cie-panel">
           <a class="eidas-btn" id="itwallet-login-btn" href="#">
             <span class="eidas-btn-icon">
-              <img src="/static/itwallet/it-wallet-mark.svg" alt="">
+              <img src="/static/itwallet/it-wallet-mark-white.svg" alt="">
             </span>
             <span class="eidas-btn-text" data-i18n="disco.itwallet.button">Entra con IT-Wallet</span>
           </a>

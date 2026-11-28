@@ -31,7 +31,11 @@ def test_itwallet_tab_present_hidden_by_default(html):
     assert panel, "pannello panel-itwallet assente"
     assert "hidden" in panel.group(0).split("panel-itwallet", 1)[1]
     assert 'role="tabpanel"' in panel.group(0)
-    assert "/static/itwallet/it-wallet-mark.svg" in html
+    # marchio bianco su riquadro navy (tab) e sul pulsante blu: quello blu sparirebbe
+    assert "/static/itwallet/it-wallet-mark-white.svg" in html
+    white = Path(__file__).resolve().parents[1] / "public" / "static" / "itwallet" / "it-wallet-mark-white.svg"
+    if white.is_file():
+        assert 'fill="#FFFFFF"' in white.read_text(encoding="utf-8")
     for key in ("tab", "description", "button"):
         assert f"disco.itwallet.{key}" in html
 
